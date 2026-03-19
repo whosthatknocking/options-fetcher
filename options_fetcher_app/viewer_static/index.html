@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Options CSV Browser</title>
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <div class="page-shell">
+    <header class="hero">
+      <div>
+        <p class="eyebrow">Options Fetcher</p>
+        <h1>CSV Browser</h1>
+        <p class="hero-copy">Browse generated option-chain exports in a sortable table with README-backed field descriptions.</p>
+      </div>
+      <div class="hero-actions">
+        <label class="select-wrap">
+          <span>CSV File</span>
+          <select id="fileSelect"></select>
+        </label>
+        <button id="themeToggle" class="theme-toggle" type="button" aria-label="Toggle dark and light mode">Toggle Theme</button>
+      </div>
+    </header>
+
+    <nav class="tabs" aria-label="Primary">
+      <button class="tab-button active" type="button" data-tab="table">Table</button>
+      <button class="tab-button" type="button" data-tab="readme">README</button>
+    </nav>
+
+    <main>
+      <section id="tableTab" class="tab-panel active">
+        <div class="toolbar">
+          <div class="stat-card">
+            <span class="stat-label">Rows</span>
+            <strong id="rowCount">0</strong>
+          </div>
+          <label class="select-wrap compact-wrap">
+            <span>Rows Per Page</span>
+            <select id="pageSizeSelect">
+              <option value="50">50</option>
+              <option value="100" selected>100</option>
+              <option value="250">250</option>
+              <option value="500">500</option>
+            </select>
+          </label>
+          <label class="search-wrap">
+            <span>Filter Rows</span>
+            <input id="searchInput" type="search" placeholder="Search any field">
+          </label>
+        </div>
+
+        <div class="table-card">
+          <div id="tableStatus" class="table-status">Loading data…</div>
+          <div class="table-scroll">
+            <table id="dataTable">
+              <thead></thead>
+              <tbody></tbody>
+            </table>
+          </div>
+          <div class="pagination-bar">
+            <button id="prevPageButton" class="pager-button" type="button">Previous</button>
+            <span id="pageInfo" class="page-info">Page 1 of 1</span>
+            <button id="nextPageButton" class="pager-button" type="button">Next</button>
+          </div>
+        </div>
+      </section>
+
+      <section id="readmeTab" class="tab-panel">
+        <article id="readmeContent" class="readme-card"></article>
+      </section>
+    </main>
+  </div>
+
+  <script src="/app.js"></script>
+</body>
+</html>

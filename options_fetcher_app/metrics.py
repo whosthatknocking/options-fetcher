@@ -321,4 +321,4 @@ def add_roll_yield_metrics(df):
         ["roll_days_added", "roll_net_credit", "roll_yield"],
     ] = np.nan
 
-    return ordered.sort_index()
+    return ordered.drop(columns=["roll_from_days_to_expiration"]).sort_index()

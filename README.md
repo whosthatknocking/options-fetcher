@@ -48,6 +48,24 @@ You can also run the main entrypoint directly:
 python3 main.py
 ```
 
+## CSV Browser
+
+Run the local viewer from the repository root:
+
+```bash
+python3 options_viewer.py
+```
+
+Then open `http://127.0.0.1:8000` in your browser.
+
+The viewer includes:
+
+- a sortable table for the exported CSV
+- hover descriptions on column headers pulled from this README
+- a file selector for available CSV exports
+- a `README` tab that shows the project documentation
+- a dark/light mode toggle
+
 ## Output
 
 Each run writes a CSV file in the project root using a timestamped filename:
@@ -75,6 +93,7 @@ The exported CSV contains both raw option data and derived fields. Some values m
 
 - `underlying_price`: Current underlying stock price used in calculations. Use it as the reference price for moneyness and Greeks.
 - `underlying_currency`: Currency of the underlying quote. Use it to interpret all monetary fields correctly.
+- `currency`: Vendor-supplied currency field preserved from the raw data. Use `underlying_currency` as the normalized currency field in downstream analysis.
 - `underlying_market_state`: Market session state from Yahoo Finance. Use it to judge whether prices are regular-session or extended-hours.
 - `underlying_day_change_pct`: Underlying percentage move versus previous close. Use it to add context to the option chain.
 - `historical_volatility`: Annualized realized volatility computed from the underlying's trailing 30 daily log returns. Use it to compare recent realized movement against option-implied pricing.
