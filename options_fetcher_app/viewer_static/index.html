@@ -72,6 +72,21 @@
     </main>
   </div>
 
+  <div id="rowModal" class="row-modal" aria-hidden="true">
+    <div class="row-modal-backdrop" data-close-modal="true"></div>
+    <section class="row-modal-panel" role="dialog" aria-modal="true" aria-labelledby="rowModalTitle">
+      <header class="row-modal-header">
+        <div>
+          <p class="row-modal-kicker">Row Details</p>
+          <h2 id="rowModalTitle">Selected Record</h2>
+        </div>
+        <button id="closeRowModalButton" class="row-modal-close" type="button" aria-label="Close row details">Close</button>
+      </header>
+      <div id="rowModalMeta" class="row-modal-meta"></div>
+      <div id="rowDetailGrid" class="row-detail-grid"></div>
+    </section>
+  </div>
+
   <script src="/app.js"></script>
 </body>
 </html>

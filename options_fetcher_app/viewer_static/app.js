@@ -9,6 +9,7 @@ const state = {
   currentPage: 1,
   pageSize: 100,
   columnWidths: {},
+  selectedRow: null,
 };
 
 const elements = {
@@ -23,6 +24,10 @@ const elements = {
   prevPageButton: document.getElementById('prevPageButton'),
   nextPageButton: document.getElementById('nextPageButton'),
   pageInfo: document.getElementById('pageInfo'),
+  rowModal: document.getElementById('rowModal'),
+  rowModalMeta: document.getElementById('rowModalMeta'),
+  rowDetailGrid: document.getElementById('rowDetailGrid'),
+  closeRowModalButton: document.getElementById('closeRowModalButton'),
   tabButtons: [...document.querySelectorAll('.tab-button')],
   tableTab: document.getElementById('tableTab'),
   readmeTab: document.getElementById('readmeTab'),
@@ -162,6 +167,15 @@ function renderTable() {
   elements.tableBody.innerHTML = '';
   rows.forEach((row) => {
     const tr = document.createElement('tr');
+    tr.className = 'data-row';
+    tr.tabIndex = 0;
+    tr.addEventListener('click', () => openRowModal(row));
+    tr.addEventListener('keydown', (event) => {
+      if (event.key === 'Enter' || event.key === ' ') {
+        event.preventDefault();
+        openRowModal(row);
+      }
+    });
     state.columns.forEach((column) => {
       const td = document.createElement('td');
       td.textContent = formatCell(row[column.name]);
@@ -177,6 +191,52 @@ function renderTable() {
   elements.pageInfo.textContent = `Page ${state.currentPage} of ${totalPages}`;
   elements.prevPageButton.disabled = state.currentPage <= 1;
   elements.nextPageButton.disabled = state.currentPage >= totalPages;
+}
+
+function openRowModal(row) {
+  state.selectedRow = row;
+  const identityParts = [
+    row.underlying_symbol,
+    row.option_type,
+    row.expiration_date,
+    row.strike !== undefined && row.strike !== null ? `strike ${row.strike}` : null,
+  ].filter(Boolean);
+  elements.rowModalMeta.textContent = identityParts.join(' · ');
+  elements.rowDetailGrid.innerHTML = '';
+
+  state.columns.forEach((column) => {
+    const item = document.createElement('article');
+    item.className = 'row-detail-item';
+
+    const label = document.createElement('div');
+    label.className = 'row-detail-label';
+    label.textContent = column.name;
+    label.title = column.description;
+
+    const value = document.createElement('div');
+    value.className = 'row-detail-value';
+    value.textContent = formatCell(row[column.name]);
+
+    const description = document.createElement('div');
+    description.className = 'row-detail-description';
+    description.textContent = column.description;
+
+    item.appendChild(label);
+    item.appendChild(value);
+    item.appendChild(description);
+    elements.rowDetailGrid.appendChild(item);
+  });
+
+  elements.rowModal.classList.add('open');
+  elements.rowModal.setAttribute('aria-hidden', 'false');
+  document.body.classList.add('modal-open');
+}
+
+function closeRowModal() {
+  state.selectedRow = null;
+  elements.rowModal.classList.remove('open');
+  elements.rowModal.setAttribute('aria-hidden', 'true');
+  document.body.classList.remove('modal-open');
 }
 
 function escapeHtml(text) {
@@ -338,6 +398,18 @@ async function initialize() {
   elements.nextPageButton.addEventListener('click', () => {
     state.currentPage += 1;
     renderTable();
+  });
+
+  elements.closeRowModalButton.addEventListener('click', closeRowModal);
+  elements.rowModal.addEventListener('click', (event) => {
+    if (event.target.dataset.closeModal === 'true') {
+      closeRowModal();
+    }
+  });
+  document.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape' && state.selectedRow) {
+      closeRowModal();
+    }
   });
 
   elements.tabButtons.forEach((button) => {
