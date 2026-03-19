@@ -15,6 +15,7 @@ The output is designed to be data-focused rather than decision-focused. It does 
 - Normalizes vendor fields into a stable CSV schema
 - Adds quote quality, freshness, liquidity, and pricing metrics
 - Adds underlying volatility context with `VIX` and trailing historical volatility
+- Adds expiration-level expected move estimates
 - Computes Black-Scholes `delta`, true ITM probability, `gamma`, `vega`, and `theta`
 - Exports a timestamped CSV file for each run
 
@@ -126,6 +127,10 @@ The exported CSV contains both raw option data and derived fields. Some values m
 - `premium_to_strike_annualized`: `premium_to_strike` annualized by time to expiration. Use it to compare contracts with different expiries.
 - `premium_per_day`: Reference premium earned per day until expiration. Use it to compare short-dated income efficiency.
 - `break_even_if_short`: Price where a short option position breaks even at expiration. Use it to evaluate downside or upside buffer.
+- `expected_move`: One-standard-deviation expected dollar move for that expiration, computed as `spot * ATM_IV * sqrt(time)`. Use it as the core expected-move estimate for the expiry.
+- `expected_move_pct`: `expected_move` as a percentage of spot. Use it to compare expected move across underlyings.
+- `expected_move_lower_bound`: Spot minus `expected_move`. Use it as the lower expected-move boundary into expiration.
+- `expected_move_upper_bound`: Spot plus `expected_move`. Use it as the upper expected-move boundary into expiration.
 
 ### Greek Fields
 

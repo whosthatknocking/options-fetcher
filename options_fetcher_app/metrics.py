@@ -176,3 +176,96 @@ def add_screening_and_freshness_flags(df, fetched_at):
     )
 
     return df
+
+
+def add_expected_move_by_expiration(df):
+    """Add one expected-move estimate per underlying and expiration."""
+    df = df.copy()
+    for column in [
+        "expected_move",
+        "expected_move_pct",
+        "expected_move_lower_bound",
+        "expected_move_upper_bound",
+    ]:
+        df[column] = np.nan
+
+    valid = (
+        df["underlying_price"].notna()
+        & (df["underlying_price"] > 0)
+        & df["time_to_expiration_years"].notna()
+        & (df["time_to_expiration_years"] > 0)
+        & df["implied_volatility"].notna()
+        & (df["implied_volatility"] > 0)
+        & df["strike_distance_pct"].notna()
+    )
+    if not valid.any():
+        return df
+
+    keys = ["underlying_symbol", "expiration_date"]
+    atm_candidates = df.loc[valid].copy()
+    atm_candidates["min_strike_distance_pct"] = atm_candidates.groupby(keys)["strike_distance_pct"].transform(
+        "min"
+    )
+    atm_candidates = atm_candidates[
+        np.isclose(
+            atm_candidates["strike_distance_pct"],
+            atm_candidates["min_strike_distance_pct"],
+            equal_nan=False,
+        )
+    ]
+
+    per_expiration = (
+        atm_candidates.groupby(keys, as_index=False)
+        .agg(
+            underlying_price=("underlying_price", "first"),
+            time_to_expiration_years=("time_to_expiration_years", "first"),
+            expected_move_iv=("implied_volatility", "mean"),
+        )
+    )
+    per_expiration["expected_move"] = (
+        per_expiration["underlying_price"]
+        * per_expiration["expected_move_iv"]
+        * np.sqrt(per_expiration["time_to_expiration_years"])
+    )
+    per_expiration["expected_move_pct"] = (
+        per_expiration["expected_move"] / per_expiration["underlying_price"]
+    )
+    per_expiration["expected_move_lower_bound"] = (
+        per_expiration["underlying_price"] - per_expiration["expected_move"]
+    )
+    per_expiration["expected_move_upper_bound"] = (
+        per_expiration["underlying_price"] + per_expiration["expected_move"]
+    )
+
+    return df.merge(
+        per_expiration[
+            keys
+            + [
+                "expected_move",
+                "expected_move_pct",
+                "expected_move_lower_bound",
+                "expected_move_upper_bound",
+            ]
+        ],
+        on=keys,
+        how="left",
+        suffixes=("", "_computed"),
+    ).assign(
+        expected_move=lambda frame: frame["expected_move_computed"].combine_first(frame["expected_move"]),
+        expected_move_pct=lambda frame: frame["expected_move_pct_computed"].combine_first(
+            frame["expected_move_pct"]
+        ),
+        expected_move_lower_bound=lambda frame: frame["expected_move_lower_bound_computed"].combine_first(
+            frame["expected_move_lower_bound"]
+        ),
+        expected_move_upper_bound=lambda frame: frame["expected_move_upper_bound_computed"].combine_first(
+            frame["expected_move_upper_bound"]
+        ),
+    ).drop(
+        columns=[
+            "expected_move_computed",
+            "expected_move_pct_computed",
+            "expected_move_lower_bound_computed",
+            "expected_move_upper_bound_computed",
+        ]
+    )
