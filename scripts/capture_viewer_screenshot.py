@@ -42,6 +42,16 @@ def capture_screenshot(url: str, output_path: Path, theme: str) -> None:
     with sync_playwright() as playwright:
         browser = playwright.chromium.launch()
         page = browser.new_page(viewport={"width": 1600, "height": 1100}, color_scheme=theme)
+        page.goto(url, wait_until="domcontentloaded")
+        # Set the app theme explicitly, then reload so the app initializes in the requested mode.
+        page.evaluate(
+            """([selectedTheme]) => {
+                window.localStorage.setItem('options-fetcher-theme', selectedTheme);
+                document.documentElement.dataset.theme = selectedTheme;
+                document.body.setAttribute('data-theme', selectedTheme);
+            }""",
+            [theme],
+        )
         page.goto(url, wait_until="networkidle")
         page.screenshot(path=str(output_path), full_page=True)
         browser.close()
