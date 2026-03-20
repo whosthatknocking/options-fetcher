@@ -58,7 +58,10 @@ Install dependencies from `requirements.txt`:
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
+python3 -m playwright install
 ```
+
+`playwright` is optional for the fetch/export pipeline itself, but required if you want automated browser screenshots or browser-driven UI checks.
 
 ## How To Run
 
@@ -88,6 +91,27 @@ The viewer includes:
 - a `README` tab that shows the CSV field documentation
 - a dark/light mode toggle
 - header filters, including numeric min/max filtering for numeric columns
+
+## Screenshots
+
+To generate a documentation screenshot of the local viewer:
+
+```bash
+python3 scripts/capture_viewer_screenshot.py
+```
+
+By default this saves a dark-mode full-page screenshot to:
+
+```text
+docs/images/viewer-option-chain.png
+```
+
+Optional flags:
+
+```bash
+python3 scripts/capture_viewer_screenshot.py --theme light
+python3 scripts/capture_viewer_screenshot.py --output docs/images/viewer-custom.png
+```
 
 ## Output
 

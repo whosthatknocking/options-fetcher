@@ -12,3 +12,7 @@ numpy>=1.24
 # scipy             - Provides norm.cdf (cumulative distribution) and norm.pdf (density function)
 #                    → essential for delta, gamma, vega, theta calculations
 scipy>=1.10
+
+# playwright        - Headless browser automation for UI screenshots and browser smoke tests
+#                    After install, run: python3 -m playwright install
+playwright>=1.53
