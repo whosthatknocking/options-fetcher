@@ -25,6 +25,7 @@ Warning: Yahoo Finance quote timestamps can lag, and the collected option, under
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
+python3 -m playwright install
 python3 fetcher.py
 python3 viewer.py
 ```
@@ -88,9 +89,11 @@ The viewer includes:
 - a sortable table for the exported CSV
 - hover descriptions on column headers pulled from this README
 - a file selector for available CSV exports
-- a `README` tab that shows the CSV field documentation
+- a `Readme` tab that shows the CSV field documentation
+- a `Summary` tab for per-ticker snapshot metrics and opportunity highlights
 - a dark/light mode toggle
 - header filters, including numeric min/max filtering for numeric columns
+- dataset-level header cards for shared run metrics such as VIX and premium reference method
 
 ## Screenshots
 
@@ -257,6 +260,11 @@ Execution details that are not row-specific are written to the append-only run l
 .
 ├── fetcher.py
 ├── viewer.py
+├── docs/
+│   └── images/
+│       └── viewer-option-chain.png
+├── scripts/
+│   └── capture_viewer_screenshot.py
 ├── options_fetcher/
 │   ├── config.py
 │   ├── export.py
@@ -270,6 +278,7 @@ Execution details that are not row-specific are written to the append-only run l
 │   └── utils.py
 ├── main.py
 ├── logs/
+├── outputs/
 └── requirements.txt
 ```
 
