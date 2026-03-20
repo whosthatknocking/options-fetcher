@@ -31,12 +31,14 @@ def test_main_prints_rows_written_before_saved(monkeypatch, capsys, tmp_path: Pa
     def stub_write_options_csv(ticker_frames, output_path):
         written["rows"] = sum(len(frame) for frame in ticker_frames)
         written["path"] = output_path
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        output_path.write_text("x" * 2048, encoding="utf-8")
 
     monkeypatch.setattr(main, "write_options_csv", stub_write_options_csv)
 
     main.main()
 
     stdout = capsys.readouterr().out
-    assert "Rows written: 3" in stdout
     assert f"Saved: {written['path']}" in stdout
-    assert stdout.index("Rows written: 3") < stdout.index(f"Saved: {written['path']}")
+    assert "Rows written: 3 | File size: 2.0 KB" in stdout
+    assert stdout.index(f"Saved: {written['path']}") < stdout.index("Rows written: 3 | File size: 2.0 KB")

@@ -9,6 +9,14 @@ from options_fetcher.runlog import create_run_logger
 OUTPUTS_DIR = Path("outputs")
 
 
+def format_file_size(byte_count):
+    if byte_count < 1024:
+        return f"{byte_count} B"
+    if byte_count < 1024 * 1024:
+        return f"{byte_count / 1024:.1f} KB"
+    return f"{byte_count / (1024 * 1024):.1f} MB"
+
+
 def main():
     logger, log_path = create_run_logger()
     print(f"Today: {today}")
@@ -32,14 +40,16 @@ def main():
     output_path = OUTPUTS_DIR / f"options_engine_output_{timestamp}.csv"
     row_count = sum(len(frame) for frame in ticker_frames)
     write_options_csv(ticker_frames, output_path=output_path)
+    file_size_bytes = output_path.stat().st_size
     logger.info(
-        "run_finished output_path=%s ticker_frames=%s rows_written=%s",
+        "run_finished output_path=%s ticker_frames=%s rows_written=%s file_size_bytes=%s",
         output_path,
         len(ticker_frames),
         row_count,
+        file_size_bytes,
     )
-    print(f"Rows written: {row_count}")
     print(f"\nSaved: {output_path}")
+    print(f"Rows written: {row_count} | File size: {format_file_size(file_size_bytes)}")
 
 
 if __name__ == "__main__":
