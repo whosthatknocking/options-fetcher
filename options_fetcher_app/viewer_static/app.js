@@ -20,6 +20,7 @@ const elements = {
   rowCount: document.getElementById('rowCount'),
   pageSizeSelect: document.getElementById('pageSizeSelect'),
   freshnessSummary: document.getElementById('freshnessSummary'),
+  datasetCards: document.getElementById('datasetCards'),
   dataTable: document.getElementById('dataTable'),
   tableHead: document.querySelector('#dataTable thead'),
   tableBody: document.querySelector('#dataTable tbody'),
@@ -85,6 +86,17 @@ function formatDuration(seconds) {
   return `${Math.round(value / 86400)}d`;
 }
 
+function formatDatasetValue(card) {
+  if (!card) return '—';
+  if (card.name === 'vix_level' || card.name === 'risk_free_rate_used') {
+    const number = Number(card.value);
+    if (Number.isFinite(number)) {
+      return card.name === 'risk_free_rate_used' ? `${(number * 100).toFixed(2)}%` : number.toFixed(2);
+    }
+  }
+  return formatCell(card.value);
+}
+
 function renderFreshnessSummary(summary) {
   if (!summary) {
     elements.freshnessSummary.innerHTML = '';
@@ -95,6 +107,7 @@ function renderFreshnessSummary(summary) {
     <article class="freshness-card">
       ${renderFieldLabel('File Age', 'freshness-label')}
       <strong>${escapeHtml(formatDuration(summary.file_age_seconds))}</strong>
+      <span class="freshness-detail">${escapeHtml(summary.file_modified_at || '—')}</span>
     </article>
     <article class="freshness-card">
       ${renderFieldLabel('Option Quotes', 'freshness-label')}
@@ -107,6 +120,20 @@ function renderFreshnessSummary(summary) {
       <span class="freshness-detail">median · max ${escapeHtml(formatDuration(summary.underlying_quote_age_max_seconds))}</span>
     </article>
   `;
+}
+
+function renderDatasetCards(cards) {
+  if (!cards || cards.length === 0) {
+    elements.datasetCards.innerHTML = '';
+    return;
+  }
+
+  elements.datasetCards.innerHTML = cards.map((card) => `
+    <article class="freshness-card">
+      ${renderFieldLabel(card.name, 'freshness-label')}
+      <strong title="${escapeHtml(card.description || '')}">${escapeHtml(formatDatasetValue(card))}</strong>
+    </article>
+  `).join('');
 }
 
 function formatNumber(value, digits = 1) {
@@ -734,6 +761,7 @@ async function loadData(fileName) {
   state.columnWidths = {};
   elements.fileSelect.value = state.selectedFile;
   renderFreshnessSummary(payload.freshness_summary);
+  renderDatasetCards(payload.dataset_cards);
   if (summaryResult.status === 'fulfilled') {
     renderSummary(summaryResult.value);
   } else {

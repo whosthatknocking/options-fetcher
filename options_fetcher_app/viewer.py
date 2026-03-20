@@ -2,6 +2,7 @@ import json
 import os
 import re
 import time
+from datetime import datetime
 from functools import lru_cache
 from http import HTTPStatus
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
@@ -30,6 +31,14 @@ HIDDEN_COLUMNS = {
     "script_version",
     "fetched_at",
 }
+DATASET_CARD_COLUMNS = (
+    "underlying_market_state",
+    "vix_level",
+    "vix_quote_time",
+    "premium_reference_method",
+    "risk_free_rate_used",
+    "data_source",
+)
 
 
 def discover_csv_files():
@@ -109,9 +118,11 @@ def build_freshness_summary(frame, csv_path):
     option_quote_ages = pd.to_numeric(frame.get("quote_age_seconds"), errors="coerce").dropna()
     underlying_quote_ages = pd.to_numeric(frame.get("underlying_price_age_seconds"), errors="coerce").dropna()
     now = time.time()
+    modified_at = csv_path.stat().st_mtime
 
     summary = {
-        "file_age_seconds": max(0.0, now - csv_path.stat().st_mtime),
+        "file_age_seconds": max(0.0, now - modified_at),
+        "file_modified_at": datetime.fromtimestamp(modified_at).strftime("%Y-%m-%d %H:%M:%S"),
         "option_quote_age_median_seconds": None,
         "option_quote_age_max_seconds": None,
         "underlying_quote_age_median_seconds": None,
@@ -127,6 +138,24 @@ def build_freshness_summary(frame, csv_path):
         summary["underlying_quote_age_max_seconds"] = float(underlying_quote_ages.max())
 
     return summary
+
+
+def build_dataset_cards(frame, descriptions):
+    cards = []
+    for column in DATASET_CARD_COLUMNS:
+        if column not in frame.columns:
+            continue
+        values = frame[column].dropna().astype(str).unique().tolist()
+        if len(values) != 1:
+            continue
+        cards.append(
+            {
+                "name": column,
+                "value": values[0],
+                "description": descriptions.get(column, "No README description available for this field."),
+            }
+        )
+    return cards
 
 
 def format_percent(value):
@@ -307,13 +336,14 @@ def load_csv_payload(csv_name=None):
     csv_path = resolve_csv_path(csv_name)
     frame = pd.read_csv(csv_path)
     freshness_summary = build_freshness_summary(frame, csv_path)
+    descriptions = extract_field_descriptions()
+    dataset_cards = build_dataset_cards(frame, descriptions)
     visible_columns = [column for column in frame.columns if column not in HIDDEN_COLUMNS]
     frame = frame[visible_columns]
     rows = [
         {column: normalize_value(value) for column, value in record.items()}
         for record in frame.to_dict(orient="records")
     ]
-    descriptions = extract_field_descriptions()
     columns = [
         {
             "name": column,
@@ -328,6 +358,7 @@ def load_csv_payload(csv_name=None):
         "columns": columns,
         "rows": rows,
         "freshness_summary": freshness_summary,
+        "dataset_cards": dataset_cards,
     }
 
 
@@ -346,6 +377,12 @@ def make_file_listing():
 class ViewerRequestHandler(SimpleHTTPRequestHandler):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, directory=str(STATIC_ROOT), **kwargs)
+
+    def end_headers(self):
+        self.send_header("Cache-Control", "no-store, no-cache, must-revalidate, max-age=0")
+        self.send_header("Pragma", "no-cache")
+        self.send_header("Expires", "0")
+        super().end_headers()
 
     def do_GET(self):
         parsed = urlparse(self.path)
