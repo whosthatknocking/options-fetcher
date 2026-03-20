@@ -16,3 +16,6 @@ scipy>=1.10
 # playwright        - Headless browser automation for UI screenshots and browser smoke tests
 #                    After install, run: python3 -m playwright install
 playwright>=1.53
+
+# pytest            - Fast unit tests for metrics, filters, and viewer payload helpers
+pytest>=8.0

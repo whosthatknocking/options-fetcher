@@ -64,6 +64,12 @@ python3 -m playwright install
 
 `playwright` is optional for the fetch/export pipeline itself, but required if you want automated browser screenshots or browser-driven UI checks.
 
+Run the basic test suite with:
+
+```bash
+pytest
+```
+
 ## How To Run
 
 Run the project from the repository root:
