@@ -5,7 +5,6 @@ Options Fetcher is a Python tool for downloading near-term option chains from Ya
 ## At a Glance
 
 - Fetches call and put chains for configured tickers
-- Routes market data through a configurable provider layer
 - Filters out zero-bid and wide-spread contracts before export
 - Limits strikes to a configurable band around spot
 - Computes Greeks, expected move, ROM-style metrics, and volatility context
@@ -33,7 +32,7 @@ python3 viewer.py
 
 Then open `http://127.0.0.1:8000` in your browser.
 
-## Features
+## What You Get
 
 - Fetches call and put chains for configured tickers
 - Limits expirations to a rolling four-month window
@@ -54,17 +53,6 @@ Then open `http://127.0.0.1:8000` in your browser.
 - Python 3.9+
 - Internet access for Yahoo Finance data
 
-Install dependencies from `requirements.txt`:
-
-```bash
-python3 -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
-python3 -m playwright install
-```
-
-`playwright` is optional for the fetch/export pipeline itself, but required if you want automated browser screenshots or browser-driven UI checks.
-
 ## How To Run
 
 Run the project from the repository root:
@@ -72,10 +60,6 @@ Run the project from the repository root:
 ```bash
 python3 fetcher.py
 ```
-
-To customize the fetch universe or screening thresholds, edit `options_fetcher/config.py` before running.
-
-To switch vendors, set `DATA_PROVIDER` in `options_fetcher/config.py` to a supported provider implementation.
 
 ## CSV Browser
 
@@ -117,20 +101,6 @@ Optional flags:
 ```bash
 python3 scripts/capture_viewer_screenshot.py --theme light
 python3 scripts/capture_viewer_screenshot.py --output docs/images/viewer-custom.png
-```
-
-## Verification
-
-Run the basic test suite with:
-
-```bash
-pytest
-```
-
-Run the linter with:
-
-```bash
-pylint $(git ls-files '*.py')
 ```
 
 ## Output
@@ -280,6 +250,10 @@ Execution details that are not row-specific are written to the append-only run l
 - fetch timestamps
 - final output file path
 
+## Developer Guide
+
+This section is for people changing the codebase, adding providers, or working on project tooling.
+
 ## Project Structure
 
 ```text
@@ -333,9 +307,38 @@ In practice:
 - Change `TICKERS` when you want a different watchlist.
 - Tighten or loosen `MAX_STRIKE_DISTANCE_PCT`, `MAX_SPREAD_PCT_OF_MID`, `MIN_BID`, `MIN_OPEN_INTEREST`, and `MIN_VOLUME` when you want a narrower or broader tradability filter.
 - Change `RISK_FREE_RATE`, `HV_LOOKBACK_DAYS`, `TRADING_DAYS_PER_YEAR`, or `STALE_QUOTE_SECONDS` only if you want different modeling or freshness assumptions.
+- Switch `DATA_PROVIDER` when you want to use a different market-data implementation.
+
+## Development Setup
+
+Install dependencies from `requirements.txt`:
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+python3 -m playwright install
+```
+
+`playwright` is optional for the fetch/export pipeline itself, but required if you want automated browser screenshots or browser-driven UI checks.
+
+## Verification
+
+Run the basic test suite with:
+
+```bash
+pytest
+```
+
+Run the linter with:
+
+```bash
+pylint $(git ls-files '*.py')
+```
 
 ## Notes
 
+- Market data is routed through a configurable provider layer.
 - Data is currently sourced from Yahoo Finance through the `yfinance` provider implementation.
 - Quote timing and completeness depend on the upstream source.
 - The exported CSV is intended to be consumed by another tool, so the script favors schema clarity and enriched raw data over trade recommendations.
