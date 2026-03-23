@@ -121,10 +121,10 @@ function formatDuration(seconds) {
 
 function formatDatasetValue(card) {
   if (!card) return '—';
-  if (card.name === 'vix_level' || card.name === 'risk_free_rate_used') {
+  if (card.name === 'risk_free_rate_used') {
     const number = Number(card.value);
     if (Number.isFinite(number)) {
-      return card.name === 'risk_free_rate_used' ? `${(number * 100).toFixed(2)}%` : number.toFixed(2);
+      return `${(number * 100).toFixed(2)}%`;
     }
   }
   return formatCell(card.value);

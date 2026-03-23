@@ -25,8 +25,6 @@ def append_underlying_snapshot_fields(df, snapshot, fetched_at, stale_quote_seco
     df["underlying_market_state"] = snapshot["underlying_market_state"]
     df["underlying_day_change_pct"] = snapshot["underlying_day_change_pct"]
     df["historical_volatility"] = snapshot["historical_volatility"]
-    df["vix_level"] = snapshot["vix_level"]
-    df["vix_quote_time"] = snapshot["vix_quote_time"]
     df["underlying_price_age_seconds"] = (
         (fetched_at - snapshot["underlying_price_time"]).total_seconds()
         if pd.notna(snapshot["underlying_price_time"])

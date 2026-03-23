@@ -1,16 +1,15 @@
 """Yahoo Finance provider implementation."""
 
-from __future__ import annotations
+# pylint: disable=duplicate-code
 
-from functools import lru_cache
+from __future__ import annotations
 
 import numpy as np
 import pandas as pd
 import yfinance as yf
 
 from opx.config import get_runtime_config
-from opx.normalize import normalize_vendor_option_frame
-from opx.providers.base import DataProvider, OptionChainFrames
+from opx.providers.base import DataProvider, OptionChainFrames, normalize_provider_frame
 from opx.utils import coerce_float, normalize_timestamp
 
 
@@ -59,28 +58,6 @@ class YFinanceProvider(DataProvider):
         """Expose yfinance's logger so runlog can capture vendor errors."""
         return ("yfinance",)
 
-    @lru_cache(maxsize=1)
-    def load_vix_snapshot(self) -> dict:
-        """Load the latest VIX snapshot once per run."""
-        try:  # pylint: disable=broad-exception-caught
-            vix = yf.Ticker("^VIX")
-            fast_info = getattr(vix, "fast_info", {}) or {}
-            info = vix.info
-        except Exception:  # pylint: disable=broad-exception-caught
-            fast_info = {}
-            info = {}
-
-        vix_level = coerce_float(
-            fast_info.get("lastPrice")
-            or info.get("regularMarketPrice")
-            or info.get("previousClose")
-        )
-        vix_quote_time = normalize_timestamp(info.get("regularMarketTime"))
-        return {
-            "vix_level": vix_level,
-            "vix_quote_time": vix_quote_time,
-        }
-
     def load_underlying_snapshot(self, ticker: str) -> dict:  # pylint: disable=broad-exception-caught
         """Load the underlying snapshot once per ticker and reuse it for each expiration."""
         stock = yf.Ticker(ticker)
@@ -105,16 +82,12 @@ class YFinanceProvider(DataProvider):
         else:
             underlying_day_change_pct = np.nan
 
-        vix_snapshot = self.load_vix_snapshot()
-
         return {
             "underlying_price": last_price,
             "underlying_price_time": normalize_timestamp(info.get("regularMarketTime")),
             "underlying_market_state": normalize_market_state(info.get("marketState")),
             "underlying_day_change_pct": underlying_day_change_pct,
             "historical_volatility": compute_historical_volatility(stock),
-            "vix_level": vix_snapshot["vix_level"],
-            "vix_quote_time": vix_snapshot["vix_quote_time"],
         }
 
     def list_option_expirations(self, ticker: str) -> list[str]:
@@ -137,7 +110,7 @@ class YFinanceProvider(DataProvider):
         ticker: str,
     ) -> pd.DataFrame:
         """Normalize a yfinance frame into the canonical options schema."""
-        return normalize_vendor_option_frame(
+        return normalize_provider_frame(
             df=df,
             underlying_price=underlying_price,
             expiration_date=expiration_date,

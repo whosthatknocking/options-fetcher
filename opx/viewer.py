@@ -29,8 +29,6 @@ HIDDEN_COLUMNS = {
 }
 DATASET_CARD_COLUMNS = (
     "underlying_market_state",
-    "vix_level",
-    "vix_quote_time",
     "premium_reference_method",
     "risk_free_rate_used",
     "data_source",
