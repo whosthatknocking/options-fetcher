@@ -30,8 +30,6 @@ class StubProvider:
             "underlying_market_state": "REGULAR",
             "underlying_day_change_pct": 0.01,
             "historical_volatility": 0.2,
-            "vix_level": 18.5,
-            "vix_quote_time": pd.Timestamp("2026-03-20T13:45:00Z"),
         }
 
     def list_option_expirations(self, ticker):

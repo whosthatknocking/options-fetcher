@@ -216,14 +216,6 @@ class MassiveProvider(DataProvider):
         """Cache snapshot results once per ticker for the current process."""
         return self._fetch_snapshot_results(ticker)
 
-    @lru_cache(maxsize=1)
-    def load_vix_snapshot(self) -> dict:
-        """Massive VIX support is not implemented in this phase."""
-        return {
-            "vix_level": np.nan,
-            "vix_quote_time": pd.NaT,
-        }
-
     def load_underlying_snapshot(self, ticker: str) -> dict:
         """Infer the underlying snapshot from the option snapshot payload."""
         results = self._snapshot_results(ticker)
@@ -234,8 +226,6 @@ class MassiveProvider(DataProvider):
                 "underlying_market_state": None,
                 "underlying_day_change_pct": np.nan,
                 "historical_volatility": np.nan,
-                "vix_level": np.nan,
-                "vix_quote_time": pd.NaT,
             }
 
         first = results[0]
@@ -264,16 +254,12 @@ class MassiveProvider(DataProvider):
                     _get_field(first, "day", "change_percent"),
                 )
             )
-        vix_snapshot = self.load_vix_snapshot()
-
         return {
             "underlying_price": underlying_price,
             "underlying_price_time": underlying_price_time,
             "underlying_market_state": None,
             "underlying_day_change_pct": underlying_day_change_pct,
             "historical_volatility": np.nan,
-            "vix_level": vix_snapshot["vix_level"],
-            "vix_quote_time": vix_snapshot["vix_quote_time"],
         }
 
     def list_option_expirations(self, ticker: str) -> list[str]:

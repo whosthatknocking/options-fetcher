@@ -17,7 +17,7 @@ The script fetches near-term option chains for a configured list of tickers, nor
 
 The output is designed to be data-focused rather than decision-focused. It does not decide whether to close, roll, or open positions. Instead, it produces a richer dataset that can support those decisions elsewhere.
 
-Warning: Yahoo Finance quote timestamps can lag, and the collected option, underlying, or VIX data may be stale. Sparse or empty option-chain results are especially common near the regular market open because Yahoo data is delayed and cached, option markets may not have fully formed yet, the `yfinance` API is scraping-based and can be unreliable, and immediate post-open liquidity is often thin. Always check the freshness fields in the CSV or browser before relying on the output for trading decisions.
+Warning: Yahoo Finance quote timestamps can lag, and the collected option or underlying data may be stale. Sparse or empty option-chain results are especially common near the regular market open because Yahoo data is delayed and cached, option markets may not have fully formed yet, the `yfinance` API is scraping-based and can be unreliable, and immediate post-open liquidity is often thin. Always check the freshness fields in the CSV or browser before relying on the output for trading decisions.
 
 Warning: Massive options support for this project requires a Massive account with an options plan that exposes both the option snapshot data and a usable underlying price for the fetch path. `Options Basic` does not expose the required access, and while `Options Starter` is the entry point for delayed options data, this app's underlying-price-dependent calculations and strike filtering may be incomplete unless you have `Options Developer` or higher. Confirm your plan includes the underlying-price coverage you expect before treating the output as current market data.
 
@@ -43,7 +43,7 @@ Then open `http://127.0.0.1:8000` in your browser.
 - Limits strikes to a +/-30% band around the latest underlying price
 - Normalizes vendor fields into a stable CSV schema
 - Adds quote quality, freshness, liquidity, and pricing metrics
-- Adds underlying volatility context with `VIX` and trailing historical volatility
+- Adds underlying volatility context with trailing historical volatility
 - Adds expiration-level expected move estimates
 - Adds roll-yield metrics across expirations at the same strike
 - Adds return-on-margin metrics using a transparent margin proxy
@@ -104,7 +104,7 @@ The viewer includes:
 - a `Summary` tab for per-ticker snapshot metrics and opportunity highlights
 - a dark/light mode toggle
 - header filters, including numeric min/max filtering for numeric columns
-- dataset-level header cards for shared run metrics such as VIX and premium reference method
+- dataset-level header cards for shared run metrics such as premium reference method
 
 ## Output
 
@@ -152,8 +152,6 @@ The exported CSV contains both provider-supplied and app-derived fields. Some va
 - `underlying_market_state`: Market session state from Yahoo Finance. Use it to judge whether prices are regular-session or extended-hours.
 - `underlying_day_change_pct`: Underlying percentage move versus previous close. Use it to add context to the option chain. Large absolute moves mean the underlying is already having an outsized session.
 - `historical_volatility`: Annualized realized volatility computed from the underlying's trailing 30 daily log returns. Use it to compare recent realized movement against option-implied pricing. Lower is calmer; higher means the stock has been moving more.
-- `vix_level`: Latest CBOE Volatility Index level fetched for the run. Use it as a market-wide volatility regime reference.
-- `vix_quote_time`: Timestamp of the VIX snapshot. Use it to judge whether the volatility regime reference is fresh.
 - `underlying_price_time`: Timestamp of the underlying quote snapshot. Use it to compare timing with the option quote.
 - `underlying_price_age_seconds`: Age of the underlying quote at fetch time. Use it to detect stale stock prices. Lower is better; high values mean the stock snapshot may be stale.
 - `is_stale_underlying_price`: Flag showing whether the underlying quote is older than the configured staleness threshold. Use it to down-rank stale rows.
@@ -333,7 +331,7 @@ Current defaults:
 - `data_provider = "yfinance"`: provider implementation used by the fetch pipeline.
 - `providers.massive.snapshot_page_limit = 250`: per-request Massive snapshot page size used for the option-chain endpoint. Values above `250` are clamped because the Massive snapshot endpoint rejects larger limits.
 - `providers.massive.request_interval_seconds = 12.0`: minimum delay between Massive HTTP requests. This default is conservative for delayed-plan usage.
-- `SCRIPT_VERSION = "2026-03-23.2"`: run-version string written to the append-only log.
+- `SCRIPT_VERSION = "2026-03-23.3"`: run-version string written to the append-only log.
 
 In practice:
 

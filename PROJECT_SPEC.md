@@ -170,6 +170,7 @@ Defaults:
 - if the config file is absent or incomplete, defaults should favor `yfinance`
 - if individual config values are missing, malformed, or out of range, the loader should apply code defaults for those fields rather than aborting the run
 - startup output should show the resolved config values actually applied, with secrets redacted and fallback-to-default notices when relevant
+- startup output should also show fetch progress at the ticker and expiration level, including raw provider rows, rows kept after shared filtering, and final kept rows per ticker
 - `yfinance` remains the default provider because it requires the least effort to get started
 
 There is no need for environment-variable overrides in this phase.
@@ -611,6 +612,9 @@ Completed work:
 - normalized Massive payloads into the canonical schema
 - preserved provider-native Greeks when their semantics match the canonical columns
 - added clear authentication-failure handling for invalid Massive credentials
+- corrected Massive numeric timestamp normalization for official snapshot nanosecond fields
+- mapped `underlying_asset.ticker` to `underlying_symbol` and `details.ticker` to `contract_symbol`
+- derived `is_in_the_money` from spot versus strike because the option snapshot model does not expose a direct field for it
 
 Verification notes:
 
@@ -618,6 +622,7 @@ Verification notes:
 - verified that missing Massive credentials fall back to the default provider instead of aborting the run
 - verified that invalid Massive credentials fail clearly through the provider fetch path
 - verified that Massive provider-native fields map into the existing canonical schema without schema expansion
+- verified that official client model objects parse correctly with Massive timestamp fields and symbol mappings
 
 Goals:
 
@@ -641,6 +646,8 @@ Completed work:
 
 - README now documents `~/.config/opx/config.toml`
 - README now documents that `massive` uses an API key in config
+- README now documents fetch-progress output and CLI exit-status behavior
+- field-reference docs now reflect Massive-specific symbol, contract-size, and in-the-money mapping behavior
 
 Remaining work:
 
