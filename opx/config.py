@@ -210,7 +210,7 @@ def _clamp_massive_snapshot_page_limit(value: int, warnings: list[str]) -> int:
     return value
 
 
-def load_runtime_config(config_path: Path | None = None) -> RuntimeConfig:
+def load_runtime_config(config_path: Path | None = None) -> RuntimeConfig:  # pylint: disable=too-many-locals
     """Load runtime config from the user config file, falling back to defaults."""
     resolved_path = (config_path or DEFAULT_CONFIG_PATH).expanduser()
     warnings: list[str] = []
@@ -237,26 +237,28 @@ def load_runtime_config(config_path: Path | None = None) -> RuntimeConfig:
         warnings=warnings,
         validator=lambda value: value in SUPPORTED_PROVIDERS,
     )
+    massive_warnings = warnings if data_provider == "massive" else []
+    marketdata_warnings = warnings if data_provider == "marketdata" else []
     massive_api_key = _resolve_config_value(
         massive_settings.get("api_key"),
         field_name="providers.massive.api_key",
         default=None,
         coercer=_coerce_str,
-        warnings=warnings,
+        warnings=massive_warnings,
     )
     marketdata_api_token = _resolve_config_value(
         marketdata_settings.get("api_token"),
         field_name="providers.marketdata.api_token",
         default=None,
         coercer=_coerce_str,
-        warnings=warnings,
+        warnings=marketdata_warnings,
     )
     marketdata_mode = _resolve_config_value(
         marketdata_settings.get("mode"),
         field_name="providers.marketdata.mode",
         default=None,
         coercer=_coerce_str,
-        warnings=warnings,
+        warnings=marketdata_warnings,
         validator=lambda value: value is None or value in SUPPORTED_MARKETDATA_MODES,
     )
     if data_provider == "massive" and not massive_api_key:
@@ -420,7 +422,7 @@ def load_runtime_config(config_path: Path | None = None) -> RuntimeConfig:
             field_name="providers.marketdata.max_retries",
             default=DEFAULT_MARKETDATA_MAX_RETRIES,
             coercer=_coerce_int,
-            warnings=warnings,
+            warnings=marketdata_warnings,
             validator=lambda value: value >= 0,
         ),
         marketdata_request_interval_seconds=_resolve_config_value(
@@ -428,7 +430,7 @@ def load_runtime_config(config_path: Path | None = None) -> RuntimeConfig:
             field_name="providers.marketdata.request_interval_seconds",
             default=DEFAULT_MARKETDATA_REQUEST_INTERVAL_SECONDS,
             coercer=_coerce_float,
-            warnings=warnings,
+            warnings=marketdata_warnings,
             validator=lambda value: value >= 0,
         ),
         massive_snapshot_page_limit=_clamp_massive_snapshot_page_limit(_resolve_config_value(
@@ -436,14 +438,14 @@ def load_runtime_config(config_path: Path | None = None) -> RuntimeConfig:
             field_name="providers.massive.snapshot_page_limit",
             default=DEFAULT_MASSIVE_SNAPSHOT_PAGE_LIMIT,
             coercer=_coerce_int,
-            warnings=warnings,
-        ), warnings),
+            warnings=massive_warnings,
+        ), massive_warnings),
         massive_request_interval_seconds=_resolve_config_value(
             massive_settings.get("request_interval_seconds"),
             field_name="providers.massive.request_interval_seconds",
             default=DEFAULT_MASSIVE_REQUEST_INTERVAL_SECONDS,
             coercer=_coerce_float,
-            warnings=warnings,
+            warnings=massive_warnings,
             validator=lambda value: value >= 0,
         ),
         config_path=resolved_path,

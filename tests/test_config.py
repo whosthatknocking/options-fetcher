@@ -91,6 +91,8 @@ request_interval_seconds = 0.75
     assert config.marketdata_request_interval_seconds == 0.75
     assert config.massive_snapshot_page_limit == 250
     assert config.massive_request_interval_seconds == 1.5
+    assert not any("providers.massive" in warning for warning in config.config_warnings)
+    assert not any("providers.marketdata" in warning for warning in config.config_warnings)
 
 
 def test_load_runtime_config_requires_massive_key_only_when_selected(tmp_path: Path):
@@ -125,6 +127,9 @@ def test_load_runtime_config_defaults_invalid_marketdata_mode(tmp_path: Path):
     config_path = tmp_path / "marketdata-mode.toml"
     config_path.write_text(
         """
+[settings]
+data_provider = "marketdata"
+
 [providers.marketdata]
 mode = "fast"
 """.strip(),
@@ -136,11 +141,48 @@ mode = "fast"
     assert any("providers.marketdata.mode" in warning for warning in config.config_warnings)
 
 
+def test_load_runtime_config_ignores_inactive_provider_fallback_warnings(tmp_path: Path):
+    """Inactive provider sections should not emit fallback warnings."""
+    config_path = tmp_path / "inactive-provider.toml"
+    config_path.write_text(
+        """
+[settings]
+data_provider = "yfinance"
+
+[providers.massive]
+api_key = 42
+snapshot_page_limit = 1000
+
+[providers.marketdata]
+api_token = 42
+mode = "fast"
+max_retries = -1
+request_interval_seconds = -0.5
+""".strip(),
+        encoding="utf-8",
+    )
+
+    config = load_runtime_config(config_path)
+
+    assert config.data_provider == "yfinance"
+    assert config.massive_api_key is None
+    assert config.marketdata_api_token is None
+    assert config.marketdata_mode is None
+    assert config.marketdata_max_retries == 3
+    assert config.marketdata_request_interval_seconds == 0.0
+    assert config.massive_snapshot_page_limit == 250
+    assert not any("providers.massive" in warning for warning in config.config_warnings)
+    assert not any("providers.marketdata" in warning for warning in config.config_warnings)
+
+
 def test_load_runtime_config_defaults_invalid_marketdata_tuning(tmp_path: Path):
     """Invalid Market Data rate-limit settings should fall back to defaults."""
     negative_retries = tmp_path / "marketdata-retries.toml"
     negative_retries.write_text(
         """
+[settings]
+data_provider = "marketdata"
+
 [providers.marketdata]
 max_retries = -1
 """.strip(),
@@ -153,6 +195,9 @@ max_retries = -1
     negative_interval = tmp_path / "marketdata-interval.toml"
     negative_interval.write_text(
         """
+[settings]
+data_provider = "marketdata"
+
 [providers.marketdata]
 request_interval_seconds = -0.5
 """.strip(),
