@@ -49,7 +49,23 @@ def add_option_score(df):
     target_delta = np.where(df["option_type"] == "call", 0.25, 0.20)
     risk_score = _clip_zero_to_one(1 - (np.abs(df["delta_abs"] - target_delta) / target_delta))
 
-    dte_score = _clip_zero_to_one(1 - (df["days_to_expiration"] / 35.0))
+    dte_score = np.select(
+        [
+            df["days_to_expiration"] < 5,
+            df["days_to_expiration"] < 7,
+            df["days_to_expiration"] <= 21,
+            df["days_to_expiration"] <= 35,
+            df["days_to_expiration"] <= 45,
+        ],
+        [
+            0.4 + (0.6 * income_score),
+            0.75 + (0.25 * income_score),
+            1.0,
+            0.85,
+            0.55,
+        ],
+        default=0.35,
+    )
     distance_score = _clip_zero_to_one(1 - (df["strike_distance_pct"] / 0.30))
     efficiency_score = dte_score * 0.5 + distance_score * 0.5
 
@@ -59,12 +75,6 @@ def add_option_score(df):
         + risk_score * config.option_score_risk_weight
         + efficiency_score * config.option_score_efficiency_weight
     ) / total_weight
-    short_dte_penalty = np.where(
-        df["days_to_expiration"] < 7,
-        0.7 + (0.3 * income_score),
-        1.0,
-    )
-    weighted_score = weighted_score * short_dte_penalty
 
     required = (
         df["premium_per_day"].notna()

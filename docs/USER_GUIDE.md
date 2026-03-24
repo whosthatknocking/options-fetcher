@@ -220,8 +220,8 @@ Current scoring logic:
 - Income: penalizes contracts with `premium_per_day < 0.01` as near useless, then linearly rewards `premium_per_day` from `0.01` up to the default `0.05` cap
 - Liquidity: rewards tighter spreads, higher open interest, and higher volume using default references of `25%` spread-of-mid, `1000` open interest, and `100` volume; the liquidity sub-mix is `50%` spread, `30%` open interest, `20%` volume
 - Risk: rewards delta closer to the current side-aware target, using default targets of `0.25` for calls and `0.20` for puts
-- Efficiency: rewards shorter time to expiration and strikes closer to spot, using default references of `35` days-to-expiration and `30%` strike distance; the efficiency sub-mix is `50%` DTE and `50%` strike distance
-- Short-DTE adjustment: contracts with fewer than `7` days to expiration get a score reduction by default; the penalty fades out as the income component rises and disappears when `premium_per_day` reaches the exceptional `0.05` cap
+- Efficiency: rewards strikes closer to spot and uses a tiered DTE preference rather than a linear curve. By default, `7-21` DTE gets the maximum DTE score, `22-35` is slightly lower, `36-45` is penalized, and `46+` is penalized further
+- Short-DTE adjustment: `5-6` DTE scores below the preferred `7-21` tier, while `<5` DTE takes the strongest penalty unless `premium_per_day` is exceptional enough to offset much of that hit
 
 Default top-level weights:
 
