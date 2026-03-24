@@ -46,7 +46,7 @@ For rate-limit handling, the provider retries `429` responses with exponential b
 
 ## Requirements
 
-- Python 3.9+
+- Python 3.10+
 - Python dependencies installed from `requirements.txt`
 - Internet access for provider data
 
