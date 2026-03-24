@@ -4,6 +4,8 @@ from pathlib import Path
 
 import pandas as pd
 
+from opx.schema import QUALITY_FLAG_FIELDS
+
 
 COLUMN_ORDER = [
     "underlying_symbol",
@@ -71,16 +73,7 @@ COLUMN_ORDER = [
     "vega_per_day",
     "theta",
     "theta_to_premium_ratio",
-    "has_valid_underlying",
-    "has_valid_strike",
-    "has_valid_quote",
-    "has_valid_iv",
-    "has_valid_greeks",
-    "bid_le_ask",
-    "has_nonzero_bid",
-    "has_nonzero_ask",
-    "has_crossed_or_locked_market",
-    "is_wide_market",
+    *QUALITY_FLAG_FIELDS,
     "days_bucket",
     "near_expiry_near_money_flag",
     "passes_primary_screen",
