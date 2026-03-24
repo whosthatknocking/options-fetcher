@@ -212,6 +212,7 @@ Field-mapping rules already implemented for Market Data include:
 - `optionSymbol -> contract_symbol`
 - `underlying -> underlying_symbol`
 - `underlyingPrice -> underlying_price`
+- `last -> last_trade_price` for the option contract itself; `underlyingPrice` is not used for `last_trade_price`
 - `updated -> option_quote_time`, with the latest non-null chain update also used as the best-available `underlying_price_time`
 - `underlying_day_change_pct` is currently left blank because the one-call chain payload does not expose a reliable underlying day-change field
 - `bid`, `ask`, `last`, `openInterest`, `volume`, `iv`, and greeks map directly into canonical fields
