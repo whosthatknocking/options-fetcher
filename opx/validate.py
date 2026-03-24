@@ -7,6 +7,8 @@ from dataclasses import dataclass
 import numpy as np
 import pandas as pd
 
+from opx.schema import QUALITY_FLAG_FIELDS
+
 
 REQUIRED_CORE_FIELDS = (
     "data_source",
@@ -35,16 +37,7 @@ TIMESTAMP_FIELDS = (
 )
 BOOLEAN_FIELDS = (
     "is_in_the_money",
-    "has_valid_underlying",
-    "has_valid_strike",
-    "has_valid_quote",
-    "has_valid_iv",
-    "has_valid_greeks",
-    "bid_le_ask",
-    "has_nonzero_bid",
-    "has_nonzero_ask",
-    "has_crossed_or_locked_market",
-    "is_wide_market",
+    *QUALITY_FLAG_FIELDS,
     "near_expiry_near_money_flag",
     "passes_primary_screen",
     "is_stale_quote",
