@@ -25,7 +25,8 @@ DEFAULT_RISK_FREE_RATE = 0.045
 DEFAULT_HV_LOOKBACK_DAYS = 30
 DEFAULT_TRADING_DAYS_PER_YEAR = 252
 DEFAULT_STALE_QUOTE_SECONDS = 15 * 60
-DEFAULT_ENABLE_POST_DOWNLOAD_FILTERS = True
+DEFAULT_ENABLE_FILTERS = True
+DEFAULT_ENABLE_VALIDATION = True
 DEFAULT_MAX_STRIKE_DISTANCE_PCT = 0.30
 DEFAULT_MAX_EXPIRATION_WEEKS = 26
 SUPPORTED_MARKETDATA_MODES = frozenset({"live", "cached", "delayed"})
@@ -57,7 +58,8 @@ class RuntimeConfig:
     trading_days_per_year: int
     data_provider: str
     stale_quote_seconds: int
-    enable_post_download_filters: bool
+    enable_filters: bool
+    enable_validation: bool
     max_strike_distance_pct: float
     max_expiration_weeks: int
     max_expiration: str | None
@@ -325,10 +327,17 @@ def load_runtime_config(config_path: Path | None = None) -> RuntimeConfig:
             coercer=_coerce_int,
             warnings=warnings,
         ),
-        enable_post_download_filters=_resolve_config_value(
-            settings.get("enable_post_download_filters"),
-            field_name="settings.enable_post_download_filters",
-            default=DEFAULT_ENABLE_POST_DOWNLOAD_FILTERS,
+        enable_filters=_resolve_config_value(
+            settings.get("enable_filters"),
+            field_name="settings.enable_filters",
+            default=DEFAULT_ENABLE_FILTERS,
+            coercer=_coerce_bool,
+            warnings=warnings,
+        ),
+        enable_validation=_resolve_config_value(
+            settings.get("enable_validation"),
+            field_name="settings.enable_validation",
+            default=DEFAULT_ENABLE_VALIDATION,
             coercer=_coerce_bool,
             warnings=warnings,
         ),
@@ -498,7 +507,8 @@ def describe_runtime_config(config: RuntimeConfig) -> tuple[str, ...]:
         f"Applied hv_lookback_days: {config.hv_lookback_days}",
         f"Applied trading_days_per_year: {config.trading_days_per_year}",
         f"Applied stale_quote_seconds: {config.stale_quote_seconds}",
-        f"Applied enable_post_download_filters: {config.enable_post_download_filters}",
+        f"Applied enable_filters: {config.enable_filters}",
+        f"Applied enable_validation: {config.enable_validation}",
         f"Applied debug_dump_provider_payload: {config.debug_dump_provider_payload}",
         f"Applied debug_dump_dir: {config.debug_dump_dir}",
         f"Applied max_expiration_weeks: {config.max_expiration_weeks}",

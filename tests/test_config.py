@@ -20,11 +20,12 @@ def test_load_runtime_config_uses_defaults_when_file_is_absent(tmp_path: Path):
     assert config.marketdata_api_token is None
     assert config.marketdata_max_retries == 3
     assert config.marketdata_request_interval_seconds == 0.0
+    assert config.enable_validation is True
     assert config.massive_snapshot_page_limit == 250
     assert config.massive_request_interval_seconds == 12.0
     assert config.debug_dump_provider_payload is False
     assert config.debug_dump_dir == Path("debug")
-    assert config.enable_post_download_filters is True
+    assert config.enable_filters is True
     assert config.max_expiration_weeks == 26
     assert config.max_expiration is not None
     assert config.tickers
@@ -40,7 +41,8 @@ def test_load_runtime_config_reads_user_config_file(tmp_path: Path):
 tickers = ["spy", "qqq"]
 data_provider = "yfinance"
 min_bid = 1.25
-enable_post_download_filters = false
+enable_filters = false
+enable_validation = false
 debug_dump_provider_payload = true
 debug_dump_dir = "logs/provider_payloads"
 max_expiration_weeks = 8
@@ -64,7 +66,8 @@ request_interval_seconds = 0.75
     assert config.tickers == ("SPY", "QQQ")
     assert config.data_provider == "yfinance"
     assert config.min_bid == 1.25
-    assert config.enable_post_download_filters is False
+    assert config.enable_filters is False
+    assert config.enable_validation is False
     assert config.debug_dump_provider_payload is True
     assert config.debug_dump_dir == Path("logs/provider_payloads")
     assert config.max_expiration_weeks == 8
@@ -261,15 +264,32 @@ def test_load_runtime_config_defaults_invalid_filter_toggle(tmp_path: Path):
     config_path.write_text(
         """
 [settings]
-enable_post_download_filters = "sometimes"
+enable_filters = "sometimes"
 """.strip(),
         encoding="utf-8",
     )
 
     config = load_runtime_config(config_path)
 
-    assert config.enable_post_download_filters is True
-    assert any("enable_post_download_filters" in warning for warning in config.config_warnings)
+    assert config.enable_filters is True
+    assert any("enable_filters" in warning for warning in config.config_warnings)
+
+
+def test_load_runtime_config_defaults_invalid_validation_toggle(tmp_path: Path):
+    """Invalid validation-toggle values should fall back to the default."""
+    config_path = tmp_path / "bad-validation-toggle.toml"
+    config_path.write_text(
+        """
+[settings]
+enable_validation = "sometimes"
+""".strip(),
+        encoding="utf-8",
+    )
+
+    config = load_runtime_config(config_path)
+
+    assert config.enable_validation is True
+    assert any("enable_validation" in warning for warning in config.config_warnings)
 
 
 def test_load_runtime_config_supports_disabling_max_expiration(tmp_path: Path):

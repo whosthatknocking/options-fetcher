@@ -220,7 +220,7 @@ def test_fetch_ticker_option_chain_can_disable_post_download_filters(monkeypatch
         """Return a runtime config with post-download filters disabled."""
         return make_runtime_config(
             today=pd.Timestamp("2026-03-20").date(),
-            enable_post_download_filters=False,
+            enable_filters=False,
         )
 
     monkeypatch.setattr(fetch, "get_runtime_config", config_factory)
@@ -231,6 +231,68 @@ def test_fetch_ticker_option_chain_can_disable_post_download_filters(monkeypatch
 
     assert len(result) == 3
     assert set(result["contract_symbol"]) == {"TESTC1", "TESTC2", "TESTP1"}
+
+
+def test_fetch_ticker_option_chain_validates_rows_before_filtering(monkeypatch):
+    """Validation should see invalid rows even when post-download filters later remove them."""
+    class InvalidBeforeFilterProvider(StubProvider):
+        """Provider variant with one invalid quote that still gets filtered after validation."""
+
+        def load_option_chain(self, ticker, expiration_date):
+            chain = super().load_option_chain(ticker, expiration_date)
+            chain.calls.loc[1, "ask"] = None
+            return chain
+
+    monkeypatch.setattr(fetch, "get_data_provider", InvalidBeforeFilterProvider)
+
+    def config_factory():
+        """Return the standard filtered runtime config for row validation checks."""
+        return make_runtime_config(today=pd.Timestamp("2026-03-20").date())
+
+    monkeypatch.setattr(fetch, "get_runtime_config", config_factory)
+    monkeypatch.setattr(opx.normalize, "get_runtime_config", config_factory)
+    monkeypatch.setattr(opx.metrics, "get_runtime_config", config_factory)
+    findings = []
+
+    result = fetch.fetch_ticker_option_chain("TEST", validation_findings=findings)
+
+    assert not result.empty
+    assert any(
+        finding.code == "missing_required_field"
+        and finding.field == "ask"
+        and finding.contract_symbol == "TESTC2"
+        for finding in findings
+    )
+
+
+def test_fetch_ticker_option_chain_can_disable_validation(monkeypatch):
+    """Disabling validation should skip row-level findings entirely."""
+    class InvalidBeforeFilterProvider(StubProvider):
+        """Provider variant with one invalid quote that would fail validation if enabled."""
+
+        def load_option_chain(self, ticker, expiration_date):
+            chain = super().load_option_chain(ticker, expiration_date)
+            chain.calls.loc[1, "ask"] = None
+            return chain
+
+    monkeypatch.setattr(fetch, "get_data_provider", InvalidBeforeFilterProvider)
+
+    def config_factory():
+        """Return a runtime config with validation disabled."""
+        return make_runtime_config(
+            today=pd.Timestamp("2026-03-20").date(),
+            enable_validation=False,
+        )
+
+    monkeypatch.setattr(fetch, "get_runtime_config", config_factory)
+    monkeypatch.setattr(opx.normalize, "get_runtime_config", config_factory)
+    monkeypatch.setattr(opx.metrics, "get_runtime_config", config_factory)
+    findings = []
+
+    result = fetch.fetch_ticker_option_chain("TEST", validation_findings=findings)
+
+    assert not result.empty
+    assert not findings
 
 
 def test_fetch_ticker_option_chain_logs_provider_name_on_error(monkeypatch, caplog):

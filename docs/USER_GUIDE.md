@@ -108,7 +108,7 @@ stale_quote_seconds = 900
 max_expiration_weeks = 26
 
 # Shared diagnostics
-enable_post_download_filters = true
+enable_filters = true
 enable_validation = true
 debug_dump_provider_payload = false
 debug_dump_dir = "debug"
@@ -152,7 +152,7 @@ These settings apply regardless of which provider is active.
 
 #### Shared Diagnostics Defaults
 
-- `ENABLE_POST_DOWNLOAD_FILTERS = true`: applies the zero-bid, strike-band, and wide-spread row filters after download. Set it to `false` when you want the raw downloaded rows to remain in the exported dataset while still computing metrics and quality flags.
+- `ENABLE_FILTERS = true`: applies the zero-bid, strike-band, and wide-spread row filters after download. Set it to `false` when you want the raw downloaded rows to remain in the exported dataset while still computing metrics and quality flags.
 - `ENABLE_VALIDATION = true`: runs shared row-level validation before post-download filtering and file-level validation before export. Set it to `false` when you want to skip validation findings and validation summary output entirely.
 - `DEBUG_DUMP_PROVIDER_PAYLOAD = false`: when `true`, dump raw provider payloads to JSON before normalization so missing fields can be inspected directly.
 - `DEBUG_DUMP_DIR = "debug"`: directory used for raw provider payload dumps. Dump filenames are prefixed with the provider name.
@@ -183,7 +183,7 @@ These settings are only used by the matching provider.
 - Change `tickers` when you want a different watchlist.
 - Switch `data_provider` when you want to use a different market-data implementation.
 - Tighten or loosen the threshold values when you want a narrower or broader tradability filter.
-- Set `enable_post_download_filters = false` when you want to keep rows that would normally be removed by the shared post-download filters.
+- Set `enable_filters = false` when you want to keep rows that would normally be removed by the shared post-download filters.
 - Set `enable_validation = false` when you want to skip shared row/file validation and suppress validation summaries.
 - Turn on `debug_dump_provider_payload = true` when you need to inspect the raw provider payload and confirm whether fields such as `last_quote`, `underlying_asset`, or Yahoo chain columns were present before normalization.
 - Change `max_expiration_weeks` when you want a shorter or longer expiration window, or set it to `0` to disable the max-expiration cutoff.

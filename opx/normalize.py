@@ -93,13 +93,18 @@ def filter_wide_spread_quotes(df):
 
 def enrich_option_frame(df, underlying_price, fetched_at):
     """Add derived metrics and quality flags to an already normalized frame."""
-    config = get_runtime_config()
-    if config.enable_post_download_filters:
-        df = filter_zero_bid_quotes(df)
-        df = filter_strikes_near_spot(df, underlying_price)
     df = add_quote_quality_metrics(df, underlying_price)
-    if config.enable_post_download_filters:
-        df = filter_wide_spread_quotes(df)
     df = add_derived_pricing_metrics(df, underlying_price)
     df = add_screening_and_freshness_flags(df, fetched_at)
     return df
+
+
+def apply_post_download_filters(df, underlying_price):
+    """Apply the shared post-download filters after validation has run."""
+    config = get_runtime_config()
+    if not config.enable_filters:
+        return df
+    filtered = filter_zero_bid_quotes(df)
+    filtered = filter_strikes_near_spot(filtered, underlying_price)
+    filtered = filter_wide_spread_quotes(filtered)
+    return filtered
