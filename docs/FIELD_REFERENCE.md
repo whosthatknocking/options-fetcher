@@ -28,7 +28,7 @@ The exported CSV contains both provider-supplied and app-derived fields. Some va
 
 - `bid`: Current best bid. Use it as the conservative executable premium estimate for selling. Higher means more immediate sell-side premium, all else equal.
 - `ask`: Current best ask. Use it as the conservative executable premium estimate for buying.
-- `last_trade_price`: Last reported trade price. Use it as a fallback reference when bid and ask are weak or missing.
+- `last_trade_price`: Last reported trade price for the option contract itself, not the underlying stock. Use it as a fallback reference when bid and ask are weak or missing.
 - `volume`: Current session option volume. Use it as a liquidity signal. Higher usually means better trading activity and easier fills.
 - `open_interest`: Open contracts outstanding. Use it to judge market participation and contract depth. Higher usually means deeper, more established trading interest.
 - `implied_volatility`: Vendor-supplied implied volatility. Use it as the volatility input for Greeks and relative richness checks. Higher means richer option pricing, but usually also more underlying uncertainty.
@@ -152,7 +152,7 @@ Legend:
 | --- | --- | --- | --- |
 | `bid` | Direct: `bid` | Transformed: `last_quote.bid`, fallback `last_quote.bid_price` | Direct: `bid` |
 | `ask` | Direct: `ask` | Transformed: `last_quote.ask`, fallback `last_quote.ask_price` | Direct: `ask` |
-| `last_trade_price` | Transformed: `lastPrice` -> `last_trade_price` | Transformed: `last_trade.price`, fallback `day.close` | Transformed: `last` -> `last_trade_price` |
+| `last_trade_price` | Transformed: `lastPrice` -> `last_trade_price` | Transformed: `last_trade.price`, fallback `day.close` | Transformed: `last` -> `last_trade_price` (option contract last, not `underlyingPrice`) |
 | `volume` | Direct: `volume` | Direct: `day.volume` | Direct: `volume` |
 | `open_interest` | Transformed: `openInterest` -> `open_interest` | Direct: `open_interest` | Transformed: `openInterest` -> `open_interest` |
 | `implied_volatility` | Transformed: `impliedVolatility` -> `implied_volatility` | Direct/Transformed: top-level `implied_volatility`, coerced numeric | Direct/Transformed: `iv` -> `implied_volatility` |
