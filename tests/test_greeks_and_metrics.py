@@ -188,34 +188,40 @@ def test_add_option_score_caps_income_component_at_point_zero_five(monkeypatch):
     assert result.loc[0, "option_score"] == pytest.approx(result.loc[1, "option_score"])
 
 
-def test_add_option_score_penalizes_short_dte_when_premium_is_not_exceptional(monkeypatch):
-    """Contracts inside 7 DTE should score lower unless premium-per-day is exceptional."""
+def test_add_option_score_uses_tiered_dte_preference(monkeypatch):
+    """DTE scoring should prefer the 7-21 day tier over shorter and longer expiries."""
     monkeypatch.setattr("opx.metrics.get_runtime_config", make_score_config)
     frame = pd.DataFrame(
         [
-            make_scored_row(days_to_expiration=7, premium_per_day=0.02),
-            make_scored_row(days_to_expiration=6, premium_per_day=0.02),
+            make_scored_row(days_to_expiration=14, premium_per_day=0.02),
+            make_scored_row(days_to_expiration=28, premium_per_day=0.02),
+            make_scored_row(days_to_expiration=45, premium_per_day=0.02),
+            make_scored_row(days_to_expiration=4, premium_per_day=0.02),
         ]
     )
 
     result = add_option_score(frame.copy())
 
     assert result.loc[0, "option_score"] > result.loc[1, "option_score"]
+    assert result.loc[1, "option_score"] > result.loc[2, "option_score"]
+    assert result.loc[0, "option_score"] > result.loc[3, "option_score"]
 
 
-def test_add_option_score_skips_short_dte_penalty_for_exceptional_premium(monkeypatch):
-    """Exceptional premium-per-day should fully offset the short-DTE penalty multiplier."""
+def test_add_option_score_softens_sub_five_dte_penalty_for_exceptional_premium(monkeypatch):
+    """Exceptional premium-per-day should soften the harshest short-DTE tier penalty."""
     monkeypatch.setattr("opx.metrics.get_runtime_config", make_score_config)
     frame = pd.DataFrame(
         [
-            make_scored_row(days_to_expiration=6, premium_per_day=0.05),
-            make_scored_row(days_to_expiration=6, premium_per_day=0.08),
+            make_scored_row(days_to_expiration=4, premium_per_day=0.02),
+            make_scored_row(days_to_expiration=4, premium_per_day=0.05),
+            make_scored_row(days_to_expiration=4, premium_per_day=0.08),
         ]
     )
 
     result = add_option_score(frame.copy())
 
-    assert result.loc[0, "option_score"] == pytest.approx(result.loc[1, "option_score"])
+    assert result.loc[1, "option_score"] > result.loc[0, "option_score"]
+    assert result.loc[1, "option_score"] == pytest.approx(result.loc[2, "option_score"])
 
 
 def test_add_option_score_returns_nan_when_required_inputs_are_missing(monkeypatch):
