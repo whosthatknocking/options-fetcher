@@ -4,7 +4,7 @@
 
 `opx` is a single-provider options data fetcher and local viewer.
 
-The project downloads option-chain data for configured tickers, normalizes that data into a stable canonical CSV schema, computes shared analytics, writes timestamped exports, and serves a local browser UI for inspection.
+The project downloads option-chain data for configured tickers, normalizes that data into a stable canonical CSV schema, computes shared analytics, writes timestamped exports, and serves the local Options Screener UI for inspection.
 
 Current supported providers:
 
