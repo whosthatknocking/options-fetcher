@@ -24,7 +24,7 @@ Warning: Market Data support requires a Market Data account and API token. The p
 ```bash
 python -m venv .venv
 source .venv/bin/activate
-pip install -r requirements.txt
+pip install -e ".[dev]"
 python -m playwright install
 python fetcher.py
 python viewer.py
