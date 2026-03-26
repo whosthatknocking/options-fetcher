@@ -76,6 +76,10 @@ const elements = {
 let chainTooltipElement = null;
 const WHOLE_NUMBER_COLUMNS = new Set(['days_to_expiration']);
 
+function shouldRenderWholeNumber(columnName) {
+  return WHOLE_NUMBER_COLUMNS.has(columnName) || String(columnName || '').endsWith('_seconds');
+}
+
 function getTabFromUrl() {
   const params = new URLSearchParams(window.location.search);
   const requestedTab = params.get('tab');
@@ -107,8 +111,8 @@ function formatCell(value, columnName = null) {
   }
   const number = Number(value);
   if (Number.isFinite(number) && typeof value !== 'boolean') {
-    if (WHOLE_NUMBER_COLUMNS.has(columnName)) {
-      return String(Math.trunc(number));
+    if (shouldRenderWholeNumber(columnName)) {
+      return String(Math.round(number));
     }
     return number.toFixed(4);
   }
