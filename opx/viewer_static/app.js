@@ -102,6 +102,9 @@ async function fetchJson(url) {
 
 function formatCell(value, columnName = null) {
   if (value === null || value === undefined || value === '') return '—';
+  if (columnName === 'option_type') {
+    return String(value).toUpperCase();
+  }
   const number = Number(value);
   if (Number.isFinite(number) && typeof value !== 'boolean') {
     if (WHOLE_NUMBER_COLUMNS.has(columnName)) {
@@ -1317,7 +1320,7 @@ function openRowModal(row) {
 
     const value = document.createElement('div');
     value.className = 'row-detail-value';
-    value.textContent = formatCell(row[column.name]);
+    value.textContent = formatCell(row[column.name], column.name);
 
     const description = document.createElement('div');
     description.className = 'row-detail-description';
