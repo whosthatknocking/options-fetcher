@@ -1,6 +1,6 @@
 # opx User Guide
 
-`opx` downloads near-term option chains, enriches them with pricing and screening metrics, writes a timestamped CSV, and serves a local browser UI for inspection.
+`opx` downloads near-term option chains, enriches them with pricing and screening metrics, writes a timestamped CSV, and serves the local Options Screener UI for inspection.
 
 ## Overview
 
@@ -9,7 +9,7 @@
 - Limits strikes to a configurable band around spot
 - Computes Greeks, expected move, ROM-style metrics, option scoring, and volatility context
 - Writes a timestamped CSV plus an append-only run log
-- Includes a local browser for exploring the output interactively
+- Includes the local Options Screener for exploring the output interactively
 
 The output is designed to be data-focused rather than decision-focused. It does not decide whether to close, roll, or open positions. Instead, it produces a richer dataset that can support those decisions elsewhere.
 
@@ -181,8 +181,6 @@ These settings apply regardless of which provider is active.
 - `ENABLE_VALIDATION = true`: runs shared row-level validation before post-download filtering and file-level validation before export. Set it to `false` when you want to skip validation findings and validation summary output entirely.
 - `DEBUG_DUMP_PROVIDER_PAYLOAD = false`: when `true`, dump raw provider payloads to JSON before normalization so missing fields can be inspected directly.
 - `DEBUG_DUMP_DIR = "debug"`: directory used for raw provider payload dumps. Dump filenames are prefixed with the provider name.
-- `VIEWER_HOST = "127.0.0.1"`: default host/interface for the local viewer server.
-- `VIEWER_PORT = 8000`: default port for the local viewer server.
 
 ### Provider Settings
 
