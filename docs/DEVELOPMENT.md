@@ -34,7 +34,7 @@ This guide is for people changing the codebase, adding providers, or working on 
 ├── logs/
 ├── debug/
 ├── output/
-└── requirements.txt
+└── pyproject.toml
 ```
 
 ## Provider Contract
@@ -50,12 +50,12 @@ Provider rules:
 
 ## Development Setup
 
-Install dependencies from `requirements.txt`:
+Install dependencies from `pyproject.toml`:
 
 ```bash
 python -m venv .venv
 source .venv/bin/activate
-pip install -r requirements.txt
+pip install -e ".[dev]"
 python -m playwright install
 ```
 

@@ -9,7 +9,7 @@ Its objective is to produce a cleaner, more executable options dataset that can 
 ```bash
 python -m venv .venv
 source .venv/bin/activate
-pip install -r requirements.txt
+pip install -e ".[dev]"
 python -m playwright install
 python fetcher.py
 python viewer.py
@@ -53,7 +53,7 @@ Generated files are standardized under:
 ## Requirements
 
 - Python 3.10+
-- Python dependencies installed from `requirements.txt`
+- Python dependencies installed from `pyproject.toml`
 - Internet access for provider data
 
 Key dependencies:
@@ -62,5 +62,5 @@ Key dependencies:
 - `massive` for the official Massive / Polygon client library
 - `marketdata-sdk-py` for the official Market Data client library
 - `pandas`, `numpy`, and `scipy` for normalization and analytics
-- `pytest` for the automated test suite
-- `playwright` for browser-driven screenshot and UI checks
+- `pytest` in the `dev` extra for the automated test suite
+- `playwright` in the `dev` extra for browser-driven screenshot and UI checks

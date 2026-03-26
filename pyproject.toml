@@ -1,0 +1,36 @@
+[build-system]
+requires = ["setuptools>=69"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "opx"
+version = "0.1.0"
+description = "Options chain fetcher, export pipeline, and local viewer."
+readme = "README.md"
+requires-python = ">=3.10"
+license = {file = "LICENSE"}
+dependencies = [
+    "marketdata-sdk-py>=1.2.0",
+    "massive>=2.4.0",
+    "numpy>=1.24",
+    "pandas>=2.0",
+    "scipy>=1.10",
+    "tomli>=2.0; python_version < '3.11'",
+    "yfinance>=0.2.40",
+]
+
+[project.optional-dependencies]
+dev = [
+    "playwright>=1.53",
+    "pylint",
+    "pytest>=8.0",
+]
+
+[tool.setuptools.packages.find]
+include = ["opx*"]
+
+[tool.setuptools.package-data]
+opx = ["viewer_static/*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
