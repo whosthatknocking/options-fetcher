@@ -6,6 +6,7 @@ from dataclasses import dataclass, field
 from datetime import date, datetime, timedelta
 from functools import lru_cache
 from pathlib import Path
+from zoneinfo import ZoneInfo
 
 try:
     import tomllib
@@ -46,6 +47,7 @@ DEFAULT_MASSIVE_REQUEST_INTERVAL_SECONDS = 12.0
 DEFAULT_DEBUG_DUMP_PROVIDER_PAYLOAD = False
 DEFAULT_DEBUG_DUMP_DIR = Path("debug")
 _RUNTIME_CONFIG_OVERRIDE: RuntimeConfig | None = None
+US_MARKET_TIMEZONE = ZoneInfo("America/New_York")
 
 
 class ConfigError(ValueError):
@@ -94,6 +96,16 @@ class RuntimeConfig:
 
 def _default_max_expiration(today, weeks):
     return (today + timedelta(weeks=weeks)).isoformat()
+
+
+def market_calendar_today(now: datetime | None = None) -> date:
+    """Return today's date on the U.S. market calendar."""
+    current = now or datetime.now(tz=US_MARKET_TIMEZONE)
+    if current.tzinfo is None:
+        current = current.replace(tzinfo=US_MARKET_TIMEZONE)
+    else:
+        current = current.astimezone(US_MARKET_TIMEZONE)
+    return current.date()
 
 
 def _coerce_list(value, *, field_name):
@@ -235,7 +247,7 @@ def load_runtime_config(config_path: Path | None = None) -> RuntimeConfig:  # py
         warnings=warnings,
     )
 
-    today = datetime.today().date()
+    today = market_calendar_today()
     data_provider = _resolve_config_value(
         settings.get("data_provider"),
         field_name="settings.data_provider",

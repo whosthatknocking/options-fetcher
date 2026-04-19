@@ -280,6 +280,7 @@ Provider availability:
 
 - `marketdata`: earnings and dividend event data are fetched for every ticker
   - `next_earnings_date_is_estimated` is currently `True` whenever Market Data returns a future earnings date, because the upstream endpoint documents future `reportDate` values as estimates
+  - day counts for expirations, earnings, and ex-dividend dates use the `America/New_York` market calendar so the CSV stays aligned with Market Data's documented date semantics
 - `yfinance`, `massive`: all event fields are blank for these providers
 
 How to use it:

@@ -40,6 +40,7 @@ The exported CSV contains both provider-supplied and app-derived fields. Some va
 ## Corporate Event Fields
 
 These fields are fetched once per ticker and broadcast to every option row for that underlying. They capture upcoming earnings and dividend events that elevate option risk and can distort standard pricing signals.
+For Market Data, numeric event dates are interpreted on the `America/New_York` market calendar before `days_to_*` values are calculated.
 
 - `next_earnings_date`: Next upcoming earnings report date in `YYYY-MM-DD` format. Use it to identify when the underlying is most likely to make a large move. Blank when no future earnings date is available or the provider does not support event data.
 - `next_earnings_date_is_estimated`: True when the active provider marks `next_earnings_date` as an estimate rather than a confirmed company-announced date. Use it to avoid treating provisional earnings-calendar data as settled fact. Blank when no future earnings date is available or the provider does not expose estimate status.

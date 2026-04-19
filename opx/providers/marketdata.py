@@ -16,7 +16,12 @@ from marketdata.client import MarketDataClient
 from marketdata.input_types.base import Mode, OutputFormat
 from marketdata.sdk_error import MarketDataClientErrorResult
 
-from opx.config import SCRIPT_VERSION, get_provider_credentials, get_runtime_config
+from opx.config import (
+    SCRIPT_VERSION,
+    US_MARKET_TIMEZONE,
+    get_provider_credentials,
+    get_runtime_config,
+)
 from opx.providers.base import (
     DataProvider,
     OptionChainFrames,
@@ -30,21 +35,30 @@ DEFAULT_RETRY_BACKOFF_SECONDS = 1.0
 
 
 def _parse_event_date(raw_date) -> date | None:
-    """Convert a Unix timestamp int, date string, or date-like value into a date object."""
+    """Convert Market Data date values into U.S. market-calendar dates."""
     if raw_date is None:
         return None
+    parsed_date = None
     try:
-        if isinstance(raw_date, (int, float)):
-            return datetime.fromtimestamp(raw_date, tz=timezone.utc).date()
-        if isinstance(raw_date, str):
-            return datetime.strptime(raw_date[:10], "%Y-%m-%d").date()
-        if isinstance(raw_date, datetime):
-            return raw_date.date()
-        if isinstance(raw_date, date):
-            return raw_date
+        if pd.isna(raw_date):
+            return None
+        if isinstance(raw_date, (int, float, np.integer, np.floating)):
+            parsed_date = datetime.fromtimestamp(
+                float(raw_date),
+                tz=timezone.utc,
+            ).astimezone(US_MARKET_TIMEZONE).date()
+        elif isinstance(raw_date, str):
+            parsed_date = datetime.strptime(raw_date[:10], "%Y-%m-%d").date()
+        elif isinstance(raw_date, datetime):
+            if raw_date.tzinfo is None:
+                parsed_date = raw_date.date()
+            else:
+                parsed_date = raw_date.astimezone(US_MARKET_TIMEZONE).date()
+        elif isinstance(raw_date, date):
+            parsed_date = raw_date
     except (ValueError, TypeError, OSError):
         pass
-    return None
+    return parsed_date
 
 
 class OpxMarketDataClient(MarketDataClient):  # pylint: disable=too-few-public-methods
@@ -81,13 +95,9 @@ def _count_payload_rows(payload: Any) -> int:
 
 def _normalize_marketdata_expiration_series(series: pd.Series) -> pd.Series:
     """Normalize Market Data expiration values into YYYY-MM-DD strings."""
-    if pd.api.types.is_datetime64_any_dtype(series):
-        timestamps = pd.to_datetime(series, utc=True, errors="coerce")
-    elif pd.api.types.is_numeric_dtype(series):
-        timestamps = pd.to_datetime(series, unit="s", utc=True, errors="coerce")
-    else:
-        timestamps = pd.to_datetime(series, utc=True, errors="coerce")
-    return timestamps.dt.strftime("%Y-%m-%d")
+    return series.map(_parse_event_date).map(
+        lambda value: value.isoformat() if value is not None else np.nan
+    )
 
 
 class MarketDataProvider(DataProvider):

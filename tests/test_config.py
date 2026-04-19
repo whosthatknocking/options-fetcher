@@ -1,5 +1,6 @@
 """Config-loader and provider-selection tests for Milestone 1."""
 
+from datetime import date, datetime, timezone
 from pathlib import Path
 
 from opx.config import describe_runtime_config, load_runtime_config, reset_runtime_config
@@ -38,6 +39,24 @@ def test_load_runtime_config_uses_defaults_when_file_is_absent(tmp_path: Path):
     assert config.max_expiration is not None
     assert config.tickers
     assert config.config_path == tmp_path / "missing.toml"
+
+
+def test_load_runtime_config_uses_eastern_market_calendar_for_today(tmp_path: Path, monkeypatch):
+    """Runtime today should follow the U.S. market calendar instead of host-local midnight."""
+
+    class FixedDatetime(datetime):
+        """Minimal datetime stub that pins now() to a single instant."""
+
+        @classmethod
+        def now(cls, tz=None):
+            instant = datetime(2026, 4, 19, 4, 30, tzinfo=timezone.utc)
+            return instant if tz is None else instant.astimezone(tz)
+
+    monkeypatch.setattr("opx.config.datetime", FixedDatetime)
+
+    config = load_runtime_config(tmp_path / "missing.toml")
+
+    assert config.today == date(2026, 4, 19)
 
 
 def test_load_runtime_config_reads_user_config_file(tmp_path: Path):
