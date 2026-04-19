@@ -4,6 +4,12 @@ Schema note: the export is pinned to the canonical column set documented here. P
 
 The exported CSV contains both provider-supplied and app-derived fields. Some values may be blank when the active provider does not expose the required source data or when a calculation is not valid for that row.
 
+Implementation-status note:
+
+- `Blank` in the provider mapping tables means the current product intentionally leaves that canonical field unpopulated for that provider.
+- A blank value is not necessarily an upstream data error. It can mean the provider endpoint is not used in the current fetch path, the provider does not expose a compatible field, or the app has not implemented that derivation yet.
+- When a field is blank by current design, this reference now treats that as the expected output.
+
 ## Contract and Expiration Fields
 
 - `underlying_symbol`: Stock ticker for the option contract. Use it to group rows by underlying.
@@ -19,7 +25,7 @@ The exported CSV contains both provider-supplied and app-derived fields. Some va
 
 - `underlying_price`: Current underlying stock price used in calculations. Use it as the reference price for moneyness and Greeks.
 - `underlying_day_change_pct`: Underlying percentage move versus previous close. Use it to add context to the option chain. Large absolute moves mean the underlying is already having an outsized session. This can be blank for providers that do not expose a reliable underlying previous-close context in the active fetch path.
-- `historical_volatility`: Annualized realized volatility computed from the underlying's trailing 30 daily log returns. Use it to compare recent realized movement against option-implied pricing. Lower is calmer; higher means the stock has been moving more.
+- `historical_volatility`: Annualized realized volatility computed from the underlying's trailing 30 daily log returns. Use it to compare recent realized movement against option-implied pricing. Lower is calmer; higher means the stock has been moving more. This is currently expected to be blank for `massive` and `marketdata`.
 - `underlying_price_time`: Timestamp of the underlying quote snapshot. Use it to compare timing with the option quote.
 - `underlying_price_age_seconds`: Age of the underlying quote at fetch time. Use it to detect stale stock prices. Lower is better; high values mean the stock snapshot may be stale.
 - `is_stale_underlying_price`: Flag showing whether the underlying quote is older than the configured staleness threshold. Use it to down-rank stale rows.
@@ -32,8 +38,8 @@ The exported CSV contains both provider-supplied and app-derived fields. Some va
 - `volume`: Current session option volume. Use it as a liquidity signal. Higher usually means better trading activity and easier fills.
 - `open_interest`: Open contracts outstanding. Use it to judge market participation and contract depth. Higher usually means deeper, more established trading interest.
 - `implied_volatility`: Vendor-supplied implied volatility. Use it as the volatility input for Greeks and relative richness checks. Higher means richer option pricing, but usually also more underlying uncertainty.
-- `change`: Absolute price change reported by the vendor. Use it to understand the contract's move during the session. Some providers leave this blank in the single-call chain flow.
-- `percent_change`: Percentage price change reported by the vendor. Use it for relative move comparisons. Some providers leave this blank in the single-call chain flow.
+- `change`: Absolute price change reported by the vendor. Use it to understand the contract's move during the session. This is currently expected to be blank for `marketdata`.
+- `percent_change`: Percentage price change reported by the vendor. Use it for relative move comparisons. This is currently expected to be blank for `marketdata`.
 - `option_quote_time`: Timestamp of the option quote or last trade update. Use it to measure quote freshness.
 - `is_in_the_money`: In-the-money classification from the provider when available, or derived from spot versus strike when the provider snapshot omits a direct flag. Use it as a quick classification check against derived moneyness fields.
 
@@ -150,7 +156,7 @@ Legend:
 - `Direct`: copied from the provider payload with only the canonical column rename
 - `Transformed`: mapped from provider fields with normalization, coercion, or fallback logic
 - `Derived`: calculated in shared app code after normalization
-- `Blank`: not currently provided by that provider for this canonical field unless shared app code later derives it
+- `Blank`: the current implementation intentionally leaves this canonical field unpopulated for that provider unless shared app code later derives it
 
 ### Contract and Expiration Mapping
 
@@ -169,10 +175,10 @@ Legend:
 
 | Field | yfinance | massive | marketdata |
 | --- | --- | --- | --- |
-| `underlying_price` | Transformed: `fast_info.lastPrice`, fallback `info.regularMarketPrice` / `info.previousClose` | Transformed: `underlying_asset.price`, fallback `underlying_asset.value` | Transformed: first chain `underlyingPrice` |
+| `underlying_price` | Transformed: `fast_info.lastPrice`, fallback `info.regularMarketPrice` / `info.previousClose` | Transformed: `underlying_asset.price`, fallback `underlying_asset.value` | Transformed: `stocks/quotes/{symbol}/ last`, fallback latest chain row with usable `underlyingPrice` |
 | `underlying_day_change_pct` | Derived from provider values: `(last_price - previous_close) / previous_close` | Derived from provider values: `(underlying_price - day.previous_close) / previous_close` | Direct: `changepct` from `stocks/quotes/{symbol}/`, matched to the same stock quote that supplies `underlying_price_time` |
-| `historical_volatility` | Derived from provider history: trailing daily log returns | Blank: not currently supplied or derived for Massive | Blank: not currently supplied or derived for Market Data |
-| `underlying_price_time` | Transformed: `info.regularMarketTime` normalized to UTC timestamp | Transformed: `underlying_asset.last_updated`, fallback day/trade/quote timestamps | Transformed: first chain `updated` normalized to UTC as the best-available underlying timestamp |
+| `historical_volatility` | Derived from provider history: trailing daily log returns | Blank: not yet implemented for this provider | Blank: not yet implemented for this provider |
+| `underlying_price_time` | Transformed: `info.regularMarketTime` normalized to UTC timestamp | Transformed: `underlying_asset.last_updated`, fallback day/trade/quote timestamps | Transformed: `stocks/quotes/{symbol}/ updated`, fallback latest chain row `updated`, normalized to UTC |
 | `underlying_price_age_seconds` | Derived: fetch time minus `underlying_price_time` | Derived: fetch time minus `underlying_price_time` | Derived: fetch time minus `underlying_price_time` |
 | `is_stale_underlying_price` | Derived: age compared to `stale_quote_seconds` | Derived: age compared to `stale_quote_seconds` | Derived: age compared to `stale_quote_seconds` |
 
@@ -186,8 +192,8 @@ Legend:
 | `volume` | Direct: `volume` | Direct: `day.volume` | Direct: `volume` |
 | `open_interest` | Transformed: `openInterest` -> `open_interest` | Direct: `open_interest` | Transformed: `openInterest` -> `open_interest` |
 | `implied_volatility` | Transformed: `impliedVolatility` -> `implied_volatility` | Direct/Transformed: top-level `implied_volatility`, coerced numeric | Direct/Transformed: `iv` -> `implied_volatility` |
-| `change` | Direct: `change` | Direct: `day.change` | Blank: current options-chain payload does not expose contract change |
-| `percent_change` | Transformed: `percentChange` -> `percent_change` | Direct: `day.change_percent` | Blank: current options-chain payload does not expose contract percent change |
+| `change` | Direct: `change` | Direct: `day.change` | Blank: expected in the current implementation because the Market Data fetch path does not populate option-contract change |
+| `percent_change` | Transformed: `percentChange` -> `percent_change` | Direct: `day.change_percent` | Blank: expected in the current implementation because the Market Data fetch path does not populate option-contract percent change |
 | `option_quote_time` | Transformed: `lastTradeDate` -> UTC timestamp | Transformed: `last_quote.last_updated`, fallback `last_trade.sip_timestamp` / `day.last_updated` | Transformed: `updated` -> `option_quote_time` |
 | `is_in_the_money` | Transformed: `inTheMoney` -> `is_in_the_money` | Derived from provider values: underlying spot vs strike | Transformed: `inTheMoney` -> `is_in_the_money` |
 
@@ -289,16 +295,16 @@ Legend:
 
 | Field | yfinance | massive | marketdata |
 | --- | --- | --- | --- |
-| `next_earnings_date` | Blank: event fetching not implemented for this provider | Blank: event fetching not implemented for this provider | Transformed: minimum upcoming `reportDate` from `stocks/earnings/{symbol}/` via SDK |
-| `next_earnings_date_is_estimated` | Blank | Blank | Direct/Derived: `True` when Market Data supplies a future `reportDate`, because upstream documents upcoming earnings dates as estimates |
-| `days_to_earnings` | Blank | Blank | Derived: `next_earnings_date` minus runtime `today` |
-| `earnings_within_5d` | Blank | Blank | Derived: `days_to_earnings <= 5` and event occurs before expiration |
-| `earnings_within_10d` | Blank | Blank | Derived: `days_to_earnings <= 10` and event occurs before expiration |
-| `next_ex_div_date` | Blank: event fetching not implemented for this provider | Blank: event fetching not implemented for this provider | Transformed: minimum upcoming `exDate` from `stocks/dividends/{symbol}/` via direct HTTP request |
-| `days_to_ex_div` | Blank | Blank | Derived: `next_ex_div_date` minus runtime `today` |
-| `ex_div_within_3d` | Blank | Blank | Derived: `days_to_ex_div <= 3` and event occurs before expiration |
-| `dividend_amount` | Blank | Blank | Transformed: `amount` corresponding to `next_ex_div_date` from dividend payload |
-| `event_risk_score` | Blank | Blank | Derived: composite score from earnings and dividend proximity for events before expiration |
+| `next_earnings_date` | Blank: expected because event fetching is not implemented for this provider | Blank: expected because event fetching is not implemented for this provider | Transformed: minimum upcoming `reportDate` from `stocks/earnings/{symbol}/` via SDK |
+| `next_earnings_date_is_estimated` | Blank: expected because event fetching is not implemented for this provider | Blank: expected because event fetching is not implemented for this provider | Direct/Derived: `True` when Market Data supplies a future `reportDate`, because upstream documents upcoming earnings dates as estimates |
+| `days_to_earnings` | Blank: expected because event fetching is not implemented for this provider | Blank: expected because event fetching is not implemented for this provider | Derived: `next_earnings_date` minus runtime `today` |
+| `earnings_within_5d` | Blank: expected because event fetching is not implemented for this provider | Blank: expected because event fetching is not implemented for this provider | Derived: `days_to_earnings <= 5` and event occurs before expiration |
+| `earnings_within_10d` | Blank: expected because event fetching is not implemented for this provider | Blank: expected because event fetching is not implemented for this provider | Derived: `days_to_earnings <= 10` and event occurs before expiration |
+| `next_ex_div_date` | Blank: expected because event fetching is not implemented for this provider | Blank: expected because event fetching is not implemented for this provider | Transformed: minimum upcoming `exDate` from `stocks/dividends/{symbol}/` via direct HTTP request |
+| `days_to_ex_div` | Blank: expected because event fetching is not implemented for this provider | Blank: expected because event fetching is not implemented for this provider | Derived: `next_ex_div_date` minus runtime `today` |
+| `ex_div_within_3d` | Blank: expected because event fetching is not implemented for this provider | Blank: expected because event fetching is not implemented for this provider | Derived: `days_to_ex_div <= 3` and event occurs before expiration |
+| `dividend_amount` | Blank: expected because event fetching is not implemented for this provider | Blank: expected because event fetching is not implemented for this provider | Transformed: `amount` corresponding to `next_ex_div_date` from dividend payload |
+| `event_risk_score` | Blank: expected because event fetching is not implemented for this provider | Blank: expected because event fetching is not implemented for this provider | Derived: composite score from earnings and dividend proximity for events before expiration |
 
 ### Run Metadata Mapping
 
