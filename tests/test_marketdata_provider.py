@@ -2,6 +2,7 @@
 
 from datetime import date, datetime, timezone
 from typing import cast
+from zoneinfo import ZoneInfo
 
 import pandas as pd
 import pytest
@@ -351,8 +352,9 @@ def test_marketdata_provider_load_ticker_events_parses_earnings_and_dividends(mo
     provider = MarketDataProvider()
     client = fake_client(provider)
 
-    earnings_ts = int(datetime(2026, 4, 30, tzinfo=timezone.utc).timestamp())
-    past_earnings_ts = int(datetime(2026, 4, 1, tzinfo=timezone.utc).timestamp())
+    market_tz = ZoneInfo("America/New_York")
+    earnings_ts = int(datetime(2026, 4, 30, tzinfo=market_tz).timestamp())
+    past_earnings_ts = int(datetime(2026, 4, 1, tzinfo=market_tz).timestamp())
     client.stocks = type(
         "StocksResource",
         (),
@@ -363,7 +365,7 @@ def test_marketdata_provider_load_ticker_events_parses_earnings_and_dividends(mo
         },
     )()
 
-    ex_div_ts = int(datetime(2026, 4, 18, tzinfo=timezone.utc).timestamp())
+    ex_div_ts = int(datetime(2026, 4, 18, tzinfo=market_tz).timestamp())
     client._dividend_payload = {  # pylint: disable=protected-access
         "s": "ok",
         "exDate": [ex_div_ts],
@@ -376,6 +378,32 @@ def test_marketdata_provider_load_ticker_events_parses_earnings_and_dividends(mo
     assert events["next_earnings_date_is_estimated"] is True
     assert events["next_ex_div_date"] == "2026-04-18"
     assert events["dividend_amount"] == pytest.approx(0.88)
+
+
+def test_marketdata_provider_parses_numeric_event_dates_in_market_timezone(monkeypatch):
+    """Numeric dates should resolve using the provider's documented Eastern calendar."""
+    patch_marketdata_client(monkeypatch)
+    today = date(2026, 4, 29)
+    monkeypatch.setattr(
+        "opx.providers.marketdata.get_runtime_config",
+        lambda: make_runtime_config(today=today),
+    )
+    provider = MarketDataProvider()
+    client = fake_client(provider)
+    utc_timestamp = int(datetime(2026, 4, 30, 0, 30, tzinfo=timezone.utc).timestamp())
+    client.stocks = type(
+        "StocksResource",
+        (),
+        {
+            "earnings": lambda _self, _sym, **_kw: type(
+                "StockEarnings", (), {"reportDate": [utc_timestamp], "s": "ok"}
+            )(),
+        },
+    )()
+
+    events = provider.load_ticker_events("TSLA")
+
+    assert events["next_earnings_date"] == "2026-04-29"
 
 
 def test_marketdata_provider_load_ticker_events_returns_blanks_on_api_failure(monkeypatch):
