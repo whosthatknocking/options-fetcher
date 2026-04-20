@@ -124,3 +124,61 @@ def test_main_exits_1_some_missing(tmp_path):
     ])
     result = main(["--positions", str(pos_path), "--output", str(out_path)])
     assert result == 1
+
+
+def test_main_prints_passes_primary_screen_true_for_passing_row(tmp_path, capsys):
+    """Found rows should use the canonical passes_primary_screen naming."""
+    pos_path = _write_positions(tmp_path, [
+        {"Symbol": " -AAPL260620C200"},
+    ])
+    out_path = _write_output(tmp_path, "options_engine_output_test.csv", [
+        {
+            "underlying_symbol": "AAPL",
+            "expiration_date": "2026-06-20",
+            "option_type": "call",
+            "strike": 200.0,
+            "bid": 5.0,
+            "ask": 5.5,
+            "bid_ask_spread_pct_of_mid": 0.08,
+            "open_interest": 500,
+            "volume": 25,
+            "passes_primary_screen": True,
+        },
+    ])
+
+    result = main(["--positions", str(pos_path), "--output", str(out_path)])
+
+    captured = capsys.readouterr()
+    assert result == 0
+    assert "passes_primary_screen=true" in captured.out
+    assert "failed_filters=" not in captured.out
+
+
+def test_main_prints_failed_primary_screen_filters_for_non_passing_row(tmp_path, capsys):
+    """Found rows should show which configured primary-screen filters failed."""
+    pos_path = _write_positions(tmp_path, [
+        {"Symbol": " -AAPL260620C200"},
+    ])
+    out_path = _write_output(tmp_path, "options_engine_output_test.csv", [
+        {
+            "underlying_symbol": "AAPL",
+            "expiration_date": "2026-06-20",
+            "option_type": "call",
+            "strike": 200.0,
+            "bid": 5.0,
+            "ask": 5.5,
+            "bid_ask_spread_pct_of_mid": 0.30,
+            "open_interest": 40,
+            "volume": 5,
+            "passes_primary_screen": False,
+        },
+    ])
+
+    result = main(["--positions", str(pos_path), "--output", str(out_path)])
+
+    captured = capsys.readouterr()
+    assert result == 0
+    assert "passes_primary_screen=false" in captured.out
+    assert "filters_max_spread_pct_of_mid(0.3000>0.2500)" in captured.out
+    assert "filters_min_open_interest(40.0000<100.0000)" in captured.out
+    assert "filters_min_volume(5.0000<10.0000)" in captured.out

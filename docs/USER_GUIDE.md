@@ -67,6 +67,7 @@ opx-check --positions ~/my-positions.csv --output output/options_engine_output_2
 ```
 
 `opx-check` exits with code `0` when all positions are found and `1` when any are missing, so it can be used in scripts.
+For found contracts, it also prints `passes_primary_screen=true|false`; when the value is `false`, the output includes the exact failed filter names such as `filters_max_spread_pct_of_mid` or `filters_min_open_interest`.
 
 Run the local viewer:
 

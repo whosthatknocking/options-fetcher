@@ -1,8 +1,10 @@
 """CLI tool to verify that every option position appears in the latest output CSV."""
 from pathlib import Path
+from numbers import Real
 
 import pandas as pd
 
+from opx.config import get_runtime_config
 from opx.positions import DEFAULT_POSITIONS_PATH, load_positions
 
 OUTPUTS_DIR = Path("output")
@@ -49,6 +51,105 @@ def check_positions(positions_path: Path | None = None, output_path: Path | None
     return found, missing
 
 
+def _is_true_like(value) -> bool:
+    """Interpret common boolean-like CSV values."""
+    return str(value).strip().lower() in {"true", "1", "yes"}
+
+
+def _format_filter_value(value) -> str:
+    """Format row and threshold values for concise CLI output."""
+    if value is None or pd.isna(value):
+        return "missing"
+    if isinstance(value, bool):
+        return str(value).lower()
+    if isinstance(value, Real):
+        return f"{float(value):.4f}"
+    return str(value)
+
+
+def _append_filter_failure(
+    failures: list[str],
+    *,
+    filter_name: str,
+    row_value,
+    threshold_value,
+    operator: str,
+) -> None:
+    """Append one failed filter note using canonical config naming."""
+    failures.append(
+        f"{filter_name}({_format_filter_value(row_value)}"
+        f"{operator}{_format_filter_value(threshold_value)})"
+    )
+
+
+def _get_failed_primary_screen_filters(row: pd.Series) -> list[str]:
+    """Return the configured primary-screen filters that the row fails."""
+    config = get_runtime_config()
+    failures: list[str] = []
+
+    if config.min_bid is not None:
+        bid = pd.to_numeric(row.get("bid"), errors="coerce")
+        if pd.isna(bid) or bid < config.min_bid:
+            _append_filter_failure(
+                failures,
+                filter_name="filters_min_bid",
+                row_value=bid,
+                threshold_value=config.min_bid,
+                operator="<",
+            )
+
+    spread_pct = pd.to_numeric(row.get("bid_ask_spread_pct_of_mid"), errors="coerce")
+    if pd.isna(spread_pct) or spread_pct > config.max_spread_pct_of_mid:
+        _append_filter_failure(
+            failures,
+            filter_name="filters_max_spread_pct_of_mid",
+            row_value=spread_pct,
+            threshold_value=config.max_spread_pct_of_mid,
+            operator=">",
+        )
+
+    open_interest = pd.to_numeric(row.get("open_interest"), errors="coerce")
+    if pd.isna(open_interest) or open_interest < config.min_open_interest:
+        _append_filter_failure(
+            failures,
+            filter_name="filters_min_open_interest",
+            row_value=open_interest,
+            threshold_value=config.min_open_interest,
+            operator="<",
+        )
+
+    volume = pd.to_numeric(row.get("volume"), errors="coerce")
+    if pd.isna(volume) or volume < config.min_volume:
+        _append_filter_failure(
+            failures,
+            filter_name="filters_min_volume",
+            row_value=volume,
+            threshold_value=config.min_volume,
+            operator="<",
+        )
+
+    return failures
+
+
+def _format_found_position_line(key, row: pd.Series) -> str:
+    """Build one CLI output line for a found portfolio position."""
+    passes = row.get("passes_primary_screen")
+    screen_status = f"passes_primary_screen={'true' if _is_true_like(passes) else 'false'}"
+    failed_filters = (
+        _get_failed_primary_screen_filters(row) if not _is_true_like(passes) else []
+    )
+    failed_filters_note = (
+        f"  failed_filters={','.join(failed_filters)}"
+        if failed_filters
+        else ""
+    )
+    return (
+        f"  FOUND    {key.ticker:<6} {key.expiration_date}  {key.option_type:<4}  "
+        f"strike={key.strike:>7.1f}  bid={row['bid']}  ask={row['ask']}  "
+        f"{screen_status}{failed_filters_note}"
+    )
+
+
 def main(argv=None):
     """Print a position coverage report for the latest output CSV."""
     import argparse  # pylint: disable=import-outside-toplevel
@@ -93,12 +194,7 @@ def main(argv=None):
         return 0
 
     for key, row in found:
-        passes = row.get("passes_primary_screen")
-        screen_note = "" if passes is True else "  [fails screen]"
-        print(
-            f"  FOUND    {key.ticker:<6} {key.expiration_date}  {key.option_type:<4}  "
-            f"strike={key.strike:>7.1f}  bid={row['bid']}  ask={row['ask']}{screen_note}"
-        )
+        print(_format_found_position_line(key, row))
 
     for key in missing:
         print(
