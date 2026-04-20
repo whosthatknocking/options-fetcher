@@ -790,8 +790,12 @@ def load_positions_payload(path: Path | None = None) -> TablePayload:
         for record in frame.to_dict(orient="records")
     ]
     columns = build_column_definitions(frame, descriptions)
+    try:
+        selected_file = str(positions_path.relative_to(REPO_ROOT))
+    except ValueError:
+        selected_file = positions_path.name
     return {
-        "selected_file": str(positions_path.relative_to(REPO_ROOT)),
+        "selected_file": selected_file,
         "row_count": len(rows),
         "columns": columns,
         "rows": rows,

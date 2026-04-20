@@ -1,5 +1,6 @@
 """Viewer helper tests for field descriptions, cards, and freshness metadata."""
 from pathlib import Path
+import textwrap
 
 import pandas as pd
 
@@ -92,6 +93,31 @@ def test_normalize_row_value_keeps_days_to_expiration_as_integer():
     """Viewer payload serialization should keep days_to_expiration whole."""
     assert viewer.normalize_row_value("days_to_expiration", 14.0) == 14
     assert viewer.normalize_row_value("time_to_expiration_years", 14.0) == 14.0
+
+
+def test_load_positions_payload_reads_rows_and_stops_before_footer(tmp_path: Path):
+    """Positions payloads should include table rows but ignore trailing broker footer text."""
+    positions_path = tmp_path / "positions.csv"
+    positions_path.write_text(
+        textwrap.dedent(
+            """\
+            Account Number,Account Name,Symbol,Description,Quantity,Last Price,Type
+            Z1,INDIVIDUAL,TSLA,TESLA INC,100,$391.00,Margin
+            Z1,INDIVIDUAL, -TSLA260821P360,TSLA AUG 21 2026 $360 PUT,-2,$25.00,Margin
+
+            "Footer notice"
+            """
+        ),
+        encoding="utf-8",
+    )
+
+    payload = viewer.load_positions_payload(positions_path)
+
+    assert payload["selected_file"] == "positions.csv"
+    assert payload["row_count"] == 2
+    assert payload["rows"][0]["Symbol"] == "TSLA"
+    assert payload["rows"][1]["Symbol"] == "-TSLA260821P360"
+    assert "Footer notice" not in str(payload["rows"])
 
 
 def test_build_ticker_summary_marks_estimated_marketdata_earnings_dates():

@@ -387,6 +387,7 @@ Current viewer behavior includes:
 
 - dataset summary cards
 - active provider surfaced through dataset metadata when constant across the file
+- a `Positions` tab backed by `data/positions.csv` with the same sortable/filterable table behavior and row-detail modal pattern used for exported datasets
 - a `Reference` tab backed by the field-reference document
 - a `Chain View` tab that derives per-ticker/per-expiration visualizations directly from the exported CSV rows
 - sortable/filterable table view

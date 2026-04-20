@@ -1,18 +1,27 @@
+function createTableState() {
+  return {
+    rows: [],
+    columns: [],
+    selectedFile: null,
+    sortColumn: null,
+    sortDirection: 'asc',
+    columnFilters: {},
+    activeFilterColumn: null,
+    filterSearchTerm: '',
+    currentPage: 1,
+    pageSize: 100,
+    columnWidths: {},
+    emptyMessage: null,
+  };
+}
+
 const state = {
   files: [],
-  rows: [],
-  columns: [],
+  dataset: createTableState(),
+  positions: createTableState(),
   summary: null,
-  selectedFile: null,
-  sortColumn: null,
-  sortDirection: 'asc',
-  columnFilters: {},
-  activeFilterColumn: null,
-  filterSearchTerm: '',
-  currentPage: 1,
-  pageSize: 100,
-  columnWidths: {},
   selectedRow: null,
+  selectedRowTableKey: 'dataset',
   activeTab: 'table',
   chainRenderToken: 0,
   chainView: {
@@ -23,21 +32,10 @@ const state = {
   },
 };
 
-const VALID_TABS = new Set(['table', 'summary', 'chain', 'readme']);
+const VALID_TABS = new Set(['table', 'positions', 'summary', 'chain', 'readme']);
 
 const elements = {
   fileSelect: document.getElementById('fileSelect'),
-  rowCount: document.getElementById('rowCount'),
-  pageSizeSelect: document.getElementById('pageSizeSelect'),
-  freshnessSummary: document.getElementById('freshnessSummary'),
-  datasetCards: document.getElementById('datasetCards'),
-  dataTable: document.getElementById('dataTable'),
-  tableHead: document.querySelector('#dataTable thead'),
-  tableBody: document.querySelector('#dataTable tbody'),
-  tableStatus: document.getElementById('tableStatus'),
-  prevPageButton: document.getElementById('prevPageButton'),
-  nextPageButton: document.getElementById('nextPageButton'),
-  pageInfo: document.getElementById('pageInfo'),
   filterPopover: document.getElementById('filterPopover'),
   filterPopoverTitle: document.getElementById('filterPopoverTitle'),
   filterSearchWrap: document.getElementById('filterSearchWrap'),
@@ -58,6 +56,7 @@ const elements = {
   summaryStatus: document.getElementById('summaryStatus'),
   summaryTickerGrid: document.getElementById('summaryTickerGrid'),
   tableTab: document.getElementById('tableTab'),
+  positionsTab: document.getElementById('positionsTab'),
   chainTab: document.getElementById('chainTab'),
   chainTickerSelect: document.getElementById('chainTickerSelect'),
   chainExpirationSelect: document.getElementById('chainExpirationSelect'),
@@ -71,6 +70,34 @@ const elements = {
   readmeTab: document.getElementById('readmeTab'),
   readmeContent: document.getElementById('readmeContent'),
   themeToggle: document.getElementById('themeToggle'),
+  tables: {
+    dataset: {
+      rowCount: document.getElementById('rowCount'),
+      pageSizeSelect: document.getElementById('pageSizeSelect'),
+      freshnessSummary: document.getElementById('freshnessSummary'),
+      datasetCards: document.getElementById('datasetCards'),
+      dataTable: document.getElementById('dataTable'),
+      tableHead: document.querySelector('#dataTable thead'),
+      tableBody: document.querySelector('#dataTable tbody'),
+      tableStatus: document.getElementById('tableStatus'),
+      prevPageButton: document.getElementById('prevPageButton'),
+      nextPageButton: document.getElementById('nextPageButton'),
+      pageInfo: document.getElementById('pageInfo'),
+    },
+    positions: {
+      rowCount: document.getElementById('positionsRowCount'),
+      pageSizeSelect: document.getElementById('positionsPageSizeSelect'),
+      freshnessSummary: null,
+      datasetCards: null,
+      dataTable: document.getElementById('positionsDataTable'),
+      tableHead: document.querySelector('#positionsDataTable thead'),
+      tableBody: document.querySelector('#positionsDataTable tbody'),
+      tableStatus: document.getElementById('positionsTableStatus'),
+      prevPageButton: document.getElementById('positionsPrevPageButton'),
+      nextPageButton: document.getElementById('positionsNextPageButton'),
+      pageInfo: document.getElementById('positionsPageInfo'),
+    },
+  },
 };
 
 let chainTooltipElement = null;
@@ -91,6 +118,18 @@ const WHOLE_NUMBER_COLUMNS = new Set([
   'days_to_ex_div',
   'event_risk_score',
 ]);
+
+function getActiveTableKey() {
+  return state.activeTab === 'positions' ? 'positions' : 'dataset';
+}
+
+function getTableState(tableKey = getActiveTableKey()) {
+  return state[tableKey];
+}
+
+function getTableElements(tableKey = getActiveTableKey()) {
+  return elements.tables[tableKey];
+}
 
 function shouldRenderWholeNumber(columnName) {
   return WHOLE_NUMBER_COLUMNS.has(columnName) || String(columnName || '').endsWith('_seconds');
@@ -200,12 +239,13 @@ function formatDatasetValue(card) {
 }
 
 function renderFreshnessSummary(summary) {
+  const datasetElements = getTableElements('dataset');
   if (!summary) {
-    elements.freshnessSummary.innerHTML = '';
+    datasetElements.freshnessSummary.innerHTML = '';
     return;
   }
 
-  elements.freshnessSummary.innerHTML = `
+  datasetElements.freshnessSummary.innerHTML = `
     <article class="freshness-card">
       ${renderFieldLabel('File Age', 'freshness-label')}
       <strong>${escapeHtml(formatDuration(summary.file_age_seconds))}</strong>
@@ -225,12 +265,13 @@ function renderFreshnessSummary(summary) {
 }
 
 function renderDatasetCards(cards) {
+  const datasetElements = getTableElements('dataset');
   if (!cards || cards.length === 0) {
-    elements.datasetCards.innerHTML = '';
+    datasetElements.datasetCards.innerHTML = '';
     return;
   }
 
-  elements.datasetCards.innerHTML = cards.map((card) => `
+  datasetElements.datasetCards.innerHTML = cards.map((card) => `
     <article class="freshness-card">
       ${renderFieldLabel(card.name, 'freshness-label')}
       <strong title="${escapeHtml(card.description || '')}">${escapeHtml(formatDatasetValue(card))}</strong>
@@ -433,7 +474,7 @@ function getRiskColor(value) {
 
 function getChainTickerOptions() {
   const values = new Set();
-  state.rows.forEach((row) => {
+  state.dataset.rows.forEach((row) => {
     if (row.underlying_symbol !== null && row.underlying_symbol !== undefined && row.underlying_symbol !== '') {
       values.add(String(row.underlying_symbol));
     }
@@ -443,7 +484,7 @@ function getChainTickerOptions() {
 
 function getChainExpirationOptions(ticker) {
   const values = new Set();
-  state.rows.forEach((row) => {
+  state.dataset.rows.forEach((row) => {
     if (String(row.underlying_symbol) !== String(ticker)) return;
     if (row.expiration_date !== null && row.expiration_date !== undefined && row.expiration_date !== '') {
       values.add(String(row.expiration_date));
@@ -477,7 +518,7 @@ function syncChainViewState() {
 }
 
 function getSelectedChainRows() {
-  return state.rows
+  return state.dataset.rows
     .filter((row) => String(row.underlying_symbol) === String(state.chainView.ticker))
     .filter((row) => String(row.expiration_date) === String(state.chainView.expiration))
     .filter((row) => state.chainView.optionType === 'all' || row.option_type === state.chainView.optionType)
@@ -1026,16 +1067,16 @@ function parseFilterNumber(value) {
   return Number.isFinite(parsed) ? parsed : null;
 }
 
-function getColumnDefinition(columnName) {
-  return state.columns.find((column) => column.name === columnName) || null;
+function getColumnDefinition(columnName, tableKey = getActiveTableKey()) {
+  return getTableState(tableKey).columns.find((column) => column.name === columnName) || null;
 }
 
-function isRangeFilter(columnName) {
-  return getColumnDefinition(columnName)?.is_numeric === true;
+function isRangeFilter(columnName, tableKey = getActiveTableKey()) {
+  return getColumnDefinition(columnName, tableKey)?.is_numeric === true;
 }
 
-function hasActiveColumnFilter(columnName) {
-  const filter = state.columnFilters[columnName];
+function hasActiveColumnFilter(columnName, tableKey = getActiveTableKey()) {
+  const filter = getTableState(tableKey).columnFilters[columnName];
   if (!filter) return false;
   if (filter.type === 'range') {
     return filter.min !== null || filter.max !== null;
@@ -1043,16 +1084,18 @@ function hasActiveColumnFilter(columnName) {
   return filter.values.size > 0;
 }
 
-function getColumnFilterValues(columnName) {
+function getColumnFilterValues(columnName, tableKey = getActiveTableKey()) {
+  const tableState = getTableState(tableKey);
   const values = new Set();
-  state.rows.forEach((row) => values.add(normalizeFilterValue(row[columnName])));
+  tableState.rows.forEach((row) => values.add(normalizeFilterValue(row[columnName])));
   return [...values].sort((left, right) => compareValues(left, right));
 }
 
-function getFilteredRows() {
-  let rows = state.rows.slice();
+function getFilteredRows(tableKey = getActiveTableKey()) {
+  const tableState = getTableState(tableKey);
+  let rows = tableState.rows.slice();
 
-  Object.entries(state.columnFilters).forEach(([columnName, filter]) => {
+  Object.entries(tableState.columnFilters).forEach(([columnName, filter]) => {
     if (filter.type === 'range') {
       if (filter.min !== null || filter.max !== null) {
         rows = rows.filter((row) => {
@@ -1071,36 +1114,38 @@ function getFilteredRows() {
     }
   });
 
-  if (state.sortColumn) {
+  if (tableState.sortColumn) {
     rows.sort((a, b) => {
-      const delta = compareValues(a[state.sortColumn], b[state.sortColumn]);
-      return state.sortDirection === 'asc' ? delta : -delta;
+      const delta = compareValues(a[tableState.sortColumn], b[tableState.sortColumn]);
+      return tableState.sortDirection === 'asc' ? delta : -delta;
     });
   }
 
   return rows;
 }
 
-function closeFilterPopover() {
-  state.activeFilterColumn = null;
-  state.filterSearchTerm = '';
+function closeFilterPopover(tableKey = getActiveTableKey()) {
+  const tableState = getTableState(tableKey);
+  tableState.activeFilterColumn = null;
+  tableState.filterSearchTerm = '';
   if (!elements.filterPopover) return;
   elements.filterPopover.classList.remove('open');
   elements.filterPopover.setAttribute('aria-hidden', 'true');
 }
 
-function renderFilterOptions() {
+function renderFilterOptions(tableKey = getActiveTableKey()) {
+  const tableState = getTableState(tableKey);
   if (!filterPopoverAvailable) return;
-  if (!state.activeFilterColumn) return;
-  if (isRangeFilter(state.activeFilterColumn)) {
+  if (!tableState.activeFilterColumn) return;
+  if (isRangeFilter(tableState.activeFilterColumn, tableKey)) {
     elements.filterOptionList.innerHTML = '';
     return;
   }
 
-  const activeFilter = state.columnFilters[state.activeFilterColumn];
+  const activeFilter = tableState.columnFilters[tableState.activeFilterColumn];
   const selectedValues = activeFilter?.type === 'set' ? activeFilter.values : new Set();
-  const values = getColumnFilterValues(state.activeFilterColumn).filter((value) =>
-    value.toLowerCase().includes(state.filterSearchTerm.toLowerCase())
+  const values = getColumnFilterValues(tableState.activeFilterColumn, tableKey).filter((value) =>
+    value.toLowerCase().includes(tableState.filterSearchTerm.toLowerCase())
   );
   elements.filterOptionList.innerHTML = '';
 
@@ -1119,20 +1164,20 @@ function renderFilterOptions() {
     checkbox.type = 'checkbox';
     checkbox.checked = selectedValues.has(value);
     checkbox.addEventListener('change', () => {
-      if (!state.columnFilters[state.activeFilterColumn] || state.columnFilters[state.activeFilterColumn].type !== 'set') {
-        state.columnFilters[state.activeFilterColumn] = { type: 'set', values: new Set() };
+      if (!tableState.columnFilters[tableState.activeFilterColumn] || tableState.columnFilters[tableState.activeFilterColumn].type !== 'set') {
+        tableState.columnFilters[tableState.activeFilterColumn] = { type: 'set', values: new Set() };
       }
       if (checkbox.checked) {
-        state.columnFilters[state.activeFilterColumn].values.add(value);
+        tableState.columnFilters[tableState.activeFilterColumn].values.add(value);
       } else {
-        state.columnFilters[state.activeFilterColumn].values.delete(value);
-        if (state.columnFilters[state.activeFilterColumn].values.size === 0) {
-          delete state.columnFilters[state.activeFilterColumn];
+        tableState.columnFilters[tableState.activeFilterColumn].values.delete(value);
+        if (tableState.columnFilters[tableState.activeFilterColumn].values.size === 0) {
+          delete tableState.columnFilters[tableState.activeFilterColumn];
         }
       }
-      state.currentPage = 1;
-      renderTable();
-      renderFilterOptions();
+      tableState.currentPage = 1;
+      renderTable(tableKey);
+      renderFilterOptions(tableKey);
     });
     const text = document.createElement('span');
     text.textContent = value;
@@ -1142,65 +1187,69 @@ function renderFilterOptions() {
   });
 }
 
-function openFilterPopover(columnName, anchor) {
+function openFilterPopover(columnName, anchor, tableKey = getActiveTableKey()) {
+  const tableState = getTableState(tableKey);
   if (!filterPopoverAvailable) return;
-  state.activeFilterColumn = columnName;
-  state.filterSearchTerm = '';
+  tableState.activeFilterColumn = columnName;
+  tableState.filterSearchTerm = '';
   elements.filterPopoverTitle.textContent = `${columnName} filter`;
   elements.filterValueSearch.value = '';
-  elements.filterSearchWrap.hidden = isRangeFilter(columnName);
-  elements.filterRangeWrap.hidden = !isRangeFilter(columnName);
+  elements.filterSearchWrap.hidden = isRangeFilter(columnName, tableKey);
+  elements.filterRangeWrap.hidden = !isRangeFilter(columnName, tableKey);
 
-  if (isRangeFilter(columnName)) {
-    const filter = state.columnFilters[columnName];
+  if (isRangeFilter(columnName, tableKey)) {
+    const filter = tableState.columnFilters[columnName];
     elements.filterMinValue.placeholder = `Min ${columnName}`;
     elements.filterMaxValue.placeholder = `Max ${columnName}`;
     elements.filterMinValue.value = filter?.type === 'range' && filter.min !== null ? String(filter.min) : '';
     elements.filterMaxValue.value = filter?.type === 'range' && filter.max !== null ? String(filter.max) : '';
   }
 
-  renderFilterOptions();
+  renderFilterOptions(tableKey);
 
   const rect = anchor.getBoundingClientRect();
   elements.filterPopover.style.top = `${window.scrollY + rect.bottom + 6}px`;
   elements.filterPopover.style.left = `${Math.max(8, window.scrollX + rect.left - 180 + rect.width)}px`;
   elements.filterPopover.classList.add('open');
   elements.filterPopover.setAttribute('aria-hidden', 'false');
-  if (isRangeFilter(columnName)) {
+  if (isRangeFilter(columnName, tableKey)) {
     elements.filterMinValue.focus();
   } else {
     elements.filterValueSearch.focus();
   }
 }
 
-function getPagedRows(rows) {
-  if (state.pageSize === 'all') {
-    state.currentPage = 1;
+function getPagedRows(rows, tableKey = getActiveTableKey()) {
+  const tableState = getTableState(tableKey);
+  if (tableState.pageSize === 'all') {
+    tableState.currentPage = 1;
     return {
       rows,
       totalPages: 1,
     };
   }
 
-  const totalPages = Math.max(1, Math.ceil(rows.length / state.pageSize));
-  state.currentPage = Math.min(state.currentPage, totalPages);
-  const start = (state.currentPage - 1) * state.pageSize;
+  const totalPages = Math.max(1, Math.ceil(rows.length / tableState.pageSize));
+  tableState.currentPage = Math.min(tableState.currentPage, totalPages);
+  const start = (tableState.currentPage - 1) * tableState.pageSize;
   return {
-    rows: rows.slice(start, start + state.pageSize),
+    rows: rows.slice(start, start + tableState.pageSize),
     totalPages,
   };
 }
 
-function ensureColumnGroup() {
-  let colgroup = elements.dataTable.querySelector('colgroup');
+function ensureColumnGroup(tableKey = getActiveTableKey()) {
+  const tableState = getTableState(tableKey);
+  const tableElements = getTableElements(tableKey);
+  let colgroup = tableElements.dataTable.querySelector('colgroup');
   if (!colgroup) {
     colgroup = document.createElement('colgroup');
-    elements.dataTable.insertBefore(colgroup, elements.tableHead);
+    tableElements.dataTable.insertBefore(colgroup, tableElements.tableHead);
   }
   colgroup.innerHTML = '';
-  state.columns.forEach((column) => {
+  tableState.columns.forEach((column) => {
     const col = document.createElement('col');
-    const width = state.columnWidths[column.name];
+    const width = tableState.columnWidths[column.name];
     if (width) {
       col.style.width = `${width}px`;
     }
@@ -1208,7 +1257,8 @@ function ensureColumnGroup() {
   });
 }
 
-function startColumnResize(event, columnName) {
+function startColumnResize(event, columnName, tableKey = getActiveTableKey()) {
+  const tableState = getTableState(tableKey);
   event.preventDefault();
   event.stopPropagation();
   const th = event.target.closest('th');
@@ -1217,8 +1267,8 @@ function startColumnResize(event, columnName) {
 
   const onMove = (moveEvent) => {
     const nextWidth = Math.max(96, startWidth + (moveEvent.clientX - startX));
-    state.columnWidths[columnName] = nextWidth;
-    ensureColumnGroup();
+    tableState.columnWidths[columnName] = nextWidth;
+    ensureColumnGroup(tableKey);
   };
 
   const onUp = () => {
@@ -1232,35 +1282,37 @@ function startColumnResize(event, columnName) {
   window.addEventListener('pointerup', onUp);
 }
 
-function renderTable() {
-  const filteredRows = getFilteredRows();
-  const { rows, totalPages } = getPagedRows(filteredRows);
-  elements.rowCount.textContent = filteredRows.length.toLocaleString();
+function renderTable(tableKey = getActiveTableKey()) {
+  const tableState = getTableState(tableKey);
+  const tableElements = getTableElements(tableKey);
+  const filteredRows = getFilteredRows(tableKey);
+  const { rows, totalPages } = getPagedRows(filteredRows, tableKey);
+  tableElements.rowCount.textContent = filteredRows.length.toLocaleString();
 
-  ensureColumnGroup();
-  elements.tableHead.innerHTML = '';
+  ensureColumnGroup(tableKey);
+  tableElements.tableHead.innerHTML = '';
   const headerRow = document.createElement('tr');
-  state.columns.forEach((column) => {
+  tableState.columns.forEach((column) => {
     const th = document.createElement('th');
     const headerInner = document.createElement('div');
     headerInner.className = 'header-cell';
     const button = document.createElement('button');
-    const sortMark = state.sortColumn === column.name ? (state.sortDirection === 'asc' ? ' ↑' : ' ↓') : '';
+    const sortMark = tableState.sortColumn === column.name ? (tableState.sortDirection === 'asc' ? ' ↑' : ' ↓') : '';
     button.innerHTML = `<span class="tooltip-label" title="${escapeHtml(column.description)}">${escapeHtml(column.name)}</span>${sortMark}`;
     button.addEventListener('click', () => {
-      if (state.sortColumn === column.name) {
-        state.sortDirection = state.sortDirection === 'asc' ? 'desc' : 'asc';
+      if (tableState.sortColumn === column.name) {
+        tableState.sortDirection = tableState.sortDirection === 'asc' ? 'desc' : 'asc';
       } else {
-        state.sortColumn = column.name;
-        state.sortDirection = 'asc';
+        tableState.sortColumn = column.name;
+        tableState.sortDirection = 'asc';
       }
-      renderTable();
+      renderTable(tableKey);
     });
     const filterButton = document.createElement('button');
     filterButton.type = 'button';
-    filterButton.className = `header-filter-button ${hasActiveColumnFilter(column.name) ? 'active' : ''}`;
+    filterButton.className = `header-filter-button ${hasActiveColumnFilter(column.name, tableKey) ? 'active' : ''}`;
     filterButton.title = `Filter ${column.name}`;
-    filterButton.setAttribute('aria-label', hasActiveColumnFilter(column.name)
+    filterButton.setAttribute('aria-label', hasActiveColumnFilter(column.name, tableKey)
       ? `Filter ${column.name}, active`
       : `Filter ${column.name}`);
     const filterIcon = document.createElement('span');
@@ -1272,91 +1324,106 @@ function renderTable() {
       </svg>
     `;
     filterButton.appendChild(filterIcon);
-    if (hasActiveColumnFilter(column.name)) {
+    if (hasActiveColumnFilter(column.name, tableKey)) {
       const filterCount = document.createElement('span');
       filterCount.className = 'header-filter-count';
-      if (isRangeFilter(column.name)) {
+      if (isRangeFilter(column.name, tableKey)) {
         filterCount.textContent = 'R';
       } else {
-        filterCount.textContent = String(state.columnFilters[column.name].values.size);
+        filterCount.textContent = String(tableState.columnFilters[column.name].values.size);
       }
-    filterButton.appendChild(filterCount);
-  }
+      filterButton.appendChild(filterCount);
+    }
     filterButton.disabled = !filterPopoverAvailable;
     filterButton.addEventListener('click', (event) => {
       event.stopPropagation();
       event.preventDefault();
       if (
         filterPopoverAvailable
-        && state.activeFilterColumn === column.name
+        && tableState.activeFilterColumn === column.name
         && elements.filterPopover.classList.contains('open')
       ) {
-        closeFilterPopover();
+        closeFilterPopover(tableKey);
       } else {
-        openFilterPopover(column.name, filterButton);
+        openFilterPopover(column.name, filterButton, tableKey);
       }
     });
     const resizer = document.createElement('span');
     resizer.className = 'column-resizer';
     resizer.title = `Resize ${column.name}`;
-    resizer.addEventListener('pointerdown', (event) => startColumnResize(event, column.name));
+    resizer.addEventListener('pointerdown', (event) => startColumnResize(event, column.name, tableKey));
     headerInner.appendChild(button);
     headerInner.appendChild(filterButton);
     headerInner.appendChild(resizer);
     th.appendChild(headerInner);
     headerRow.appendChild(th);
   });
-  elements.tableHead.appendChild(headerRow);
+  tableElements.tableHead.appendChild(headerRow);
 
-  elements.tableBody.innerHTML = '';
+  tableElements.tableBody.innerHTML = '';
   rows.forEach((row) => {
     const tr = document.createElement('tr');
     tr.className = 'data-row';
     tr.tabIndex = 0;
-    tr.addEventListener('click', () => openRowModal(row));
+    tr.addEventListener('click', () => openRowModal(row, tableKey));
     tr.addEventListener('keydown', (event) => {
       if (event.key === 'Enter' || event.key === ' ') {
         event.preventDefault();
-        openRowModal(row);
+        openRowModal(row, tableKey);
       }
     });
-    state.columns.forEach((column) => {
+    tableState.columns.forEach((column) => {
       const td = document.createElement('td');
       appendCellValue(td, column.name, row[column.name]);
       tr.appendChild(td);
     });
-    elements.tableBody.appendChild(tr);
+    tableElements.tableBody.appendChild(tr);
   });
 
   const pageStart = filteredRows.length === 0 ? 0 : (
-    state.pageSize === 'all' ? 1 : ((state.currentPage - 1) * state.pageSize) + 1
+    tableState.pageSize === 'all' ? 1 : ((tableState.currentPage - 1) * tableState.pageSize) + 1
   );
-  const pageEnd = state.pageSize === 'all'
+  const pageEnd = tableState.pageSize === 'all'
     ? filteredRows.length
-    : Math.min(state.currentPage * state.pageSize, filteredRows.length);
-  elements.tableStatus.textContent =
-    `${state.selectedFile} · showing ${pageStart.toLocaleString()}-${pageEnd.toLocaleString()} of ${filteredRows.length.toLocaleString()} filtered rows`;
-  elements.pageInfo.textContent = state.pageSize === 'all'
+    : Math.min(tableState.currentPage * tableState.pageSize, filteredRows.length);
+  if (tableState.emptyMessage && tableState.columns.length === 0 && tableState.rows.length === 0) {
+    tableElements.tableStatus.textContent = tableState.emptyMessage;
+  } else {
+    tableElements.tableStatus.textContent =
+      `${tableState.selectedFile || 'Dataset'} · showing ${pageStart.toLocaleString()}-${pageEnd.toLocaleString()} of ${filteredRows.length.toLocaleString()} filtered rows`;
+  }
+  tableElements.pageInfo.textContent = tableState.pageSize === 'all'
     ? 'All rows'
-    : `Page ${state.currentPage} of ${totalPages}`;
-  elements.prevPageButton.disabled = state.pageSize === 'all' || state.currentPage <= 1;
-  elements.nextPageButton.disabled = state.pageSize === 'all' || state.currentPage >= totalPages;
+    : `Page ${tableState.currentPage} of ${totalPages}`;
+  tableElements.prevPageButton.disabled = tableState.pageSize === 'all' || tableState.currentPage <= 1;
+  tableElements.nextPageButton.disabled = tableState.pageSize === 'all' || tableState.currentPage >= totalPages;
 }
 
-function openRowModal(row) {
-  state.selectedRow = row;
-  const identityParts = [
+function buildRowIdentity(row) {
+  const optionIdentity = [
     row.underlying_symbol,
     row.option_type,
     row.expiration_date,
     row.strike !== undefined && row.strike !== null ? `strike ${row.strike}` : null,
-  ].filter(Boolean);
-  const identityText = identityParts.join(' · ');
+  ].filter(Boolean).join(' · ');
+  if (optionIdentity) return optionIdentity;
+  if (row.Symbol && row.Description) return `${row.Symbol} · ${row.Description}`;
+  if (row.Symbol) return String(row.Symbol);
+  const populatedValues = Object.values(row)
+    .filter((value) => value !== null && value !== undefined && value !== '');
+  return populatedValues.length > 0 ? String(populatedValues[0]) : 'Record';
+}
+
+function openRowModal(row, tableKey = getActiveTableKey()) {
+  const tableState = getTableState(tableKey);
+  state.selectedRow = row;
+  state.selectedRowTableKey = tableKey;
+  const identityText = buildRowIdentity(row);
   elements.rowModalTitle.textContent = identityText || 'Record';
-  elements.rowModalMeta.textContent = state.selectedFile ? `Source ${state.selectedFile}` : '';
+  elements.rowModalMeta.textContent = tableState.selectedFile ? `Source ${tableState.selectedFile}` : '';
   elements.rowDetailGrid.innerHTML = '';
 
-  state.columns.forEach((column) => {
+  tableState.columns.forEach((column) => {
     const item = document.createElement('article');
     item.className = 'row-detail-item';
 
@@ -1388,6 +1455,7 @@ function openRowModal(row) {
 
 function closeRowModal() {
   state.selectedRow = null;
+  state.selectedRowTableKey = 'dataset';
   elements.rowModal.classList.remove('open');
   elements.rowModal.setAttribute('aria-hidden', 'true');
   document.body.classList.remove('modal-open');
@@ -1595,14 +1663,20 @@ async function loadData(fileName) {
     throw dataResult.reason;
   }
   const payload = dataResult.value;
-  state.selectedFile = payload.selected_file;
-  state.rows = payload.rows;
-  state.columns = payload.columns;
+  state.dataset.selectedFile = payload.selected_file;
+  state.dataset.rows = payload.rows;
+  state.dataset.columns = payload.columns;
+  state.dataset.sortColumn = null;
+  state.dataset.sortDirection = 'asc';
+  state.dataset.columnFilters = {};
+  state.dataset.activeFilterColumn = null;
+  state.dataset.filterSearchTerm = '';
+  state.dataset.currentPage = 1;
+  state.dataset.pageSize = state.dataset.pageSize || 100;
+  state.dataset.columnWidths = {};
+  state.dataset.emptyMessage = null;
   state.summary = summaryResult.status === 'fulfilled' ? summaryResult.value : null;
-  state.columnFilters = {};
-  state.currentPage = 1;
-  state.columnWidths = {};
-  elements.fileSelect.value = state.selectedFile;
+  elements.fileSelect.value = state.dataset.selectedFile;
   renderFreshnessSummary(payload.freshness_summary);
   renderDatasetCards(payload.dataset_cards);
   if (summaryResult.status === 'fulfilled') {
@@ -1611,8 +1685,42 @@ async function loadData(fileName) {
     elements.summaryStatus.textContent = `Summary unavailable: ${summaryResult.reason.message}`;
     elements.summaryTickerGrid.innerHTML = '';
   }
-  renderTable();
+  renderTable('dataset');
   scheduleChainRender(false);
+}
+
+async function loadPositionsData() {
+  const tableState = state.positions;
+  try {
+    const payload = await fetchJson('/api/positions');
+    tableState.selectedFile = payload.selected_file;
+    tableState.rows = payload.rows;
+    tableState.columns = payload.columns;
+    tableState.sortColumn = null;
+    tableState.sortDirection = 'asc';
+    tableState.columnFilters = {};
+    tableState.activeFilterColumn = null;
+    tableState.filterSearchTerm = '';
+    tableState.currentPage = 1;
+    tableState.pageSize = tableState.pageSize || 100;
+    tableState.columnWidths = {};
+    tableState.emptyMessage = payload.row_count === 0
+      ? `${payload.selected_file} does not contain any position rows.`
+      : null;
+  } catch (error) {
+    tableState.selectedFile = 'data/positions.csv';
+    tableState.rows = [];
+    tableState.columns = [];
+    tableState.sortColumn = null;
+    tableState.sortDirection = 'asc';
+    tableState.columnFilters = {};
+    tableState.activeFilterColumn = null;
+    tableState.filterSearchTerm = '';
+    tableState.currentPage = 1;
+    tableState.columnWidths = {};
+    tableState.emptyMessage = `Positions unavailable: ${error.message}`;
+  }
+  renderTable('positions');
 }
 
 async function loadReference() {
@@ -1622,15 +1730,15 @@ async function loadReference() {
 
 function activateTab(tabName) {
   const nextTab = VALID_TABS.has(tabName) ? tabName : 'table';
-  if (state.activeTab === nextTab) {
-    syncTabUrl(nextTab);
-  }
+  closeFilterPopover('dataset');
+  closeFilterPopover('positions');
   state.activeTab = nextTab;
   elements.tabButtons.forEach((button) => {
     button.classList.toggle('active', button.dataset.tab === nextTab);
   });
   elements.summaryTab.classList.toggle('active', nextTab === 'summary');
   elements.tableTab.classList.toggle('active', nextTab === 'table');
+  elements.positionsTab.classList.toggle('active', nextTab === 'positions');
   elements.chainTab.classList.toggle('active', nextTab === 'chain');
   elements.readmeTab.classList.toggle('active', nextTab === 'readme');
   syncTabUrl(nextTab);
@@ -1659,11 +1767,15 @@ function initializeTheme() {
 async function initialize() {
   initializeTheme();
   activateTab(getTabFromUrl());
-  await Promise.all([loadFiles(), loadReference()]);
+  await Promise.all([loadFiles(), loadReference(), loadPositionsData()]);
   if (state.files.length > 0) {
     await loadData(state.files[0].name);
   } else {
-    elements.tableStatus.textContent = 'No CSV files found in the output directory.';
+    state.dataset.rows = [];
+    state.dataset.columns = [];
+    state.dataset.selectedFile = null;
+    state.dataset.emptyMessage = 'No CSV files found in the output directory.';
+    renderTable('dataset');
     elements.chainStatus.textContent = 'No CSV files found in the output directory.';
     renderChartEmpty(elements.chainDeltaChart, 'Delta chart unavailable');
     renderChartEmpty(elements.chainPremiumChart, 'Premium chart unavailable');
@@ -1675,10 +1787,26 @@ async function initialize() {
     await loadData(event.target.value);
   });
 
-  elements.pageSizeSelect.addEventListener('change', (event) => {
-    state.pageSize = event.target.value === 'all' ? 'all' : Number(event.target.value);
-    state.currentPage = 1;
-    renderTable();
+  ['dataset', 'positions'].forEach((tableKey) => {
+    const tableState = getTableState(tableKey);
+    const tableElements = getTableElements(tableKey);
+    tableElements.pageSizeSelect.addEventListener('change', (event) => {
+      tableState.pageSize = event.target.value === 'all' ? 'all' : Number(event.target.value);
+      tableState.currentPage = 1;
+      renderTable(tableKey);
+    });
+
+    tableElements.prevPageButton.addEventListener('click', () => {
+      if (tableState.currentPage > 1) {
+        tableState.currentPage -= 1;
+        renderTable(tableKey);
+      }
+    });
+
+    tableElements.nextPageButton.addEventListener('click', () => {
+      tableState.currentPage += 1;
+      renderTable(tableKey);
+    });
   });
 
   elements.chainTickerSelect.addEventListener('change', (event) => {
@@ -1702,36 +1830,27 @@ async function initialize() {
     scheduleChainRender(true);
   });
 
-  elements.prevPageButton.addEventListener('click', () => {
-    if (state.currentPage > 1) {
-      state.currentPage -= 1;
-      renderTable();
-    }
-  });
-
-  elements.nextPageButton.addEventListener('click', () => {
-    state.currentPage += 1;
-    renderTable();
-  });
-
   if (elements.filterValueSearch) {
     elements.filterValueSearch.addEventListener('input', (event) => {
-      state.filterSearchTerm = event.target.value;
+      const tableState = getTableState();
+      tableState.filterSearchTerm = event.target.value;
       renderFilterOptions();
     });
   }
 
   const applyRangeFilter = () => {
-    if (!state.activeFilterColumn || !isRangeFilter(state.activeFilterColumn)) return;
+    const tableKey = getActiveTableKey();
+    const tableState = getTableState(tableKey);
+    if (!tableState.activeFilterColumn || !isRangeFilter(tableState.activeFilterColumn, tableKey)) return;
     const min = parseFilterNumber(elements.filterMinValue.value);
     const max = parseFilterNumber(elements.filterMaxValue.value);
     if (min === null && max === null) {
-      delete state.columnFilters[state.activeFilterColumn];
+      delete tableState.columnFilters[tableState.activeFilterColumn];
     } else {
-      state.columnFilters[state.activeFilterColumn] = { type: 'range', min, max };
+      tableState.columnFilters[tableState.activeFilterColumn] = { type: 'range', min, max };
     }
-    state.currentPage = 1;
-    renderTable();
+    tableState.currentPage = 1;
+    renderTable(tableKey);
   };
 
   if (elements.filterMinValue) {
@@ -1743,13 +1862,15 @@ async function initialize() {
 
   if (elements.clearFilterButton) {
     elements.clearFilterButton.addEventListener('click', () => {
-      if (state.activeFilterColumn) {
-        delete state.columnFilters[state.activeFilterColumn];
+      const tableKey = getActiveTableKey();
+      const tableState = getTableState(tableKey);
+      if (tableState.activeFilterColumn) {
+        delete tableState.columnFilters[tableState.activeFilterColumn];
         elements.filterMinValue.value = '';
         elements.filterMaxValue.value = '';
-        state.currentPage = 1;
-        renderTable();
-        renderFilterOptions();
+        tableState.currentPage = 1;
+        renderTable(tableKey);
+        renderFilterOptions(tableKey);
       }
     });
   }
@@ -1797,5 +1918,5 @@ async function initialize() {
 }
 
 initialize().catch((error) => {
-  elements.tableStatus.textContent = error.message;
+  getTableElements('dataset').tableStatus.textContent = error.message;
 });

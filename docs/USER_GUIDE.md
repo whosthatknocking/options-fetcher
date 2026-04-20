@@ -85,7 +85,8 @@ The viewer binds to `settings.viewer_host` and `settings.viewer_port` from `~/.c
 The viewer includes:
 
 - a sortable table for the exported CSV
-- shareable tab URLs using `?tab=table`, `?tab=summary`, `?tab=chain`, or `?tab=readme`
+- a sortable `Positions` table for `data/positions.csv` with the same row-detail modal used by the dataset table
+- shareable tab URLs using `?tab=table`, `?tab=positions`, `?tab=summary`, `?tab=chain`, or `?tab=readme`
 - hover descriptions on column headers pulled from this guide
 - a file selector for available CSV exports
 - a `Reference` tab that shows the CSV field documentation

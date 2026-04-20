@@ -27,7 +27,7 @@ For local development setup, including `.[dev]` extras and Playwright, use [docs
 
 Runtime configuration defaults live in [config/example.toml](config/example.toml). Copy it to `~/.config/opx/config.toml` and replace provider placeholders as needed.
 
-The local viewer is organized around four primary tabs: `Dataset`, `Overview`, `Chain View`, and `Reference`.
+The local viewer is organized around five primary tabs: `Dataset`, `Positions`, `Overview`, `Chain View`, and `Reference`.
 
 ![Options Screener viewer](docs/images/viewer-option-chain.png)
 
@@ -38,7 +38,7 @@ The local viewer is organized around four primary tabs: `Dataset`, `Overview`, `
 - Limits strikes to a configurable band around spot
 - Computes Greeks, delta-safety, expected move, ROM-style metrics, configurable option scoring, and volatility context
 - Writes a timestamped CSV plus an append-only run log
-- Includes a local browser for exploring the output interactively, including dataset inspection, per-ticker overview cards, `Most Profitable`, `Moderate Risk`, `High Conviction Call`, and `High Conviction Put` highlights, plus chain visualizations with chart tooltips and click-through row details
+- Includes a local browser for exploring the output interactively, including dataset inspection, a positions browser for `data/positions.csv`, per-ticker overview cards, `Most Profitable`, `Moderate Risk`, `High Conviction Call`, and `High Conviction Put` highlights, plus chain visualizations with chart tooltips and click-through row details
 - Produces normalized output that can feed other tools and systems which apply their own decision logic on top of the exported data
 
 Generated files are standardized under:
