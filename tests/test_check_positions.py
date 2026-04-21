@@ -150,8 +150,10 @@ def test_main_prints_passes_primary_screen_true_for_passing_row(tmp_path, capsys
 
     captured = capsys.readouterr()
     assert result == 0
+    assert f"Positions: {pos_path}" in captured.out
+    assert f"Output: {out_path}" in captured.out
     assert "passes_primary_screen=true" in captured.out
-    assert "failed_filters=" not in captured.out
+    assert "failed_filters:" not in captured.out
 
 
 def test_main_prints_failed_primary_screen_filters_for_non_passing_row(tmp_path, capsys):
@@ -179,6 +181,41 @@ def test_main_prints_failed_primary_screen_filters_for_non_passing_row(tmp_path,
     captured = capsys.readouterr()
     assert result == 0
     assert "passes_primary_screen=false" in captured.out
+    assert "failed_filters:" in captured.out
+    assert "\n             - filters_max_spread_pct_of_mid(0.3000>0.2500)" in captured.out
+    assert "\n             - filters_min_open_interest(40.0000<100.0000)" in captured.out
+    assert "\n             - filters_min_volume(5.0000<10.0000)" in captured.out
     assert "filters_max_spread_pct_of_mid(0.3000>0.2500)" in captured.out
     assert "filters_min_open_interest(40.0000<100.0000)" in captured.out
     assert "filters_min_volume(5.0000<10.0000)" in captured.out
+
+
+def test_main_formats_quotes_to_two_decimals_and_wraps_failed_filters(tmp_path, capsys):
+    """Found rows should render bid/ask consistently and wrap long filter summaries."""
+    pos_path = _write_positions(tmp_path, [
+        {"Symbol": " -AAPL260620C200"},
+    ])
+    out_path = _write_output(tmp_path, "options_engine_output_test.csv", [
+        {
+            "underlying_symbol": "AAPL",
+            "expiration_date": "2026-06-20",
+            "option_type": "call",
+            "strike": 200.0,
+            "bid": 5.0,
+            "ask": 5.5,
+            "bid_ask_spread_pct_of_mid": 0.30,
+            "open_interest": 40,
+            "volume": 5,
+            "passes_primary_screen": False,
+        },
+    ])
+
+    result = main(["--positions", str(pos_path), "--output", str(out_path)])
+
+    captured = capsys.readouterr()
+    assert result == 0
+    assert "bid=  5.00  ask=  5.50" in captured.out
+    assert "\n           failed_filters:" in captured.out
+    assert "\n             - filters_max_spread_pct_of_mid(0.3000>0.2500)" in captured.out
+    assert "\n             - filters_min_open_interest(40.0000<100.0000)" in captured.out
+    assert "\n             - filters_min_volume(5.0000<10.0000)" in captured.out

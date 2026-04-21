@@ -67,6 +67,15 @@ def _format_filter_value(value) -> str:
     return str(value)
 
 
+def _format_quote_value(value) -> str:
+    """Format bid/ask values consistently for CLI output."""
+    if value is None or pd.isna(value):
+        return "—"
+    if isinstance(value, Real):
+        return f"{float(value):.2f}"
+    return str(value)
+
+
 def _append_filter_failure(
     failures: list[str],
     *,
@@ -131,23 +140,25 @@ def _get_failed_primary_screen_filters(row: pd.Series) -> list[str]:
     return failures
 
 
-def _format_found_position_line(key, row: pd.Series) -> str:
-    """Build one CLI output line for a found portfolio position."""
+def _format_found_position_lines(key, row: pd.Series) -> list[str]:
+    """Build the CLI output lines for a found portfolio position."""
     passes = row.get("passes_primary_screen")
     screen_status = f"passes_primary_screen={'true' if _is_true_like(passes) else 'false'}"
     failed_filters = (
         _get_failed_primary_screen_filters(row) if not _is_true_like(passes) else []
     )
-    failed_filters_note = (
-        f"  failed_filters={','.join(failed_filters)}"
-        if failed_filters
-        else ""
-    )
-    return (
+    lines = [(
         f"  FOUND    {key.ticker:<6} {key.expiration_date}  {key.option_type:<4}  "
-        f"strike={key.strike:>7.1f}  bid={row['bid']}  ask={row['ask']}  "
-        f"{screen_status}{failed_filters_note}"
-    )
+        f"strike={key.strike:>7.1f}  bid={_format_quote_value(row['bid']):>6}  "
+        f"ask={_format_quote_value(row['ask']):>6}  {screen_status}"
+    )]
+    if failed_filters:
+        lines.append("           failed_filters:")
+        lines.extend(
+            f"             - {failure}"
+            for failure in failed_filters
+        )
+    return lines
 
 
 def main(argv=None):
@@ -183,7 +194,7 @@ def main(argv=None):
         return 1
 
     print(f"Positions: {positions_path}")
-    print(f"Output:    {resolved_output}")
+    print(f"Output: {resolved_output}")
     print()
 
     found, missing = check_positions(positions_path, resolved_output)
@@ -194,7 +205,8 @@ def main(argv=None):
         return 0
 
     for key, row in found:
-        print(_format_found_position_line(key, row))
+        for line in _format_found_position_lines(key, row):
+            print(line)
 
     for key in missing:
         print(
