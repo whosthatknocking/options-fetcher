@@ -450,31 +450,14 @@ Behavior:
 - a positive value causes `write_dataset` to prune the oldest datasets beyond
   the limit after each successful write
 - pruning removes both the artifact file and the metadata record
-- run records are retained independently of dataset pruning; they are small and
-  their loss would break run-diffing queries
+- run records are retained independently of dataset pruning; they are small
 - malformed or negative values fall back to `0` (no pruning) with a warning
 
 The filesystem backend implements pruning by scanning the output directory and
 sorting by filename timestamp. The SQLite backend implements pruning with a
 `DELETE WHERE` on the dataset table ordered by `created_at`.
 
-## 12. Run Diffing
-
-With structured `TickerRunRecord` entries stored per run, the SQLite backend
-can support cross-run comparison queries without loading any artifact bytes.
-
-Useful queries:
-
-- row count delta per ticker between two runs
-- tickers that appeared or disappeared between runs
-- filter drop rate change over time
-- validation error trends
-
-These are not part of the initial implementation but are a primary motivating
-use case for the SQLite backend. The `TickerRunRecord` fields should be designed
-with these queries in mind from day one.
-
-## 13. `opx-check` Integration
+## 12. `opx-check` Integration
 
 `opx-check` currently scans the output directory for the latest CSV by filename
 timestamp. Under the storage model it should use `list_datasets(limit=1)` to
@@ -483,20 +466,19 @@ find the latest dataset and obtain its location from the returned `DatasetRecord
 This decouples `opx-check` from the output directory naming convention and makes
 it format-agnostic once Parquet is supported.
 
-## 14. Testing Strategy
+## 13. Testing Strategy
 
 The storage layer should be tested through a `MemoryBackend`:
 
 - `MemoryBackend` implements `StorageBackend` using in-memory dicts
-- it is used in all existing and new fetch/viewer tests in place of filesystem mocks
+- it is used in new tests that exercise the storage-enabled branch of `fetcher.py`
+  and `opx-check`; existing tests that use `write_options_csv` directly are unchanged
 - it does not write any files, making test isolation trivial
 - it should be part of `opx/storage/` so it is importable by tests without patching
 
-The filesystem and SQLite backends are tested with `tmp_path` fixtures. The
-`MemoryBackend` is not a substitute for backend-specific tests but replaces the
-current pattern of monkeypatching `write_options_csv` in integration tests.
+The filesystem and SQLite backends are tested with `tmp_path` fixtures.
 
-## 15. Separation of Concerns
+## 14. Separation of Concerns
 
 The following categories remain distinct:
 
@@ -509,7 +491,7 @@ The following categories remain distinct:
 They may share one implementation technology but must not share one
 application-level abstraction.
 
-## 16. Suggested Module Layout
+## 15. Suggested Module Layout
 
 ```text
 opx/storage/
@@ -524,7 +506,7 @@ opx/storage/
   cache.py         # ProviderCache implementations
 ```
 
-## 17. Implementation Order
+## 16. Implementation Order
 
 The changes should be executed in the following sequence. Each step is
 independently shippable and leaves the system in a working state.
@@ -580,7 +562,7 @@ independently shippable and leaves the system in a working state.
   - `list_datasets` queries SQLite with optional server-side filters
 - add migration logic for the SQLite schema (simple version table)
 - add `backend: sqlite` config option
-- tests: verify run diffing queries against `SqliteIndexedBackend`
+- tests: verify `list_datasets` queries and run lifecycle against `SqliteIndexedBackend`
 
 ### Step 6 — Provider cache abstractions
 
@@ -595,23 +577,20 @@ independently shippable and leaves the system in a working state.
   and `StorageBackend.get_dataset`
 - add viewer preference store (low priority, can be a simple JSON file initially)
 
-## 18. Open Questions
+## 17. Open Questions
 
-Before executing step 5, the main questions to settle are:
+No open questions remain for steps 1–3. Before executing step 5, settle:
 
 - What metadata fields are required by the downstream system on day one?
-- Should run diffing queries be exposed through `StorageBackend` or through a
-  separate read-model interface?
-- Should `SqliteIndexedBackend` support multiple concurrent readers (WAL mode)?
 
-## 19. Current Recommendation
+## 18. Current Recommendation
 
 Recommended path:
 
 - execute steps 1 through 3 as the first milestone
 - keep storage disabled by default throughout; the existing runtime is never broken
 - keep exported datasets as immutable file artifacts throughout
-- defer SQLite until dataset discovery or run diffing becomes a concrete need
+- defer SQLite until dataset discovery becomes a concrete need
 - introduce Parquet in step 4 before SQLite to validate the serializer abstraction
 
 This gives `opx` a clean opt-in storage boundary for downstream integration
