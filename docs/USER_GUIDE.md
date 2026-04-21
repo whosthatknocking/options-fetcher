@@ -69,6 +69,14 @@ opx-check --positions ~/my-positions.csv --output output/options_engine_output_2
 `opx-check` exits with code `0` when all positions are found and `1` when any are missing, so it can be used in scripts.
 For found contracts, it also prints `passes_primary_screen=true|false`; when the value is `false`, the output prints a short indented `failed_filters:` list with the exact failed filter names such as `filters_max_spread_pct_of_mid` or `filters_min_open_interest`.
 
+Use `--freshness` when you want `opx-check` to recompute current option-chain age from the saved quote timestamps in the CSV:
+
+```bash
+opx-check --freshness
+```
+
+That summary is intentionally different from the stored `quote_age_seconds`, `underlying_price_age_seconds`, `is_stale_quote`, and `is_stale_underlying_price` fields. Those CSV columns describe freshness at fetch time. `opx-check --freshness` compares `option_quote_time` and `underlying_price_time` to the current clock when you run the command, so an old file will show `stale_now_rows` and `stale_underlyings_now` even if the fetch-time stale flags were `false` when the file was created.
+
 Run the local viewer:
 
 ```

@@ -354,6 +354,25 @@ Current behavior:
 - validation errors do not stop the run or block CSV export
 - when validation is enabled, the run prints a validation summary before the CSV write
 
+### 7.5 Import Freshness Check
+
+Consumers of the exported CSV (e.g. the strategy engine) must revalidate data freshness at import time. The `is_stale_underlying_price` and `quote_age_seconds` fields are computed relative to the moment opx ran, not relative to when the file is read. A CSV that was fresh at generation can be arbitrarily old by the time it is consumed.
+
+Required behavior on import:
+
+- Compute age of the dataset by comparing `underlying_price_time` (the oldest value across all rows) against the current wall-clock time at import.
+- Emit a **warning** when the oldest underlying price is more than 3 hours old; proceed but flag affected tickers.
+- Emit a **hard block** (abort the run with a clear error) when the oldest underlying price is more than 24 hours old; stale-by-a-day data produces unreliable Greeks, skewed roll credits, and misleading candidate rankings.
+- Report per-ticker staleness when tickers differ materially in age (e.g. one ticker's underlying was captured a day earlier than the rest).
+- The hard-block threshold should be configurable; the 24-hour default is conservative enough to catch overnight-stale files while allowing intraday re-runs.
+
+What to report on a freshness failure:
+
+- which tickers are affected
+- the timestamp of their oldest `underlying_price_time`
+- the computed age in hours and minutes
+- a clear message distinguishing warning (proceed with caution) from block (run aborted)
+
 ## 8. Documentation and Viewer
 
 ### 8.1 Documentation Layout

@@ -1,4 +1,4 @@
-"""CLI tool to verify that every option position appears in the latest output CSV."""
+"""CLI tool to verify positions coverage and summarize saved-chain freshness."""
 from pathlib import Path
 from numbers import Real
 
@@ -14,6 +14,11 @@ def find_latest_output(outputs_dir: Path = OUTPUTS_DIR) -> Path | None:
     """Return the most recently modified CSV in the outputs directory."""
     csvs = sorted(outputs_dir.glob("options_engine_output_*.csv"), key=lambda p: p.stat().st_mtime)
     return csvs[-1] if csvs else None
+
+
+def _utc_now() -> pd.Timestamp:
+    """Return the current UTC timestamp."""
+    return pd.Timestamp.now(tz="UTC")
 
 
 def check_positions(positions_path: Path | None = None, output_path: Path | None = None):
@@ -74,6 +79,30 @@ def _format_quote_value(value) -> str:
     if isinstance(value, Real):
         return f"{float(value):.2f}"
     return str(value)
+
+
+def _format_duration(seconds) -> str:
+    """Render a duration in a terminal-friendly compact form."""
+    if seconds is None or pd.isna(seconds):
+        return "—"
+    total_seconds = max(0, int(round(float(seconds))))
+    days, remainder = divmod(total_seconds, 86400)
+    hours, remainder = divmod(remainder, 3600)
+    minutes, secs = divmod(remainder, 60)
+    if days:
+        return f"{days}d {hours:02}h {minutes:02}m"
+    if hours:
+        return f"{hours}h {minutes:02}m {secs:02}s"
+    if minutes:
+        return f"{minutes}m {secs:02}s"
+    return f"{secs}s"
+
+
+def _format_iso_timestamp(value) -> str:
+    """Render timestamps consistently in UTC with a trailing Z."""
+    if value is None or pd.isna(value):
+        return "—"
+    return pd.Timestamp(value).tz_convert("UTC").strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
 def _append_filter_failure(
@@ -140,6 +169,161 @@ def _get_failed_primary_screen_filters(row: pd.Series) -> list[str]:
     return failures
 
 
+def _summarize_quote_freshness(
+    frame: pd.DataFrame,
+    *,
+    timestamp_column: str,
+    stored_stale_column: str,
+    stale_seconds: int,
+    now: pd.Timestamp,
+) -> dict[str, object]:
+    """Summarize current freshness from saved timestamps and stored fetch-time flags."""
+    timestamps = pd.to_datetime(frame.get(timestamp_column), errors="coerce", utc=True)
+    if timestamps is None:
+        timestamps = pd.Series(dtype="datetime64[ns, UTC]")
+    valid_mask = timestamps.notna()
+    rows_with_timestamp = int(valid_mask.sum())
+    if rows_with_timestamp == 0:
+        return {
+            "rows_with_timestamp": 0,
+            "stale_now_rows": 0,
+            "stale_at_fetch_rows": 0,
+            "newest_timestamp": None,
+            "oldest_timestamp": None,
+            "newest_age_seconds": None,
+            "oldest_age_seconds": None,
+        }
+
+    valid_timestamps = timestamps[valid_mask]
+    age_seconds = (now - valid_timestamps).dt.total_seconds()
+    stored_flags = frame.get(stored_stale_column)
+    stale_at_fetch_rows = 0
+    if stored_flags is not None:
+        stale_at_fetch_rows = int(sum(_is_true_like(value) for value in stored_flags[valid_mask]))
+    return {
+        "rows_with_timestamp": rows_with_timestamp,
+        "stale_now_rows": int((age_seconds > stale_seconds).sum()),
+        "stale_at_fetch_rows": stale_at_fetch_rows,
+        "newest_timestamp": valid_timestamps.max(),
+        "oldest_timestamp": valid_timestamps.min(),
+        "newest_age_seconds": age_seconds.min(),
+        "oldest_age_seconds": age_seconds.max(),
+    }
+
+
+def _summarize_underlying_freshness_now(
+    frame: pd.DataFrame,
+    *,
+    stale_seconds: int,
+    now: pd.Timestamp,
+) -> list[dict[str, object]]:
+    """Return per-underlying current freshness for stale saved stock snapshots."""
+    if "underlying_symbol" not in frame or "underlying_price_time" not in frame:
+        return []
+
+    freshness = frame.loc[:, ["underlying_symbol", "underlying_price_time"]].copy()
+    freshness["underlying_price_time"] = pd.to_datetime(
+        freshness["underlying_price_time"], errors="coerce", utc=True
+    )
+    freshness = freshness.dropna(subset=["underlying_symbol", "underlying_price_time"])
+    if freshness.empty:
+        return []
+
+    rows: list[dict[str, object]] = []
+    for symbol, group in freshness.groupby("underlying_symbol", sort=True):
+        newest_timestamp = group["underlying_price_time"].max()
+        oldest_timestamp = group["underlying_price_time"].min()
+        newest_age_seconds = (now - newest_timestamp).total_seconds()
+        if newest_age_seconds <= stale_seconds:
+            continue
+        rows.append({
+            "symbol": str(symbol),
+            "row_count": int(len(group)),
+            "distinct_timestamps": int(group["underlying_price_time"].nunique()),
+            "newest_timestamp": newest_timestamp,
+            "oldest_timestamp": oldest_timestamp,
+            "newest_age_seconds": newest_age_seconds,
+            "oldest_age_seconds": (now - oldest_timestamp).total_seconds(),
+        })
+    rows.sort(key=lambda row: (float(row["newest_age_seconds"]), row["symbol"]), reverse=True)
+    return rows
+
+
+def format_freshness_summary_lines(
+    output_path: Path,
+    *,
+    frame: pd.DataFrame | None = None,
+    now: pd.Timestamp | None = None,
+) -> list[str]:
+    """Build a read-time freshness summary for the selected output CSV."""
+    resolved_frame = frame if frame is not None else pd.read_csv(output_path, low_memory=False)
+    runtime_now = now or _utc_now()
+    config = get_runtime_config()
+    file_age_seconds = max(0.0, runtime_now.timestamp() - output_path.stat().st_mtime)
+    option_summary = _summarize_quote_freshness(
+        resolved_frame,
+        timestamp_column="option_quote_time",
+        stored_stale_column="is_stale_quote",
+        stale_seconds=config.stale_quote_seconds,
+        now=runtime_now,
+    )
+    underlying_summary = _summarize_quote_freshness(
+        resolved_frame,
+        timestamp_column="underlying_price_time",
+        stored_stale_column="is_stale_underlying_price",
+        stale_seconds=config.stale_quote_seconds,
+        now=runtime_now,
+    )
+    stale_underlyings = _summarize_underlying_freshness_now(
+        resolved_frame,
+        stale_seconds=config.stale_quote_seconds,
+        now=runtime_now,
+    )
+
+    lines = [
+        "Freshness now:",
+        (
+            f"  file_age_now={_format_duration(file_age_seconds)}  "
+            f"stale_quote_seconds={config.stale_quote_seconds}"
+        ),
+        (
+            "  option_quotes_now: "
+            f"rows_with_timestamp={option_summary['rows_with_timestamp']}  "
+            f"stale_now_rows={option_summary['stale_now_rows']}  "
+            f"stale_at_fetch_rows={option_summary['stale_at_fetch_rows']}  "
+            f"newest_age={_format_duration(option_summary['newest_age_seconds'])}  "
+            f"oldest_age={_format_duration(option_summary['oldest_age_seconds'])}"
+        ),
+        (
+            "  underlying_quotes_now: "
+            f"rows_with_timestamp={underlying_summary['rows_with_timestamp']}  "
+            f"stale_now_rows={underlying_summary['stale_now_rows']}  "
+            f"stale_at_fetch_rows={underlying_summary['stale_at_fetch_rows']}  "
+            f"newest_age={_format_duration(underlying_summary['newest_age_seconds'])}  "
+            f"oldest_age={_format_duration(underlying_summary['oldest_age_seconds'])}"
+        ),
+    ]
+    if not stale_underlyings:
+        lines.append("  stale_underlyings_now: none")
+        return lines
+
+    lines.append("  stale_underlyings_now:")
+    for item in stale_underlyings:
+        time_range = _format_iso_timestamp(item["newest_timestamp"])
+        if item["distinct_timestamps"] > 1:
+            time_range = (
+                f"{_format_iso_timestamp(item['oldest_timestamp'])}.."
+                f"{_format_iso_timestamp(item['newest_timestamp'])}"
+            )
+        lines.append(
+            f"    - {item['symbol']:<6} rows={item['row_count']}  "
+            f"distinct_times={item['distinct_timestamps']}  "
+            f"time={time_range}  "
+            f"newest_age={_format_duration(item['newest_age_seconds'])}"
+        )
+    return lines
+
+
 def _format_found_position_lines(key, row: pd.Series) -> list[str]:
     """Build the CLI output lines for a found portfolio position."""
     passes = row.get("passes_primary_screen")
@@ -179,6 +363,14 @@ def main(argv=None):
         default=None,
         help="Path to output CSV (default: latest).",
     )
+    parser.add_argument(
+        "--freshness",
+        action="store_true",
+        help=(
+            "Recompute current quote freshness from saved timestamps and print a "
+            "terminal-friendly summary."
+        ),
+    )
     args = parser.parse_args(argv)
 
     positions_path = (args.positions or DEFAULT_POSITIONS_PATH).expanduser()
@@ -196,6 +388,11 @@ def main(argv=None):
     print(f"Positions: {positions_path}")
     print(f"Output: {resolved_output}")
     print()
+
+    if args.freshness:
+        for line in format_freshness_summary_lines(resolved_output):
+            print(line)
+        print()
 
     found, missing = check_positions(positions_path, resolved_output)
     total = len(found) + len(missing)

@@ -1,11 +1,17 @@
 """Tests for opx.check_positions."""
 
 import csv
+import os
 import time
 
 import pandas as pd
 
-from opx.check_positions import check_positions, find_latest_output, main
+from opx.check_positions import (
+    check_positions,
+    find_latest_output,
+    format_freshness_summary_lines,
+    main,
+)
 
 
 def _write_positions(tmp_path, rows):
@@ -219,3 +225,87 @@ def test_main_formats_quotes_to_two_decimals_and_wraps_failed_filters(tmp_path, 
     assert "\n             - filters_max_spread_pct_of_mid(0.3000>0.2500)" in captured.out
     assert "\n             - filters_min_open_interest(40.0000<100.0000)" in captured.out
     assert "\n             - filters_min_volume(5.0000<10.0000)" in captured.out
+
+
+def test_format_freshness_summary_lines_recomputes_current_age_from_saved_timestamps(tmp_path):
+    """Freshness summary should reflect read-time age, not just stored fetch-time flags."""
+    out_path = _write_output(tmp_path, "options_engine_output_test.csv", [
+        {
+            "underlying_symbol": "GOOGL",
+            "option_quote_time": "2026-04-10T13:40:56Z",
+            "underlying_price_time": "2026-04-10T13:50:56Z",
+            "is_stale_quote": False,
+            "is_stale_underlying_price": False,
+        },
+        {
+            "underlying_symbol": "GOOGL",
+            "option_quote_time": "2026-04-10T13:40:56Z",
+            "underlying_price_time": "2026-04-10T13:50:56Z",
+            "is_stale_quote": False,
+            "is_stale_underlying_price": False,
+        },
+    ])
+    file_time = pd.Timestamp("2026-04-21T12:50:56Z").timestamp()
+    os.utime(out_path, (file_time, file_time))
+
+    lines = format_freshness_summary_lines(
+        out_path,
+        now=pd.Timestamp("2026-04-21T13:50:56Z"),
+    )
+    rendered = "\n".join(lines)
+
+    assert "Freshness now:" in rendered
+    assert "file_age_now=1h 00m 00s" in rendered
+    assert (
+        "option_quotes_now: rows_with_timestamp=2  stale_now_rows=2  stale_at_fetch_rows=0"
+        in rendered
+    )
+    assert (
+        "underlying_quotes_now: rows_with_timestamp=2  stale_now_rows=2  "
+        "stale_at_fetch_rows=0" in rendered
+    )
+    assert "stale_underlyings_now:" in rendered
+    assert "GOOGL" in rendered
+    assert "time=2026-04-10T13:50:56Z" in rendered
+    assert "newest_age=11d 00h 00m" in rendered
+
+
+def test_main_prints_freshness_summary_when_requested(tmp_path, capsys, monkeypatch):
+    """--freshness should print a runtime freshness section alongside position coverage."""
+    pos_path = _write_positions(tmp_path, [
+        {"Symbol": " -AAPL260620C200"},
+    ])
+    out_path = _write_output(tmp_path, "options_engine_output_test.csv", [
+        {
+            "underlying_symbol": "AAPL",
+            "expiration_date": "2026-06-20",
+            "option_type": "call",
+            "strike": 200.0,
+            "bid": 5.0,
+            "ask": 5.5,
+            "passes_primary_screen": True,
+            "option_quote_time": "2026-04-21T16:40:00Z",
+            "underlying_price_time": "2026-04-10T13:50:56Z",
+            "is_stale_quote": False,
+            "is_stale_underlying_price": False,
+        },
+    ])
+    monkeypatch.setattr(
+        "opx.check_positions._utc_now",
+        lambda: pd.Timestamp("2026-04-21T17:00:00Z"),
+    )
+
+    result = main([
+        "--positions", str(pos_path), "--output", str(out_path), "--freshness",
+    ])
+
+    captured = capsys.readouterr()
+    assert result == 0
+    assert "Freshness now:" in captured.out
+    assert (
+        "underlying_quotes_now: rows_with_timestamp=1  stale_now_rows=1  "
+        "stale_at_fetch_rows=0" in captured.out
+    )
+    assert "stale_underlyings_now:" in captured.out
+    assert "AAPL" in captured.out
+    assert "passes_primary_screen=true" in captured.out
