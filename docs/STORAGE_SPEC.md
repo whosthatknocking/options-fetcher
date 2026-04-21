@@ -1,16 +1,19 @@
 # Storage Specification
 
-Scope note: this document remains valid as an optional feature specification for
-this repository. It is not required for the current filesystem-based runtime,
-and it is independent from the downstream strategy or decision engine, which is
-out of scope for `opx`.
-
 This document specifies the storage design for `opx`. It defines the storage
 interfaces, domain records, implementation strategy, and the order in which
 changes should be executed.
 
-It is intentionally forward-looking. Current behavior is filesystem-only.
-This spec describes the target architecture and the path to reach it.
+The storage layer is **opt-in and disabled by default.** The existing
+filesystem-based runtime — direct `write_options_csv` calls, output-directory
+scanning in `opx-check`, and the current viewer CSV discovery — is the default
+and remains unchanged when storage is not enabled. Enabling storage is a
+config-driven decision that activates the storage port alongside the existing
+path; it does not replace or break it.
+
+This spec is intentionally forward-looking. It describes the target architecture
+and the path to reach it, independent from any downstream strategy or decision
+engine.
 
 ## 1. Goals
 
@@ -30,20 +33,22 @@ This specification does not aim to:
 - store downstream decision-engine state inside `opx`
 - make the viewer dependent on a specific database product
 - remove filesystem exports as a supported artifact format
+- change the default runtime behavior when storage is not enabled
 
 ## 3. Design Principles
 
 ### 3.1 Storage Behind a Port
 
-All runtime code should depend on a storage interface, not on direct filesystem,
-SQLite, or network storage calls.
+When storage is enabled, all runtime code should depend on a storage interface,
+not on direct filesystem, SQLite, or network storage calls.
 
 Rules:
 
-- fetch orchestration should write through a storage port
-- the viewer should read through a storage port
+- fetch orchestration should write through a storage port when enabled
+- the viewer should read through a storage port when enabled
 - storage implementations should be swappable without changing the fetch pipeline contract
 - serialization format should be separable from storage location
+- when storage is disabled, existing direct write and scan paths are used unchanged
 
 ### 3.2 Immutable Dataset Snapshots
 
@@ -80,13 +85,39 @@ Rules:
 - backward-compatibility is not guaranteed across schema versions; consumers should
   re-fetch or re-export when versions differ
 
-## 4. Logical Storage Interfaces
+## 4. Config-Driven Enable/Disable
+
+The storage layer is controlled by a `[storage]` section in
+`~/.config/opx/config.toml`.
+
+```toml
+[storage]
+enable = false           # default: storage disabled; existing runtime unchanged
+backend = "filesystem"   # "filesystem" (default when enabled) | "sqlite"
+```
+
+Behavior:
+
+- when `enable = false` (or the `[storage]` section is absent), `fetcher.py`
+  calls `write_options_csv` directly, `opx-check` scans `output/` by filename,
+  and the viewer discovers CSVs as today — no behavior change
+- when `enable = true`, `fetcher.py` writes through the configured
+  `StorageBackend`, `opx-check` uses `list_datasets(limit=1)`, and the Python
+  package interface becomes available to downstream consumers
+- `backend` is only read when `enable = true`; it is ignored otherwise
+- startup output prints the resolved storage config when enabled; when disabled,
+  storage config is not mentioned
+
+The `enable` key must default to `false` in the config loader. Malformed or
+unrecognised `backend` values fall back to `"filesystem"` with a warning.
+
+## 5. Logical Storage Interfaces
 
 The application-facing storage boundary is divided into narrow, single-purpose
 interfaces. They may share one backend technology but must not share one
 application-level abstraction.
 
-### 4.1 Run Store
+### 5.1 Run Store
 
 Purpose:
 
@@ -103,7 +134,7 @@ Responsibilities:
 - persist filter summary
 - finalize a run on clean exit
 
-### 4.2 Dataset Store
+### 5.2 Dataset Store
 
 Purpose:
 
@@ -117,7 +148,7 @@ Responsibilities:
 - return a handle or location for downstream consumers
 - enforce a configurable retention policy (keep last N datasets, or TTL-based)
 
-### 4.3 Artifact Store
+### 5.3 Artifact Store
 
 Purpose:
 
@@ -129,7 +160,7 @@ Responsibilities:
 - write run logs or log references
 - write optional serialized summaries or sidecars
 
-### 4.4 Provider Cache
+### 5.4 Provider Cache
 
 Purpose:
 
@@ -144,7 +175,7 @@ This is a separate interface from `StorageBackend`. It must not be mixed into
 the run or dataset stores. Provider cache concerns — TTL, invalidation, and
 staleness — are distinct from run-lifecycle concerns.
 
-### 4.5 Viewer Preference Store
+### 5.5 Viewer Preference Store
 
 Purpose:
 
@@ -160,12 +191,12 @@ Lower priority than run and dataset storage. The viewer currently reads datasets
 directly from the filesystem; migrating it to the storage port should happen in
 a separate step after the fetcher migration is complete.
 
-## 5. Domain Records
+## 6. Domain Records
 
 The storage layer centers around storage-neutral records. These are plain
 dataclasses or typed dicts — not ORM models.
 
-### 5.1 Run Record
+### 6.1 Run Record
 
 ```python
 @dataclass
@@ -190,7 +221,7 @@ positions fingerprint should produce structurally comparable datasets.
 when any held position changes, making it easy to attribute output differences to
 position changes vs. market changes.
 
-### 5.2 Dataset Record
+### 6.2 Dataset Record
 
 ```python
 @dataclass
@@ -210,7 +241,7 @@ class DatasetRecord:
 this is acceptable overhead at the end of a run. It enables downstream deduplication
 and artifact integrity checks.
 
-### 5.3 Ticker Run Record
+### 6.3 Ticker Run Record
 
 ```python
 @dataclass
@@ -229,7 +260,7 @@ class TickerRunRecord:
 `normalized_row_count` captures the count after enrich/normalize and before the
 filter step, making it possible to distinguish normalization losses from filter losses.
 
-### 5.4 Validation Record
+### 6.4 Validation Record
 
 ```python
 @dataclass
@@ -241,7 +272,7 @@ class ValidationRecord:
     sample: str | None  # optional JSON-encoded sample detail
 ```
 
-### 5.5 Artifact Record
+### 6.5 Artifact Record
 
 ```python
 @dataclass
@@ -253,7 +284,7 @@ class ArtifactRecord:
     content_hash: str
 ```
 
-## 6. Write Payload Types
+## 7. Write Payload Types
 
 Callers pass write payloads into the storage port, not raw records. This keeps
 the port stable even if record fields change.
@@ -310,7 +341,7 @@ class DatasetHandle:
     format: str
 ```
 
-## 7. Storage Port Shape
+## 8. Storage Port Shape
 
 The fetch pipeline and viewer depend on these two protocols:
 
@@ -348,7 +379,7 @@ records and filter in application code. Implementations that do not support
 server-side filtering may apply them in memory, but the interface must be stable
 from day one.
 
-## 8. Concurrency and Run Lifecycle
+## 9. Concurrency and Run Lifecycle
 
 The current fetcher lock (`logs/fetcher.lock`) prevents concurrent runs. Under
 the storage model, `create_run` does not replace the lock — both coexist.
@@ -380,7 +411,7 @@ on KeyboardInterrupt:
   → release lock
 ```
 
-## 9. Dataset Serialization Formats
+## 10. Dataset Serialization Formats
 
 The `DatasetWrite.format` field and `DatasetRecord.format` field anticipate
 multiple serialization formats. The first supported format is CSV, matching
@@ -402,7 +433,7 @@ class DatasetSerializer(Protocol):
     def write(self, df: pd.DataFrame, path: Path) -> int: ...  # returns bytes written
 ```
 
-## 10. Dataset Retention
+## 11. Dataset Retention
 
 The storage layer should enforce a retention policy to bound disk growth.
 
@@ -416,7 +447,7 @@ Suggested defaults:
 The filesystem backend implements pruning by scanning the output directory.
 The SQLite backend implements pruning with a `DELETE WHERE` on the dataset table.
 
-## 11. Run Diffing
+## 12. Run Diffing
 
 With structured `TickerRunRecord` entries stored per run, the SQLite backend
 can support cross-run comparison queries without loading any artifact bytes.
@@ -432,7 +463,7 @@ These are not part of the initial implementation but are a primary motivating
 use case for the SQLite backend. The `TickerRunRecord` fields should be designed
 with these queries in mind from day one.
 
-## 12. `opx-check` Integration
+## 13. `opx-check` Integration
 
 `opx-check` currently scans the output directory for the latest CSV by filename
 timestamp. Under the storage model it should use `list_datasets(limit=1)` to
@@ -441,7 +472,7 @@ find the latest dataset and obtain its location from the returned `DatasetRecord
 This decouples `opx-check` from the output directory naming convention and makes
 it format-agnostic once Parquet is supported.
 
-## 13. Testing Strategy
+## 14. Testing Strategy
 
 The storage layer should be tested through a `MemoryBackend`:
 
@@ -454,7 +485,7 @@ The filesystem and SQLite backends are tested with `tmp_path` fixtures. The
 `MemoryBackend` is not a substitute for backend-specific tests but replaces the
 current pattern of monkeypatching `write_options_csv` in integration tests.
 
-## 14. Separation of Concerns
+## 15. Separation of Concerns
 
 The following categories remain distinct:
 
@@ -467,7 +498,7 @@ The following categories remain distinct:
 They may share one implementation technology but must not share one
 application-level abstraction.
 
-## 15. Suggested Module Layout
+## 16. Suggested Module Layout
 
 ```text
 opx/storage/
@@ -482,7 +513,7 @@ opx/storage/
   cache.py         # ProviderCache implementations
 ```
 
-## 16. Implementation Order
+## 17. Implementation Order
 
 The changes should be executed in the following sequence. Each step is
 independently shippable and leaves the system in a working state.
@@ -497,7 +528,7 @@ independently shippable and leaves the system in a working state.
 - no changes to `fetcher.py`, `fetch.py`, or `viewer.py`
 - tests: verify `MemoryBackend` satisfies the protocol and roundtrips all write operations
 
-### Step 2 — Filesystem backend (replaces current direct writes)
+### Step 2 — Filesystem backend (parallel path, storage disabled by default)
 
 - implement `FilesystemBackend` in `opx/storage/filesystem.py`
   - `write_dataset` calls the CSV serializer and writes to `output/`
@@ -505,16 +536,23 @@ independently shippable and leaves the system in a working state.
   - `write_artifact` writes to `debug/`
   - `list_datasets` scans `output/` and parses sidecars
 - implement dataset retention pruning in `FilesystemBackend`
-- add `StorageFactory` in `opx/storage/factory.py` that returns `FilesystemBackend` by default
-- no change to output format or directory layout visible to users
+- add `StorageFactory` in `opx/storage/factory.py`; reads `[storage]` config and
+  returns `None` when `enable = false`, `FilesystemBackend` when enabled
+- add `[storage]` parsing to `opx/config.py`; default `enable = false`
+- no change to output format, directory layout, or existing write paths
+- existing tests are unchanged; add new tests for `FilesystemBackend` using `tmp_path`
 
-### Step 3 — Migrate `fetcher.py` to the storage port
+### Step 3 — Wire `fetcher.py` and `opx-check` to the storage port (opt-in)
 
-- replace `write_options_csv` direct call with `storage.write_dataset`
-- replace the per-ticker accumulation pattern with `storage.record_ticker_result` calls
-- wrap the run lifecycle in `create_run` / `finalize_run` / `fail_run`
-- replace `write_options_csv` monkeypatches in tests with `MemoryBackend` injection
-- update `opx-check` to use `storage.list_datasets(limit=1)` for dataset discovery
+- `fetcher.py`: after the existing `write_options_csv` call, if storage is enabled,
+  also call `storage.write_dataset` with the same frame — both paths run; the
+  storage write is additive, not a replacement
+- `opx-check`: if storage is enabled, use `storage.list_datasets(limit=1)` for
+  dataset discovery; otherwise keep the existing `output/` directory scan
+- wrap the run lifecycle in `create_run` / `finalize_run` / `fail_run` only when
+  storage is enabled; existing lock/log behavior is unchanged either way
+- existing `write_options_csv` tests are unchanged
+- add new tests covering the storage-enabled branch using `MemoryBackend`
 
 ### Step 4 — Parquet serializer
 
@@ -546,7 +584,7 @@ independently shippable and leaves the system in a working state.
   and `StorageBackend.get_dataset`
 - add viewer preference store (low priority, can be a simple JSON file initially)
 
-## 17. Open Questions
+## 18. Open Questions
 
 Before executing step 5, the main questions to settle are:
 
@@ -555,14 +593,15 @@ Before executing step 5, the main questions to settle are:
   separate read-model interface?
 - Should `SqliteIndexedBackend` support multiple concurrent readers (WAL mode)?
 
-## 18. Current Recommendation
+## 19. Current Recommendation
 
 Recommended path:
 
 - execute steps 1 through 3 as the first milestone
+- keep storage disabled by default throughout; the existing runtime is never broken
 - keep exported datasets as immutable file artifacts throughout
 - defer SQLite until dataset discovery or run diffing becomes a concrete need
 - introduce Parquet in step 4 before SQLite to validate the serializer abstraction
 
-This gives `opx` a clean storage boundary for downstream integration without
-overcommitting to one storage technology too early.
+This gives `opx` a clean opt-in storage boundary for downstream integration
+without changing anything for users who have not enabled it.

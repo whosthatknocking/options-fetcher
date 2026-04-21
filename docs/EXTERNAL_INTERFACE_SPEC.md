@@ -72,6 +72,13 @@ of the stable downstream interface. A downstream orchestrator should not set the
 
 ## 3. Python Package Interface
 
+**Prerequisite:** the Python package interface is only available when storage is
+enabled in the `opx` config (`[storage] enable = true`). When storage is
+disabled (the default), `opx.storage` modules are importable but
+`get_storage_backend()` returns `None` and `list_datasets` is not meaningful.
+A downstream consumer must ensure the `opx` instance it connects to has storage
+enabled before using this interface.
+
 A downstream consumer may import `opx` as a Python dependency to query the storage
 layer without shelling out or scanning the filesystem directly.
 
