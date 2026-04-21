@@ -23,7 +23,7 @@ When behavior, naming, or scope is unclear, use these files in this order:
 3. `docs/FIELD_REFERENCE.md`
 4. `docs/DEVELOPMENT.md`
 5. `README.md`
-6. `docs/SYSTEM_SPEC.md` and `docs/DESIGN_SPEC.md` for downstream intent and UI direction
+6. `docs/DESIGN_SPEC.md` for UI direction; `docs/EXTERNAL_INTERFACE_SPEC.md` for downstream integration intent
 
 Keep those files aligned with the implementation. If you change canonical fields, provider behavior, config keys, CLI behavior, viewer behavior, or validation semantics, update the docs in the same task.
 
@@ -93,7 +93,7 @@ Keep those files aligned with the implementation. If you change canonical fields
 
 - Keep exported CSVs under `output/`, logs under `logs/`, and optional provider payload dumps under `debug/`.
 - If you change exported columns, also update the viewer serialization assumptions and field-reference docs.
-- Keep viewer endpoints and payloads aligned with the current tab model: `Dataset`, `Overview`, `Chain View`, and `Reference`.
+- Keep viewer endpoints and payloads aligned with the current tab model: `Dataset`, `Positions`, `Overview`, `Chain View`, and `Reference`.
 - Use JSON-serializable payloads only when sending data to the browser.
 
 ## Error Handling and Stability
@@ -159,7 +159,7 @@ Common files to update:
 - The package version is defined in `pyproject.toml`.
 - Current supported providers are `yfinance`, `massive`, and `marketdata`.
 - `viewer.py` remains the stable top-level viewer entrypoint name.
-- This project is the data and screening layer. The portfolio decision engine described in `docs/SYSTEM_SPEC.md` is downstream and should not be collapsed into the fetch/viewer runtime.
+- This project is the data and screening layer. The portfolio decision engine is downstream and should not be collapsed into the fetch/viewer runtime.
 
 ## Good Changes
 
