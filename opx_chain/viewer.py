@@ -302,12 +302,15 @@ def coerce_scalar_number(value: Any) -> float | None:
 
 def build_freshness_summary(frame: pd.DataFrame, csv_path: Path) -> FreshnessSummary:
     """Build file-level freshness metadata for the current CSV snapshot."""
-    option_quote_ages = pd.to_numeric(
-        frame.get("quote_age_seconds"), errors="coerce"
-    ).dropna()
-    underlying_quote_ages = pd.to_numeric(
-        frame.get("underlying_price_age_seconds"), errors="coerce"
-    ).dropna()
+    _empty = pd.Series(dtype=float)
+    _qa_col = frame.get("quote_age_seconds")
+    _ua_col = frame.get("underlying_price_age_seconds")
+    option_quote_ages = (
+        pd.to_numeric(_qa_col, errors="coerce").dropna() if _qa_col is not None else _empty
+    )
+    underlying_quote_ages = (
+        pd.to_numeric(_ua_col, errors="coerce").dropna() if _ua_col is not None else _empty
+    )
     now = time.time()
     modified_at = csv_path.stat().st_mtime
 
@@ -711,6 +714,12 @@ def build_summary_payload(csv_name: str | None = None) -> SummaryPayload:
     frame = read_dataset_file(csv_path)
     visible_columns = [column for column in frame.columns if column not in HIDDEN_COLUMNS]
     frame = frame[visible_columns]
+    if "underlying_symbol" not in frame.columns:
+        return {
+            "selected_file": csv_path.name,
+            "tickers": [],
+            "highlights": {"most_profitable": None, "moderate_risk": None},
+        }
     tickers = sorted(frame["underlying_symbol"].dropna().astype(str).unique())
 
     ticker_summaries: list[TickerSummary] = []
@@ -882,11 +891,17 @@ class ViewerRequestHandler(SimpleHTTPRequestHandler):
         super().end_headers()
 
     def _respond_payload(self, payload_factory, csv_name: str | None = None) -> None:
-        """Run a payload factory and translate missing files into 404 responses."""
+        """Run a payload factory and translate errors into JSON error responses."""
         try:
             payload = payload_factory(csv_name)
         except FileNotFoundError as exc:
             self.respond_json({"error": str(exc)}, status=HTTPStatus.NOT_FOUND)
+            return
+        except Exception as exc:  # pylint: disable=broad-except
+            self.respond_json(
+                {"error": f"Failed to load dataset: {exc}"},
+                status=HTTPStatus.INTERNAL_SERVER_ERROR,
+            )
             return
         self.respond_json(payload)
 

@@ -68,6 +68,7 @@ def test_main_prints_rows_written_after_saved(monkeypatch, capsys, tmp_path: Pat
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr(main, "FETCHER_LOCK_PATH", tmp_path / "fetcher.lock")
     monkeypatch.setattr(main, "LOCKS_DIR", tmp_path)
+    monkeypatch.setattr(main, "OUTPUTS_DIR", tmp_path / "output")
     monkeypatch.setattr(
         main,
         "get_runtime_config",
@@ -123,6 +124,7 @@ def test_main_prints_config_fallbacks(monkeypatch, capsys, tmp_path: Path):
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr(main, "FETCHER_LOCK_PATH", tmp_path / "fetcher.lock")
     monkeypatch.setattr(main, "LOCKS_DIR", tmp_path)
+    monkeypatch.setattr(main, "OUTPUTS_DIR", tmp_path / "output")
     monkeypatch.setattr(main, "get_runtime_config", lambda: config)
     monkeypatch.setattr(
         main,
@@ -152,6 +154,7 @@ def test_main_can_disable_filters_via_cli(monkeypatch, capsys, tmp_path: Path):
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr(main, "FETCHER_LOCK_PATH", tmp_path / "fetcher.lock")
     monkeypatch.setattr(main, "LOCKS_DIR", tmp_path)
+    monkeypatch.setattr(main, "OUTPUTS_DIR", tmp_path / "output")
     monkeypatch.setattr(
         main,
         "get_runtime_config",
@@ -201,6 +204,7 @@ def test_main_can_enable_filters_via_cli(monkeypatch, capsys, tmp_path: Path):
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr(main, "FETCHER_LOCK_PATH", tmp_path / "fetcher.lock")
     monkeypatch.setattr(main, "LOCKS_DIR", tmp_path)
+    monkeypatch.setattr(main, "OUTPUTS_DIR", tmp_path / "output")
     monkeypatch.setattr(
         main,
         "get_runtime_config",
@@ -249,6 +253,7 @@ def test_main_prints_validation_summary_before_export(monkeypatch, capsys, tmp_p
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr(main, "FETCHER_LOCK_PATH", tmp_path / "fetcher.lock")
     monkeypatch.setattr(main, "LOCKS_DIR", tmp_path)
+    monkeypatch.setattr(main, "OUTPUTS_DIR", tmp_path / "output")
     monkeypatch.setattr(
         main,
         "get_runtime_config",
@@ -307,6 +312,7 @@ def test_main_can_disable_validation_summary(monkeypatch, capsys, tmp_path: Path
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr(main, "FETCHER_LOCK_PATH", tmp_path / "fetcher.lock")
     monkeypatch.setattr(main, "LOCKS_DIR", tmp_path)
+    monkeypatch.setattr(main, "OUTPUTS_DIR", tmp_path / "output")
     monkeypatch.setattr(
         main,
         "get_runtime_config",
@@ -344,6 +350,7 @@ def test_main_returns_failure_when_no_data_is_fetched(monkeypatch, tmp_path: Pat
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr(main, "FETCHER_LOCK_PATH", tmp_path / "fetcher.lock")
     monkeypatch.setattr(main, "LOCKS_DIR", tmp_path)
+    monkeypatch.setattr(main, "OUTPUTS_DIR", tmp_path / "output")
     monkeypatch.setattr(
         main,
         "get_runtime_config",
@@ -372,6 +379,7 @@ def test_main_returns_failure_when_fetcher_lock_is_held(monkeypatch, capsys, tmp
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr(main, "FETCHER_LOCK_PATH", tmp_path / "fetcher.lock")
     monkeypatch.setattr(main, "LOCKS_DIR", tmp_path)
+    monkeypatch.setattr(main, "OUTPUTS_DIR", tmp_path / "output")
 
     held_lock = main.acquire_fetcher_lock()
     assert held_lock is not None
@@ -391,6 +399,7 @@ def test_main_removes_lock_file_after_success(monkeypatch, tmp_path: Path):
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr(main, "FETCHER_LOCK_PATH", tmp_path / "fetcher.lock")
     monkeypatch.setattr(main, "LOCKS_DIR", tmp_path)
+    monkeypatch.setattr(main, "OUTPUTS_DIR", tmp_path / "output")
     monkeypatch.setattr(
         main,
         "get_runtime_config",
@@ -425,6 +434,7 @@ def test_main_handles_ctrl_c_gracefully(monkeypatch, capsys, tmp_path: Path):
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr(main, "FETCHER_LOCK_PATH", tmp_path / "fetcher.lock")
     monkeypatch.setattr(main, "LOCKS_DIR", tmp_path)
+    monkeypatch.setattr(main, "OUTPUTS_DIR", tmp_path / "output")
     monkeypatch.setattr(
         main,
         "get_runtime_config",
@@ -464,6 +474,7 @@ def test_main_can_override_positions_path_via_cli(monkeypatch, capsys, tmp_path:
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr(main, "FETCHER_LOCK_PATH", tmp_path / "fetcher.lock")
     monkeypatch.setattr(main, "LOCKS_DIR", tmp_path)
+    monkeypatch.setattr(main, "OUTPUTS_DIR", tmp_path / "output")
     monkeypatch.setattr(
         main,
         "get_runtime_config",
