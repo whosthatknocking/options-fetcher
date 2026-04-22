@@ -14,7 +14,7 @@ integrate without coupling to internal implementation details.
 
 Three integration points are in scope:
 
-1. **CLI invocation** — a downstream orchestrator can invoke `opx-fetcher` as a
+1. **CLI invocation** — a downstream orchestrator can invoke `opx-fetch` as a
    subprocess to trigger a fresh chain fetch
 2. **Programmatic fetch** — a downstream consumer running in the same process can call
    `opx_chain.fetcher.run_fetch()` to trigger a fetch without spawning a subprocess
@@ -28,14 +28,14 @@ normalization logic — is internal to `opx-chain` and may change without notice
 
 ## 2. CLI Invocation Contract
 
-### 2.1 `opx-fetcher`
+### 2.1 `opx-fetch`
 
-`opx-fetcher` is the entry point for triggering a fresh option-chain fetch.
+`opx-fetch` is the entry point for triggering a fresh option-chain fetch.
 
 A downstream orchestrator invokes it as a subprocess:
 
 ```
-opx-fetcher [--positions <path>] [--enable-filters | --disable-filters]
+opx-fetch [--positions <path>] [--enable-filters | --disable-filters]
 ```
 
 The orchestrator must:
@@ -46,14 +46,14 @@ The orchestrator must:
 **`--positions <path>` (optional)**
 
 Overrides the default positions file path (`data/positions.csv`). When provided,
-`opx-fetcher` uses this file to determine which option contracts must survive hard
+`opx-fetch` uses this file to determine which option contracts must survive hard
 filters regardless of screening criteria. When absent, behaviour is unchanged.
 
 A downstream orchestrator that manages a per-run positions file passes the
 run-specific path here:
 
 ```
-opx-fetcher --positions data/runs/<run_id>/positions.csv
+opx-fetch --positions data/runs/<run_id>/positions.csv
 ```
 
 See `docs/PROJECT_SPEC.md` §7.3 for the full behaviour specification.
@@ -108,7 +108,7 @@ from opx_chain.fetcher import run_fetch
 run_fetch(positions_path=Path("data/runs/<run_id>/positions.csv"))
 ```
 
-`run_fetch()` is the in-process equivalent of invoking `opx-fetcher` as a subprocess.
+`run_fetch()` is the in-process equivalent of invoking `opx-fetch` as a subprocess.
 It acquires the same exclusive lock, runs the full fetch pipeline, and writes the result
 to storage. The caller blocks until the fetch completes.
 
@@ -124,7 +124,7 @@ in semantics to the `--positions` CLI flag. When absent, the configured default 
 | Provider or storage failure | provider-specific exception |
 
 After `run_fetch()` returns without error, the result is available via `get_storage_backend()`
-exactly as it would be after a successful `opx-fetcher` subprocess exit.
+exactly as it would be after a successful `opx-fetch` subprocess exit.
 
 ### 3.3 Obtaining a backend instance
 
@@ -302,7 +302,7 @@ created_at: datetime  # already on DatasetRecord; copy here
 `get_dataset` must populate both fields from the underlying `DatasetRecord`.
 No storage schema change is required — both values are already persisted.
 
-### 7.3 Add `--positions` argument to `opx-fetcher`
+### 7.3 Add `--positions` argument to `opx-fetch`
 
 Implemented. Behaviour is specified in `docs/PROJECT_SPEC.md` §7.3.
 
@@ -314,7 +314,7 @@ storage is disabled.
 
 ### 7.5 `write_legacy_csv` config option
 
-When `[storage] write_legacy_csv = false` (default `true`), `opx-fetcher` skips
+When `[storage] write_legacy_csv = false` (default `true`), `opx-fetch` skips
 writing the timestamped `output/options_engine_output_<ts>.csv` file. Only the
 storage-managed artifact is written. Downstream orchestrators that depend on the
 legacy filename pattern must either keep `write_legacy_csv = true` or switch to
@@ -342,7 +342,7 @@ output is disabled. The default viewer behavior (no `--data-dir`) is to glob
 
 - CSV output format and column order (governed by `SCHEMA_VERSION`)
 - output directory layout
-- `opx-fetcher` fetch logic, provider adapters, scoring, or normalization
+- `opx-fetch` fetch logic, provider adapters, scoring, or normalization
 - `StorageBackend` write interface — consumers are read-only; they never call
   `create_run`, `write_dataset`, or any write method
 - `opx-chain` config file format

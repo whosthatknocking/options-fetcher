@@ -28,7 +28,7 @@ python -m pip install --upgrade pip
 python -m pip install -e .
 mkdir -p ~/.config/opx
 cp config/example.toml ~/.config/opx/config.toml
-opx-fetcher
+opx-fetch
 opx-view
 ```
 
@@ -43,13 +43,13 @@ Then open `http://127.0.0.1:8000` in your browser.
 
 ## Running
 
-Fetch data with `opx-fetcher`.
+Fetch data with `opx-fetch`.
 
 You can force the shared post-download filter toggle for a single run without editing `~/.config/opx/config.toml`:
 
 ```bash
-opx-fetcher --disable-filters
-opx-fetcher --enable-filters
+opx-fetch --disable-filters
+opx-fetch --enable-filters
 ```
 
 These flags override `settings.filters_enable` only for that process. If neither flag is passed, the fetcher uses the configured `filters_enable` value.
@@ -57,7 +57,7 @@ These flags override `settings.filters_enable` only for that process. If neither
 You can also override the positions-file path for one run:
 
 ```bash
-opx-fetcher --positions data/runs/<run_id>/positions.csv
+opx-fetch --positions data/runs/<run_id>/positions.csv
 ```
 
 When `--positions` is omitted, the fetcher still defaults to `data/positions.csv`. If the override path does not exist or cannot be parsed, the run continues without position-aware ticker expansion or filter bypass, matching the existing graceful fallback behavior.
@@ -217,14 +217,14 @@ These settings are only used by the matching provider.
 
 ### Portfolio Positions (`data/positions.csv`)
 
-At the start of every run, `opx-fetcher` reads `data/positions.csv` (Fidelity export format) to drive two behaviors:
+At the start of every run, `opx-fetch` reads `data/positions.csv` (Fidelity export format) to drive two behaviors:
 
 - **Stock ticker expansion** _(always active)_: all stock tickers found in the file are added to the effective fetch list for the run, even if they are not listed in `settings.tickers`. Today's expiration is also kept for these tickers so that options expiring on the current date are available for position matching.
 - **Option filter bypass** _(active only when filters are enabled)_: any option contract that matches a row in the file (by ticker, expiration date, option type, and strike) bypasses all post-download quality filters. These rows are always included in the output regardless of bid, spread, or strike-distance settings. When `filters_enable = false` or `--disable-filters` is used, all rows are already kept unconditionally so the bypass has no effect.
 
 The file is re-read on every run. If the file does not exist or cannot be parsed, the run continues with normal behavior.
 
-If you need a one-off override, pass `opx-fetcher --positions /path/to/positions.csv`. That changes only the file path used for that process; it does not change `filters_enable`, and it does not affect later runs.
+If you need a one-off override, pass `opx-fetch --positions /path/to/positions.csv`. That changes only the file path used for that process; it does not change `filters_enable`, and it does not affect later runs.
 
 `data/positions.csv` is excluded from version control — place your own export there without risk of committing personal data. The expected format is a standard Fidelity brokerage export. Stock rows use a plain ticker in the Symbol column; option rows use a leading dash followed by the OCC-style symbol:
 
@@ -242,7 +242,7 @@ XXXXXXXXX,SAMPLE ACCOUNT, -MSFT260918P380,MSFT SEP 18 2026 $380 PUT,,,,,,,,,,,,M
 - Switch `data_provider` when you want to use a different market-data implementation.
 - Tighten or loosen the `filters_*` threshold values when you want a narrower or broader tradability filter.
 - Set `filters_enable = false` when you want to keep rows that would normally be removed by the shared post-download filters.
-- Use `opx-fetcher --disable-filters` or `opx-fetcher --enable-filters` when you want a one-off override without changing config.
+- Use `opx-fetch --disable-filters` or `opx-fetch --enable-filters` when you want a one-off override without changing config.
 - Set `enable_validation = false` when you want to skip shared row/file validation and suppress validation summaries.
 - Turn on `debug_dump_provider_payload = true` when you need to inspect the raw provider payload and confirm whether fields such as `last_quote`, `underlying_asset`, or Yahoo chain columns were present before normalization.
 - Change `max_expiration_weeks` when you want a shorter or longer expiration window, or set it to `null` to disable the max-expiration cutoff entirely.
@@ -274,7 +274,7 @@ How to interpret it:
 
 - Tightening the filters makes the dataset narrower and more execution-focused, usually at the cost of excluding speculative or thinly traded contracts.
 - Loosening the filters broadens coverage, but it also increases the chance that high-ranking rows are driven by weak quotes, sparse volume, or far-from-spot strikes.
-- `filters_enable = false` is mainly useful when you want to inspect the raw normalized rows while still computing the same metrics and quality flags. `opx-fetcher --disable-filters` is the one-run equivalent.
+- `filters_enable = false` is mainly useful when you want to inspect the raw normalized rows while still computing the same metrics and quality flags. `opx-fetch --disable-filters` is the one-run equivalent.
 
 ## Scoring
 

@@ -33,7 +33,7 @@ def parse_args(argv=None):
     if argv is None and "PYTEST_CURRENT_TEST" in os.environ:
         argv = []
     parser = argparse.ArgumentParser(
-        prog="opx-fetcher",
+        prog="opx-fetch",
         description="Fetch option chains and write a consolidated CSV export.",
     )
     filter_group = parser.add_mutually_exclusive_group()
@@ -326,7 +326,7 @@ def run_fetch(positions_path: Path | None = None) -> None:
 
     This is the programmatic entry point for downstream consumers (e.g.
     opx-strategy stage 3) that import opx_chain directly rather than
-    invoking opx-fetcher as a subprocess.
+    invoking opx-fetch as a subprocess.
 
     Raises RuntimeError if another fetch run is already active.
     Raises RuntimeError if the fetch produces no data.

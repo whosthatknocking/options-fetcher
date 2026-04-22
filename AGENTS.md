@@ -8,7 +8,7 @@ This file gives project-specific guidance to AI agents working in this repositor
 - Purpose: fetch near-term option chains from one configured provider, normalize them into a canonical CSV schema, enrich them with shared analytics, and serve a local viewer for inspection
 - Runtime: Python `3.10+`
 - Main entrypoints:
-  - `opx-fetcher` for data collection and CSV export
+  - `opx-fetch` for data collection and CSV export
   - `opx-view` for the local HTTP viewer
 - Packaging:
   - install with `python -m pip install -e .`

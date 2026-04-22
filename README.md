@@ -13,7 +13,7 @@ python -m pip install --upgrade pip
 python -m pip install -e .
 mkdir -p ~/.config/opx-chain
 cp config/example.toml ~/.config/opx-chain/config.toml
-opx-fetcher
+opx-fetch
 opx-view
 ```
 
@@ -21,9 +21,9 @@ Then open `http://127.0.0.1:8000` in your browser.
 
 If you want the viewer to launch the page automatically, run `opx-view --open`.
 
-For one-off fetch runs, you can override the shared filter toggle from the CLI with `opx-fetcher --disable-filters` or `opx-fetcher --enable-filters` instead of editing `~/.config/opx-chain/config.toml`.
+For one-off fetch runs, you can override the shared filter toggle from the CLI with `opx-fetch --disable-filters` or `opx-fetch --enable-filters` instead of editing `~/.config/opx-chain/config.toml`.
 
-`opx-fetcher` also accepts `--positions /path/to/positions.csv` when you want one run to use a non-default positions file instead of `data/positions.csv`.
+`opx-fetch` also accepts `--positions /path/to/positions.csv` when you want one run to use a non-default positions file instead of `data/positions.csv`.
 
 After a fetch run, `opx-check` verifies that every option contract in `data/positions.csv` appears in the latest output CSV and reports coverage gaps:
 

@@ -32,7 +32,7 @@ parquet = [
 ]
 
 [project.scripts]
-opx-fetcher = "opx_chain.fetcher:main"
+opx-fetch = "opx_chain.fetcher:main"
 opx-view = "opx_chain.viewer:main"
 opx-check = "opx_chain.check_positions:main"
 
