@@ -7,7 +7,6 @@ from unittest.mock import MagicMock, patch
 import pandas as pd
 from conftest import make_runtime_config
 from opx_chain.storage.memory import MemoryBackend
-from opx_chain.storage.models import DatasetWrite, RunContext
 
 
 # ---------------------------------------------------------------------------
@@ -134,16 +133,24 @@ def test_fetcher_skips_storage_when_disabled(tmp_path: Path):
 
 def test_check_positions_uses_storage_when_enabled(tmp_path: Path):
     """opx-check must use list_datasets when storage is enabled."""
+    from datetime import datetime, timezone  # pylint: disable=import-outside-toplevel
     from opx_chain import check_positions as cp  # pylint: disable=import-outside-toplevel
+    from opx_chain.storage.models import DatasetRecord  # pylint: disable=import-outside-toplevel
 
-    backend = MemoryBackend()
-    run_id = backend.create_run(RunContext(
-        provider="yfinance", tickers=("TSLA",),
-        config_fingerprint="x", positions_fingerprint="",
-    ))
-    backend.write_dataset(run_id, DatasetWrite(
-        data=_make_ticker_df(), provider="yfinance", schema_version=1,
-    ))
+    artifact = tmp_path / "ds.csv"
+    artifact.write_text(
+        "underlying_symbol,strike,expiration_date,passes_primary_screen\n"
+        "TSLA,100.0,2026-06-20,True\n",
+        encoding="utf-8",
+    )
+    record = DatasetRecord(
+        dataset_id="ds-id", run_id="run-1",
+        created_at=datetime(2026, 1, 1, tzinfo=timezone.utc),
+        provider="yfinance", schema_version=1, row_count=1,
+        format="csv", location=str(artifact), content_hash="a" * 64,
+    )
+    mock_backend = MagicMock()
+    mock_backend.list_datasets.return_value = [record]
 
     positions_file = tmp_path / "positions.csv"
     positions_file.write_text(
@@ -151,7 +158,7 @@ def test_check_positions_uses_storage_when_enabled(tmp_path: Path):
     )
 
     with (
-        patch.object(cp, "get_storage_backend", return_value=backend),
+        patch.object(cp, "get_storage_backend", return_value=mock_backend),
         patch.object(cp, "get_runtime_config", return_value=make_runtime_config()),
     ):
         result = cp.main(["--positions", str(positions_file)])
@@ -206,7 +213,56 @@ def test_check_positions_prefers_csv_over_parquet_dataset(tmp_path: Path):
         result = cp.main(["--positions", str(positions_file)])
 
     assert result == 0
-    mock_backend.list_datasets.assert_called_once_with(limit=20)
+    mock_backend.list_datasets.assert_called_once_with(limit=100)
+
+
+def test_check_positions_skips_records_with_missing_artifact(tmp_path: Path):
+    """opx-check must skip storage records whose artifact file no longer exists."""
+    from datetime import datetime, timezone  # pylint: disable=import-outside-toplevel
+    from opx_chain import check_positions as cp  # pylint: disable=import-outside-toplevel
+    from opx_chain.storage.models import DatasetRecord  # pylint: disable=import-outside-toplevel
+
+    stale_record = DatasetRecord(
+        dataset_id="stale-id",
+        run_id="run-1",
+        created_at=datetime(2026, 1, 2, tzinfo=timezone.utc),
+        provider="yfinance",
+        schema_version=1,
+        row_count=5,
+        format="csv",
+        location="/old/workspace/output/stale-id.csv",
+        content_hash="a" * 64,
+    )
+    current_record = DatasetRecord(
+        dataset_id="current-id",
+        run_id="run-2",
+        created_at=datetime(2026, 1, 1, tzinfo=timezone.utc),
+        provider="yfinance",
+        schema_version=1,
+        row_count=2,
+        format="csv",
+        location=str(tmp_path / "current-id.csv"),
+        content_hash="b" * 64,
+    )
+    (tmp_path / "current-id.csv").write_text(
+        "underlying_symbol,strike,expiration_date,passes_primary_screen\n"
+        "TSLA,100.0,2026-06-20,True\n",
+        encoding="utf-8",
+    )
+
+    mock_backend = MagicMock()
+    mock_backend.list_datasets.return_value = [stale_record, current_record]
+
+    positions_file = tmp_path / "positions.csv"
+    positions_file.write_text("Symbol,Expiration Date,Option Type,Strike\n", encoding="utf-8")
+
+    with (
+        patch.object(cp, "get_storage_backend", return_value=mock_backend),
+        patch.object(cp, "get_runtime_config", return_value=make_runtime_config()),
+    ):
+        result = cp.main(["--positions", str(positions_file)])
+
+    assert result == 0
 
 
 def test_check_positions_falls_back_to_scan_when_disabled(tmp_path: Path):

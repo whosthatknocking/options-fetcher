@@ -349,11 +349,17 @@ def _format_found_position_lines(key, row: pd.Series) -> list[str]:
 
 
 def _pick_csv_record(records: list[DatasetRecord]) -> Path | None:
-    """Return the location of the newest CSV dataset; fall back to the newest of any format."""
+    """Return the newest existing CSV artifact; fall back to the newest existing of any format."""
+    fallback: Path | None = None
     for record in records:
+        path = Path(record.location)
+        if not path.exists():
+            continue
         if record.format == "csv":
-            return Path(record.location)
-    return Path(records[0].location) if records else None
+            return path
+        if fallback is None:
+            fallback = path
+    return fallback
 
 
 def main(argv=None):
@@ -395,7 +401,7 @@ def main(argv=None):
     if output_path is not None:
         resolved_output = output_path
     elif storage is not None:
-        records = storage.list_datasets(limit=20)
+        records = storage.list_datasets(limit=100)
         resolved_output = _pick_csv_record(records)
     else:
         resolved_output = find_latest_output()
