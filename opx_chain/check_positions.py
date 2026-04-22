@@ -6,11 +6,11 @@ import pandas as pd
 
 from opx_chain.config import get_runtime_config
 from opx_chain.positions import DEFAULT_POSITIONS_PATH, STRIKE_MATCH_TOLERANCE, load_positions
-from opx_chain.storage.factory import get_storage_backend
+from opx_chain.storage.factory import get_data_dir, get_storage_backend
 from opx_chain.storage.models import DatasetRecord
 from opx_chain.utils import read_dataset_file
 
-OUTPUTS_DIR = Path("output")
+OUTPUTS_DIR = get_data_dir() / "output"
 
 
 def find_latest_output(outputs_dir: Path = OUTPUTS_DIR) -> Path | None:

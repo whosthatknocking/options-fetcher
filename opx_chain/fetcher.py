@@ -19,12 +19,12 @@ from opx_chain.export import prepare_export_frame, write_options_csv
 from opx_chain.fetch import fetch_ticker_option_chain
 from opx_chain.positions import DEFAULT_POSITIONS_PATH, load_positions
 from opx_chain.runlog import create_run_logger
-from opx_chain.storage.factory import get_storage_backend
+from opx_chain.storage.factory import get_data_dir, get_storage_backend
 from opx_chain.storage.models import DatasetWrite, RunContext, RunSummary, TickerFetchResult
 from opx_chain.validate import emit_validation_report, validate_export_frame
 
-OUTPUTS_DIR = Path("output")
-LOCKS_DIR = Path("logs")
+OUTPUTS_DIR = get_data_dir() / "output"
+LOCKS_DIR = get_data_dir()
 FETCHER_LOCK_PATH = LOCKS_DIR / "fetcher.lock"
 
 

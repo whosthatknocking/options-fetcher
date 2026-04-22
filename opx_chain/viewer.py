@@ -23,15 +23,16 @@ from pandas.api.types import is_bool_dtype, is_numeric_dtype
 from opx_chain.config import get_runtime_config
 from opx_chain.export import UNWANTED_EXPORT_COLUMNS
 from opx_chain.positions import DEFAULT_POSITIONS_PATH
+from opx_chain.storage.factory import get_data_dir
 from opx_chain.utils import read_dataset_file
 
 
-REPO_ROOT = Path(__file__).resolve().parent.parent
-STATIC_ROOT = Path(__file__).resolve().parent / "viewer_static"
-USER_GUIDE_PATH = REPO_ROOT / "docs" / "USER_GUIDE.md"
-FIELD_REFERENCE_PATH = REPO_ROOT / "docs" / "FIELD_REFERENCE.md"
-OUTPUTS_DIR = REPO_ROOT / "output"
-POSITIONS_PATH = REPO_ROOT / DEFAULT_POSITIONS_PATH
+_PKG_ROOT = Path(__file__).resolve().parent
+STATIC_ROOT = _PKG_ROOT / "viewer_static"
+USER_GUIDE_PATH = _PKG_ROOT.parent / "docs" / "USER_GUIDE.md"
+FIELD_REFERENCE_PATH = _PKG_ROOT.parent / "docs" / "FIELD_REFERENCE.md"
+OUTPUTS_DIR = get_data_dir() / "output"
+POSITIONS_PATH = DEFAULT_POSITIONS_PATH
 CSV_PATTERN = "options_engine_output_*.csv"
 _DATA_DIR_OVERRIDE: Path | None = None
 VIEWER_PREFS_PATH = Path("~/.config/opx-chain/viewer_prefs.json").expanduser()
@@ -815,7 +816,7 @@ def load_positions_payload(path: Path | None = None) -> TablePayload:
     ]
     columns = build_column_definitions(frame, descriptions)
     try:
-        selected_file = str(positions_path.relative_to(REPO_ROOT))
+        selected_file = str(positions_path.relative_to(Path.cwd()))
     except ValueError:
         selected_file = positions_path.name
     return {
