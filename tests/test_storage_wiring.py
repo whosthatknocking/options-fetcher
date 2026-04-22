@@ -1,6 +1,7 @@
 """Tests for the storage-enabled branches of fetcher.py and check_positions.py."""
 # pylint: disable=duplicate-code
 
+from contextlib import ExitStack
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -288,6 +289,49 @@ def test_check_positions_skips_records_with_missing_artifact(tmp_path: Path):
         result = cp.main(["--positions", str(positions_file)])
 
     assert result == 0
+
+
+# ---------------------------------------------------------------------------
+# run_fetch API
+# ---------------------------------------------------------------------------
+
+def test_run_fetch_passes_positions_path(tmp_path: Path):
+    """run_fetch must forward positions_path to load_positions."""
+    from opx_chain import fetcher  # pylint: disable=import-outside-toplevel
+
+    positions_file = tmp_path / "custom_positions.csv"
+    positions_file.write_text("", encoding="utf-8")
+
+    backend = MemoryBackend()
+    config = make_runtime_config(storage_enabled=True)
+    patches = _fetcher_patches(tmp_path, config, backend)
+
+    with ExitStack() as stack:
+        mocks = [stack.enter_context(p) for p in patches]
+        fetcher.run_fetch(positions_path=positions_file)
+
+    mock_load = mocks[8]
+    mock_load.assert_called_once()
+    called_path = mock_load.call_args[0][0]
+    assert called_path == positions_file.expanduser()
+
+
+def test_run_fetch_tickers_override_replaces_config_tickers(tmp_path: Path):
+    """run_fetch(tickers=...) must use the supplied tickers, not config.tickers."""
+    from opx_chain import fetcher  # pylint: disable=import-outside-toplevel
+
+    backend = MemoryBackend()
+    config = make_runtime_config(storage_enabled=True, tickers=("NVDA", "MSFT"))
+    patches = _fetcher_patches(tmp_path, config, backend)
+
+    with ExitStack() as stack:
+        mocks = [stack.enter_context(p) for p in patches]
+        fetcher.run_fetch(tickers=("AAPL",))
+
+    # set_runtime_config_override is called twice: once to set, once to clear (None)
+    mock_set_config = mocks[6]
+    set_call = mock_set_config.call_args_list[0]
+    assert set_call[0][0].tickers == ("AAPL",)
 
 
 def test_check_positions_falls_back_to_scan_when_disabled(tmp_path: Path):

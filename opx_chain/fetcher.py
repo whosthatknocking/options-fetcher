@@ -321,12 +321,18 @@ def _do_fetch_with_lock_held(  # pylint: disable=too-many-branches,too-many-loca
         raise
 
 
-def run_fetch(positions_path: Path | None = None) -> None:
+def run_fetch(
+    positions_path: Path | None = None,
+    tickers: tuple[str, ...] | None = None,
+) -> None:
     """Trigger a fresh option-chain fetch and write the result to storage.
 
     This is the programmatic entry point for downstream consumers (e.g.
     opx-strategy stage 3) that import opx_chain directly rather than
     invoking opx-fetch as a subprocess.
+
+    positions_path: override the default data/positions.csv location.
+    tickers: override the ticker list from config for this run only.
 
     Raises RuntimeError if another fetch run is already active.
     Raises RuntimeError if the fetch produces no data.
@@ -337,6 +343,8 @@ def run_fetch(positions_path: Path | None = None) -> None:
         raise RuntimeError(f"Another fetcher run is already active: {FETCHER_LOCK_PATH}")
     try:
         config = get_runtime_config()
+        if tickers is not None:
+            config = replace(config, tickers=tuple(tickers))
         set_runtime_config_override(config)
         _do_fetch_with_lock_held(config, positions_path, cli_override=None)
     finally:

@@ -397,14 +397,15 @@ def main(argv=None):
         print(f"Positions file not found: {positions_path}")
         return 1
 
-    storage = get_storage_backend()
     if output_path is not None:
         resolved_output = output_path
-    elif storage is not None:
-        records = storage.list_datasets(limit=100)
-        resolved_output = _pick_csv_record(records) or find_latest_output()
     else:
-        resolved_output = find_latest_output()
+        storage = get_storage_backend()
+        if storage is not None:
+            records = storage.list_datasets(limit=100)
+            resolved_output = _pick_csv_record(records) or find_latest_output()
+        else:
+            resolved_output = find_latest_output()
     if resolved_output is None:
         print(f"No output CSV found in {OUTPUTS_DIR}/")
         return 1
