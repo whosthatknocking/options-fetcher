@@ -10,6 +10,36 @@ Implementation-status note:
 - A blank value is not necessarily an upstream data error. It can mean the provider endpoint is not used in the current fetch path, the provider does not expose a compatible field, or the app has not implemented that derivation yet.
 - When a field is blank by current design, this reference now treats that as the expected output.
 
+## Blank and Null Value Contract
+
+A blank value in the exported CSV means the field was not available for that row.
+This is the single contract for absent data across all field categories.
+
+**In the CSV artifact**, blank means an empty cell. `pd.DataFrame.to_csv()` writes
+all null types — `NaN`, `pd.NA`, `pd.NaT`, and `None` — as an empty string. A
+consumer reading the CSV must treat empty cells as absent values, not as zero,
+`false`, or the empty string.
+
+**In the Parquet artifact** (when Parquet support is added), blank means a
+native-typed null. The serializer preserves the in-memory null type for each column:
+
+| Column kind | In-memory null | CSV representation | Parquet representation |
+|---|---|---|---|
+| Numeric (`float`) | `np.nan` | empty cell | IEEE 754 NaN or null |
+| Whole number (`Int64`) | `pd.NA` | empty cell | typed null |
+| Boolean | `pd.NA` | empty cell | typed null |
+| Timestamp | `pd.NaT` | empty cell | typed null |
+| String / categorical | `None` or `np.nan` | empty cell | null |
+
+The Parquet serializer must not coerce nulls to sentinel values such as `-1`,
+`0`, or `""`. Consumers reading Parquet get properly-typed null values rather
+than empty strings.
+
+**Consumer responsibility:** type inference is the consumer's responsibility.
+A consumer must not assume an empty cell means zero for a numeric field or
+`false` for a boolean field. When a field is absent, the consumer should skip
+that field or apply its own default for the downstream calculation.
+
 ## Contract and Expiration Fields
 
 - `underlying_symbol`: Stock ticker for the option contract. Use it to group rows by underlying.

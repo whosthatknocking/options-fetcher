@@ -339,6 +339,8 @@ class DatasetHandle:
     schema_version: int
     row_count: int
     format: str
+    content_hash: str   # SHA-256 of artifact bytes; for integrity checks
+    created_at: datetime  # UTC timestamp; for freshness assessment
 ```
 
 ## 8. Storage Port Shape
