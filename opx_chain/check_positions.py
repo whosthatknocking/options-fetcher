@@ -7,6 +7,7 @@ import pandas as pd
 from opx_chain.config import get_runtime_config
 from opx_chain.positions import DEFAULT_POSITIONS_PATH, STRIKE_MATCH_TOLERANCE, load_positions
 from opx_chain.storage.factory import get_storage_backend
+from opx_chain.storage.models import DatasetRecord
 from opx_chain.utils import read_dataset_file
 
 OUTPUTS_DIR = Path("output")
@@ -258,7 +259,7 @@ def format_freshness_summary_lines(
     now: pd.Timestamp | None = None,
 ) -> list[str]:
     """Build a read-time freshness summary for the selected output CSV."""
-    resolved_frame = frame if frame is not None else pd.read_csv(output_path, low_memory=False)
+    resolved_frame = frame if frame is not None else read_dataset_file(output_path)
     runtime_now = now or _utc_now()
     config = get_runtime_config()
     file_age_seconds = max(0.0, runtime_now.timestamp() - output_path.stat().st_mtime)
@@ -347,6 +348,14 @@ def _format_found_position_lines(key, row: pd.Series) -> list[str]:
     return lines
 
 
+def _pick_csv_record(records: list[DatasetRecord]) -> Path | None:
+    """Return the location of the newest CSV dataset; fall back to the newest of any format."""
+    for record in records:
+        if record.format == "csv":
+            return Path(record.location)
+    return Path(records[0].location) if records else None
+
+
 def main(argv=None):
     """Print a position coverage report for the latest output CSV."""
     import argparse  # pylint: disable=import-outside-toplevel
@@ -386,8 +395,8 @@ def main(argv=None):
     if output_path is not None:
         resolved_output = output_path
     elif storage is not None:
-        records = storage.list_datasets(limit=1)
-        resolved_output = Path(records[0].location) if records else None
+        records = storage.list_datasets(limit=20)
+        resolved_output = _pick_csv_record(records)
     else:
         resolved_output = find_latest_output()
     if resolved_output is None:

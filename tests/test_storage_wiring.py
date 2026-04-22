@@ -159,6 +159,56 @@ def test_check_positions_uses_storage_when_enabled(tmp_path: Path):
     assert result == 0
 
 
+def test_check_positions_prefers_csv_over_parquet_dataset(tmp_path: Path):
+    """opx-check must skip parquet records and use the newest CSV dataset."""
+    from datetime import datetime, timezone  # pylint: disable=import-outside-toplevel
+    from opx_chain import check_positions as cp  # pylint: disable=import-outside-toplevel
+    from opx_chain.storage.models import DatasetRecord  # pylint: disable=import-outside-toplevel
+
+    parquet_record = DatasetRecord(
+        dataset_id="parquet-id",
+        run_id="run-1",
+        created_at=datetime(2026, 1, 2, tzinfo=timezone.utc),
+        provider="yfinance",
+        schema_version=1,
+        row_count=5,
+        format="parquet",
+        location="/fake/output/parquet-id.parquet",
+        content_hash="a" * 64,
+    )
+    csv_record = DatasetRecord(
+        dataset_id="csv-id",
+        run_id="run-1",
+        created_at=datetime(2026, 1, 1, tzinfo=timezone.utc),
+        provider="yfinance",
+        schema_version=1,
+        row_count=2,
+        format="csv",
+        location=str(tmp_path / "csv-id.csv"),
+        content_hash="b" * 64,
+    )
+    (tmp_path / "csv-id.csv").write_text(
+        "underlying_symbol,strike,expiration_date,passes_primary_screen\n"
+        "TSLA,100.0,2026-06-20,True\n",
+        encoding="utf-8",
+    )
+
+    mock_backend = MagicMock()
+    mock_backend.list_datasets.return_value = [parquet_record, csv_record]
+
+    positions_file = tmp_path / "positions.csv"
+    positions_file.write_text("Symbol,Expiration Date,Option Type,Strike\n", encoding="utf-8")
+
+    with (
+        patch.object(cp, "get_storage_backend", return_value=mock_backend),
+        patch.object(cp, "get_runtime_config", return_value=make_runtime_config()),
+    ):
+        result = cp.main(["--positions", str(positions_file)])
+
+    assert result == 0
+    mock_backend.list_datasets.assert_called_once_with(limit=20)
+
+
 def test_check_positions_falls_back_to_scan_when_disabled(tmp_path: Path):
     """opx-check must fall back to directory scanning when storage is disabled."""
     from opx_chain import check_positions as cp  # pylint: disable=import-outside-toplevel
