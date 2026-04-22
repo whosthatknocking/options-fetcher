@@ -30,7 +30,7 @@ from opx_chain.providers.base import (
 )
 from opx_chain.utils import coerce_float, normalize_timestamp
 
-CALLER_USER_AGENT = f"opx/{SCRIPT_VERSION}"
+CALLER_USER_AGENT = f"opx-chain/{SCRIPT_VERSION}"
 DEFAULT_RETRY_BACKOFF_SECONDS = 1.0
 
 

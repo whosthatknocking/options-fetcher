@@ -30,7 +30,7 @@ from opx_chain.utils import coerce_float, normalize_timestamp
 MAX_RETRIES = 3
 BACKOFF_SECONDS = 1.0
 DEFAULT_SNAPSHOT_PAGE_LIMIT = DEFAULT_MASSIVE_SNAPSHOT_PAGE_LIMIT
-CALLER_USER_AGENT = f"opx/{SCRIPT_VERSION}"
+CALLER_USER_AGENT = f"opx-chain/{SCRIPT_VERSION}"
 
 
 def _coalesce(*values: Any) -> Any:
