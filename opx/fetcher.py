@@ -270,8 +270,17 @@ def main(argv=None):  # pylint: disable=too-many-branches,too-many-locals,too-ma
         if logger:
             logger.warning("run_finished interrupted=true")
         if storage is not None and run_id is not None:
-            storage.fail_run(run_id, "interrupted")
+            storage.finalize_run(
+                run_id, RunSummary(status="interrupted", error_summary="interrupted")
+            )
         return 130
+    except Exception as exc:  # pylint: disable=broad-exception-caught
+        print(f"\nFatal error: {exc}")
+        if logger:
+            logger.exception("run_finished fatal error: %s", exc)
+        if storage is not None and run_id is not None:
+            storage.fail_run(run_id, str(exc))
+        return 1
     finally:
         set_runtime_config_override(None)
         release_fetcher_lock(lock_handle)
