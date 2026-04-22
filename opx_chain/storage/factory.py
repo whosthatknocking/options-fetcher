@@ -2,9 +2,18 @@
 
 from __future__ import annotations
 
+import os
 from pathlib import Path
 
 from opx_chain.storage.filesystem import FilesystemBackend
+
+_APP_NAME = "opx-chain"
+
+
+def _default_data_dir() -> Path:
+    xdg = os.environ.get("XDG_DATA_HOME")
+    base = Path(xdg) if xdg else Path.home() / ".local" / "share"
+    return base / _APP_NAME
 
 
 def get_storage_backend(config=None):
@@ -21,7 +30,7 @@ def get_storage_backend(config=None):
     if not config.storage_enabled:
         return None
 
-    base = config.storage_dir if config.storage_dir else Path.cwd()
+    base = config.storage_dir if config.storage_dir else _default_data_dir()
     kwargs = {
         "output_dir": base / "output",
         "logs_dir": base / "logs",

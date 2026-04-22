@@ -96,7 +96,8 @@ enable = false                 # default: storage disabled; existing runtime unc
 backend = "filesystem"         # "filesystem" (default when enabled) | "sqlite"
 dataset_format = "csv"         # "csv" (default) | "parquet"
 max_runs_retained = 0          # 0 = keep all (default); positive integer = keep last N
-write_legacy_csv = true        # write output/options_engine_output_<ts>.csv alongside storage artifact
+write_legacy_csv = true        # write <data-dir>/output/options_engine_output_<ts>.csv alongside storage artifact
+# dir = "~/.local/share/opx-chain"  # override XDG data dir (default: $XDG_DATA_HOME/opx-chain or ~/.local/share/opx-chain)
 
 # Provider response cache (optional)
 cache_backend = "none"         # "none" (default) | "filesystem"
@@ -116,9 +117,9 @@ Behavior:
   package interface becomes available to downstream consumers
 - `backend` is only read when `enable = true`; it is ignored otherwise
 - `write_legacy_csv = false` suppresses the timestamped legacy CSV; only the
-  storage-managed artifact (e.g. `output/<uuid>.parquet`) is written; the viewer
-  reaches it via `opx-view --data-dir output/`; only meaningful when
-  `enable = true`
+  storage-managed artifact (e.g. `~/.local/share/opx-chain/output/<uuid>.parquet`)
+  is written; the viewer reaches it via `opx-view --data-dir <path>`; only
+  meaningful when `enable = true`
 - startup output always prints the resolved `Storage:` section; when disabled,
   it prints `enable: false`
 

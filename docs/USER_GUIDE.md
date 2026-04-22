@@ -116,18 +116,20 @@ The viewer includes:
 
 ## Output
 
-Each run writes a CSV file to the `output/` directory using a timestamped filename:
+Each run writes a CSV file to the XDG data directory using a timestamped filename:
 
 ```text
-output/options_engine_output_YYYYMMDD_HHMMSS.csv
+~/.local/share/opx-chain/output/options_engine_output_YYYYMMDD_HHMMSS.csv
 ```
 
-`output/` is the standard export directory used by both the fetcher and the viewer.
+`$XDG_DATA_HOME/opx-chain/` (defaulting to `~/.local/share/opx-chain/`) is the
+standard data directory used by all three tools. Override it with `dir` in the
+`[storage]` config section.
 
 Operational details that are not row-specific are written to:
 
 ```text
-logs/opx_runs.log
+~/.local/share/opx-chain/logs/opx_runs.log
 ```
 
 The run log records:

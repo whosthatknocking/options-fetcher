@@ -61,11 +61,13 @@ The local viewer is organized around five primary tabs: `Dataset`, `Positions`, 
 - Includes a local browser for exploring the output interactively, including dataset inspection, an optional positions browser for `data/positions.csv` when that user-local file is present, per-ticker overview cards, `Most Profitable`, `Moderate Risk`, `High Conviction Call`, and `High Conviction Put` highlights, plus chain visualizations with chart tooltips and click-through row details
 - Produces normalized option-chain output for inspection, comparison, and archival
 
-Generated files are standardized under:
+Generated files are written to `~/.local/share/opx-chain/` (XDG data home):
 
-- `output/` for exported CSV snapshots
-- `logs/` for run logs
-- `debug/` for optional raw provider payload dumps
+- `~/.local/share/opx-chain/output/` for exported CSV snapshots
+- `~/.local/share/opx-chain/logs/` for run logs
+- `debug/` for optional raw provider payload dumps (current directory)
+
+Override the base path with `dir` in the `[storage]` config section.
 
 ## Documentation
 
