@@ -24,6 +24,7 @@ from opx.config import get_runtime_config
 from opx.export import UNWANTED_EXPORT_COLUMNS
 from opx.positions import DEFAULT_POSITIONS_PATH
 from opx.storage.factory import get_storage_backend
+from opx.utils import read_dataset_file
 
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -179,13 +180,6 @@ class SummaryPayload(TypedDict):
     selected_file: str
     tickers: list[TickerSummary]
     highlights: SummaryHighlights
-
-
-def read_dataset_file(path: Path) -> pd.DataFrame:
-    """Read a dataset artifact from disk, selecting csv or parquet reader by extension."""
-    if path.suffix == ".parquet":
-        return pd.read_parquet(path)
-    return pd.read_csv(path, low_memory=False)
 
 
 def discover_dataset_paths() -> list[Path]:

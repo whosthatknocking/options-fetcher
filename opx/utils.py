@@ -1,7 +1,16 @@
 """Small scalar conversion helpers shared across fetch and normalization code."""
 
+from pathlib import Path
+
 import pandas as pd
 import numpy as np
+
+
+def read_dataset_file(path: Path) -> pd.DataFrame:
+    """Read a dataset artifact from disk; dispatches on .parquet vs .csv extension."""
+    if path.suffix == ".parquet":
+        return pd.read_parquet(path)
+    return pd.read_csv(path, low_memory=False)
 
 
 def coerce_float(value):
