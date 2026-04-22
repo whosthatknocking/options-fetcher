@@ -1,9 +1,11 @@
-"""YFinance provider tests covering snapshot normalization and debug payload dumping."""
+"""YFinance provider tests covering snapshot normalization, events, and debug payload dumping."""
 
+from datetime import date
 from pathlib import Path
 import json
 
 import pandas as pd
+import pytest
 
 from conftest import make_runtime_config
 from opx_chain.providers.yfinance import YFinanceProvider
@@ -97,3 +99,70 @@ def test_yfinance_snapshot_preserves_zero_last_price_instead_of_falling_back(mon
     snapshot = YFinanceProvider().load_underlying_snapshot("TSLA")
 
     assert snapshot["underlying_price"] == 0.0
+
+
+def test_yfinance_provider_load_ticker_events_parses_earnings_and_dividends(monkeypatch):
+    """Yahoo event metadata should populate the canonical earnings and dividend fields."""
+    class EventTicker(FakeTicker):  # pylint: disable=too-few-public-methods
+        """Ticker stub with future earnings and dividend metadata."""
+
+        def __init__(self, ticker):
+            super().__init__(ticker)
+            self.info.update(
+                {
+                    "earningsTimestampStart": 1777507200,  # 2026-04-29 UTC
+                    "earningsTimestampEnd": 1777939200,    # 2026-05-04 UTC
+                    "isEarningsDateEstimate": True,
+                    "exDividendDate": 1776556800,          # 2026-04-18 UTC
+                }
+            )
+            self.calendar = {
+                "Earnings Date": [
+                    pd.Timestamp("2026-04-29"),
+                    pd.Timestamp("2026-05-04"),
+                ],
+                "Ex-Dividend Date": pd.Timestamp("2026-04-18"),
+            }
+            self.dividends = pd.Series(
+                [0.88, 0.75],
+                index=pd.to_datetime(["2026-04-18", "2026-07-18"]),
+                dtype="float64",
+            )
+
+    monkeypatch.setattr(
+        "opx_chain.providers.yfinance.get_runtime_config",
+        lambda: make_runtime_config(today=date(2026, 4, 17)),
+    )
+    monkeypatch.setattr("opx_chain.providers.yfinance.yf.Ticker", EventTicker)
+
+    events = YFinanceProvider().load_ticker_events("TSLA")
+
+    assert events["next_earnings_date"] == "2026-04-29"
+    assert events["next_earnings_date_is_estimated"] is True
+    assert events["next_ex_div_date"] == "2026-04-18"
+    assert events["dividend_amount"] == pytest.approx(0.88)
+
+
+def test_yfinance_provider_load_ticker_events_returns_blanks_on_missing_data(monkeypatch):
+    """Yahoo event loading should degrade to blank canonical fields when data is absent."""
+    class BlankEventTicker(FakeTicker):  # pylint: disable=too-few-public-methods
+        """Ticker stub with no future event metadata."""
+
+        def __init__(self, ticker):
+            super().__init__(ticker)
+            self.info = {}
+            self.calendar = None
+            self.dividends = pd.Series(dtype="float64")
+
+    monkeypatch.setattr(
+        "opx_chain.providers.yfinance.get_runtime_config",
+        lambda: make_runtime_config(today=date(2026, 4, 17)),
+    )
+    monkeypatch.setattr("opx_chain.providers.yfinance.yf.Ticker", BlankEventTicker)
+
+    events = YFinanceProvider().load_ticker_events("TSLA")
+
+    assert events["next_earnings_date"] is None
+    assert events["next_earnings_date_is_estimated"] is None
+    assert events["next_ex_div_date"] is None
+    assert pd.isna(events["dividend_amount"])

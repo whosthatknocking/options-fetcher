@@ -41,7 +41,9 @@ The project currently supports:
 - opt-in storage layer (`[storage] enable = true`) with filesystem and SQLite
   backends, parquet artifact format, configurable dataset retention, and a
   provider response cache; see `docs/STORAGE_SPEC.md`
-- per-ticker corporate event data (earnings dates and ex-dividend dates) fetched from the `marketdata` provider via `stocks/earnings/{symbol}/` (SDK) and `stocks/dividends/{symbol}/` (direct HTTP), including an explicit earnings-date estimate flag, then broadcast to all option rows as event risk flags and a composite `event_risk_score`
+- per-ticker corporate event data (earnings dates and ex-dividend dates) fetched from the active provider when supported, then broadcast to all option rows as event risk flags and a composite `event_risk_score`
+- `marketdata` fetches event data via `stocks/earnings/{symbol}/` (SDK) and `stocks/dividends/{symbol}/` (direct HTTP), including an explicit earnings-date estimate flag
+- `yfinance` fetches best-effort event data from Yahoo metadata (`info`, `calendar`, and `dividends`) when future dates are available
 
 The project does not currently aim to:
 
@@ -176,6 +178,7 @@ Current characteristics:
 
 - no provider account required
 - supports underlying snapshot, expiration discovery, and option-chain fetches
+- supports best-effort earnings-date and ex-dividend-date enrichment from Yahoo metadata
 - uses app-derived analytics for many canonical fields
 - may return stale, delayed, or sparse data, especially near the market open
 
