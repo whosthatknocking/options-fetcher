@@ -328,9 +328,9 @@ Add `get_run(run_id: str) -> RunRecord` to the `StorageBackend` protocol in
 downstream consumers can call it through the typed interface. `MemoryBackend`
 must also implement it so the protocol conformance test passes.
 
-### 7.6 `opx-viewer --data-dir`
+### 7.6 `opx-view --data-dir`
 
-`opx-viewer` accepts a `--data-dir DIR` argument that overrides all dataset
+`opx-view` accepts a `--data-dir DIR` argument that overrides all dataset
 discovery — it scans `DIR` for `.csv` and `.parquet` files ordered by
 modification time. This is the primary way to view datasets when legacy CSV
 output is disabled. The default viewer behavior (no `--data-dir`) is to glob

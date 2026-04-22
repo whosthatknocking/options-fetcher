@@ -9,7 +9,7 @@ This file gives project-specific guidance to AI agents working in this repositor
 - Runtime: Python `3.10+`
 - Main entrypoints:
   - `opx-fetcher` for data collection and CSV export
-  - `opx-viewer` for the local HTTP viewer
+  - `opx-view` for the local HTTP viewer
 - Packaging:
   - install with `python -m pip install -e .`
   - dev install with `python -m pip install -e ".[dev]"`

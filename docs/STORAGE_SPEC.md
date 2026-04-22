@@ -117,7 +117,7 @@ Behavior:
 - `backend` is only read when `enable = true`; it is ignored otherwise
 - `write_legacy_csv = false` suppresses the timestamped legacy CSV; only the
   storage-managed artifact (e.g. `output/<uuid>.parquet`) is written; the viewer
-  reaches it via `opx-viewer --data-dir output/`; only meaningful when
+  reaches it via `opx-view --data-dir output/`; only meaningful when
   `enable = true`
 - startup output always prints the resolved `Storage:` section; when disabled,
   it prints `enable: false`
@@ -616,7 +616,7 @@ All seven steps are complete and shipped.
 
 ### Step 7 — Viewer enhancements ✓
 
-- `opx-viewer --data-dir DIR` scans an arbitrary directory for `.csv` and
+- `opx-view --data-dir DIR` scans an arbitrary directory for `.csv` and
   `.parquet` files; default discovery remains the legacy CSV glob
 - viewer preference store: `~/.config/opx/viewer_prefs.json`,
   GET/POST `/api/prefs`

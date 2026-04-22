@@ -35,7 +35,7 @@ The project currently supports:
 - provider-backed fetches through `marketdata`
 - canonical CSV export with shared derived metrics
 - provider-aware field reference documentation
-- a local viewer for exported CSV files (`opx-viewer`); `--data-dir DIR` scans
+- a local viewer for exported CSV files (`opx-view`); `--data-dir DIR` scans
   an arbitrary directory for `.csv` and `.parquet` files
 - provider debug payload dumps for raw-response inspection
 - opt-in storage layer (`[storage] enable = true`) with filesystem and SQLite

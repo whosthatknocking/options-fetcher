@@ -29,7 +29,7 @@ python -m pip install -e .
 mkdir -p ~/.config/opx
 cp config/example.toml ~/.config/opx/config.toml
 opx-fetcher
-opx-viewer
+opx-view
 ```
 
 For local development tools, install the optional extras instead:
@@ -88,13 +88,13 @@ That summary is intentionally different from the stored `quote_age_seconds`, `un
 Run the local viewer:
 
 ```
-opx-viewer
+opx-view
 ```
 
 Open the viewer and launch the page in your default browser:
 
 ```bash
-opx-viewer --open
+opx-view --open
 ```
 
 The viewer binds to `settings.viewer_host` and `settings.viewer_port` from `~/.config/opx/config.toml` by default. `OPX_VIEWER_HOST` and `OPX_VIEWER_PORT` still override those values when you need a one-off launch target.
@@ -181,8 +181,8 @@ These settings apply regardless of which provider is active.
 
 #### Shared Viewer Defaults
 
-- `VIEWER_HOST = "127.0.0.1"`: default bind host used by `opx-viewer`.
-- `VIEWER_PORT = 8000`: default bind port used by `opx-viewer`.
+- `VIEWER_HOST = "127.0.0.1"`: default bind host used by `opx-view`.
+- `VIEWER_PORT = 8000`: default bind port used by `opx-view`.
 
 #### Shared Scoring Defaults
 
