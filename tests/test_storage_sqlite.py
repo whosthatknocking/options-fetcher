@@ -24,7 +24,7 @@ from opx.storage.sqlite_indexed import SqliteIndexedBackend
 
 def _make_backend(tmp_path: Path, max_runs_retained: int = 0) -> SqliteIndexedBackend:
     return SqliteIndexedBackend(
-        db_path=tmp_path / "logs" / "opx.db",
+        db_path=tmp_path / "data" / "opx.db",
         output_dir=tmp_path / "output",
         logs_dir=tmp_path / "logs",
         debug_dir=tmp_path / "debug",
@@ -72,7 +72,7 @@ def test_schema_initialises_on_first_connect(tmp_path: Path):
     """Constructor must create all tables and seed schema_version."""
     backend = _make_backend(tmp_path)
     import sqlite3  # pylint: disable=import-outside-toplevel
-    conn = sqlite3.connect(str(tmp_path / "logs" / "opx.db"))
+    conn = sqlite3.connect(str(tmp_path / "data" / "opx.db"))
     master = conn.execute("SELECT name FROM sqlite_master WHERE type='table'").fetchall()
     tables = {r[0] for r in master}
     assert {"runs", "datasets", "ticker_results", "artifacts", "_schema_meta"}.issubset(tables)

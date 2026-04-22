@@ -31,6 +31,6 @@ def get_storage_backend(config=None):
 
     if config.storage_backend == "sqlite":
         from opx.storage.sqlite_indexed import SqliteIndexedBackend  # pylint: disable=import-outside-toplevel,no-name-in-module
-        return SqliteIndexedBackend(db_path=Path("logs") / "opx.db", **kwargs)
+        return SqliteIndexedBackend(db_path=Path("data") / "opx.db", **kwargs)
 
     return FilesystemBackend(**kwargs)
