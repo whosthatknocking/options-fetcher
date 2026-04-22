@@ -402,7 +402,7 @@ def main(argv=None):
         resolved_output = output_path
     elif storage is not None:
         records = storage.list_datasets(limit=100)
-        resolved_output = _pick_csv_record(records)
+        resolved_output = _pick_csv_record(records) or find_latest_output()
     else:
         resolved_output = find_latest_output()
     if resolved_output is None:
