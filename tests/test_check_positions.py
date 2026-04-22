@@ -157,7 +157,7 @@ def test_main_prints_passes_primary_screen_true_for_passing_row(tmp_path, capsys
     captured = capsys.readouterr()
     assert result == 0
     assert f"Positions: {pos_path}" in captured.out
-    assert f"Output: {out_path}" in captured.out
+    assert f"Output:    {out_path}" in captured.out
     assert "passes_primary_screen=true" in captured.out
     assert "failed_filters:" not in captured.out
 

@@ -23,7 +23,7 @@ from pandas.api.types import is_bool_dtype, is_numeric_dtype
 from opx_chain.config import get_runtime_config
 from opx_chain.export import UNWANTED_EXPORT_COLUMNS
 from opx_chain.positions import DEFAULT_POSITIONS_PATH
-from opx_chain.storage.factory import get_data_dir
+from opx_chain.storage.factory import get_data_dir, get_storage_backend
 from opx_chain.utils import read_dataset_file
 
 
@@ -187,8 +187,9 @@ def discover_dataset_paths() -> list[Path]:
     """Return dataset paths ordered by most recently modified first.
 
     When --data-dir was supplied on the CLI, scans that directory for .csv and
-    .parquet files. Otherwise globs the default output directory for legacy CSV
-    exports matching the standard filename pattern.
+    .parquet files. When storage is enabled, queries the storage backend for
+    registered artifact locations. Falls back to globbing the output directory
+    for legacy CSV exports matching the standard filename pattern.
     """
     if _DATA_DIR_OVERRIDE is not None:
         candidates = [
@@ -196,6 +197,14 @@ def discover_dataset_paths() -> list[Path]:
             *_DATA_DIR_OVERRIDE.glob("*.parquet"),
         ]
         return sorted(candidates, key=lambda p: p.stat().st_mtime, reverse=True)
+
+    storage = get_storage_backend()
+    if storage is not None:
+        records = storage.list_datasets()
+        paths = [Path(r.location) for r in records if Path(r.location).exists()]
+        if paths:
+            return paths
+
     return sorted(
         OUTPUTS_DIR.glob(CSV_PATTERN),
         key=lambda path: path.stat().st_mtime,

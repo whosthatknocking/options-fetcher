@@ -1,4 +1,5 @@
 """CLI tool to verify positions coverage and summarize saved-chain freshness."""
+from datetime import datetime
 from pathlib import Path
 from numbers import Real
 
@@ -411,7 +412,10 @@ def main(argv=None):
         return 1
 
     print(f"Positions: {positions_path}")
-    print(f"Output: {resolved_output}")
+    print(
+        f"Output:    {resolved_output}  "
+        f"(fetched {datetime.fromtimestamp(resolved_output.stat().st_mtime):%Y-%m-%d %H:%M})"
+    )
     print()
 
     if args.freshness:
