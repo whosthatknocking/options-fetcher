@@ -411,29 +411,71 @@ on KeyboardInterrupt:
   → release lock
 ```
 
-## 10. Dataset Serialization Formats
+## 10. Missing Field Values
 
-The `DatasetWrite.format` field and `DatasetRecord.format` field anticipate
-multiple serialization formats. The first supported format is CSV, matching
-current behavior.
+When a canonical field is not available from the active provider, it is left as
+a type-native null in the in-memory DataFrame. The serializer is responsible for
+writing that null in a format-appropriate way.
 
-Parquet should be introduced as a first-class second format:
+### 10.1 Type-native nulls by column kind
 
-- the `DatasetSerializer` protocol controls format-specific write logic
-- CSV and Parquet serializers share the same canonical column order from `export.py`
-- the viewer and `opx-check` select format via config
-- the `DatasetRecord.format` field distinguishes artifacts in the metadata index
+| Column kind | Python / pandas type | In-memory null |
+|---|---|---|
+| Numeric (`float`) | `float` | `float('nan')` / `np.nan` |
+| Whole number (`int`) | `pd.Int64Dtype()` (nullable integer) | `pd.NA` |
+| Boolean | `pd.BooleanDtype()` (nullable boolean) | `pd.NA` |
+| Timestamp | `datetime64[ns, UTC]` | `pd.NaT` |
+| String / categorical | `object` | `None` or `np.nan` |
 
-This is better introduced alongside the storage port rather than as a later
-migration, because the serializer boundary maps cleanly to the storage write path.
+Columns must not be coerced to a non-nullable dtype (e.g. plain `bool` or
+plain `int64`) when the field can be absent for some providers. Use the
+nullable pandas extension types (`Int64`, `boolean`) for fields that are
+whole-number or boolean by contract but legitimately absent for some rows.
+
+### 10.2 CSV serializer behavior
+
+`pd.DataFrame.to_csv()` with no `na_rep` argument writes all null types as
+an empty string. This is the current behavior and the contract for the CSV
+format: **a blank cell means the field was not available for that row**.
+
+Consumers reading the CSV must treat empty cells as absent values, not as
+zero, false, or the empty string. Type inference is the consumer's
+responsibility.
+
+### 10.3 Parquet serializer behavior
+
+The Parquet serializer must preserve type-native nulls. It must not coerce
+nulls to sentinel values (e.g. `-1`, `0`, `""`). Parquet's native null
+representation is used for each column type. Consumers reading Parquet get
+properly-typed null values rather than empty strings.
+
+### 10.4 Consistency rule
+
+The same DataFrame must produce equivalent null semantics in both formats:
+a field that is null for a given row in the CSV (empty cell) must also be
+null for that row in the Parquet artifact. The serializer must not introduce
+or remove nulls beyond what the DataFrame contains.
+
+## 11. Dataset Serialization Formats
+
+The serialization format is separate from the storage location. A
+`DatasetSerializer` protocol defines the interface:
 
 ```python
 class DatasetSerializer(Protocol):
-    format: str
-    def write(self, df: pd.DataFrame, path: Path) -> int: ...  # returns bytes written
+    format: str  # "csv" | "parquet"
+    def serialize(self, df: pd.DataFrame, path: str) -> int: ...
+    # returns bytes written; raises on failure
 ```
 
-## 11. Dataset Retention
+The CSV serializer wraps `pd.DataFrame.to_csv`. It is the initial and default
+format.
+
+Parquet support is deferred to Step 4. When added, `FilesystemBackend` selects
+the serializer based on the `dataset_format` config option (`csv` default). The
+`DatasetHandle.format` field tells downstream consumers which reader to use.
+
+## 12. Dataset Retention
 
 Retention is configurable through `[storage]` in `~/.config/opx/config.toml`.
 
@@ -457,7 +499,7 @@ The filesystem backend implements pruning by scanning the output directory and
 sorting by filename timestamp. The SQLite backend implements pruning with a
 `DELETE WHERE` on the dataset table ordered by `created_at`.
 
-## 12. `opx-check` Integration
+## 13. `opx-check` Integration
 
 `opx-check` currently scans the output directory for the latest CSV by filename
 timestamp. Under the storage model it should use `list_datasets(limit=1)` to
@@ -466,7 +508,7 @@ find the latest dataset and obtain its location from the returned `DatasetRecord
 This decouples `opx-check` from the output directory naming convention and makes
 it format-agnostic once Parquet is supported.
 
-## 13. Testing Strategy
+## 14. Testing Strategy
 
 The storage layer should be tested through a `MemoryBackend`:
 
@@ -478,7 +520,7 @@ The storage layer should be tested through a `MemoryBackend`:
 
 The filesystem and SQLite backends are tested with `tmp_path` fixtures.
 
-## 14. Separation of Concerns
+## 15. Separation of Concerns
 
 The following categories remain distinct:
 
@@ -491,7 +533,7 @@ The following categories remain distinct:
 They may share one implementation technology but must not share one
 application-level abstraction.
 
-## 15. Suggested Module Layout
+## 16. Suggested Module Layout
 
 ```text
 opx/storage/
@@ -506,7 +548,7 @@ opx/storage/
   cache.py         # ProviderCache implementations
 ```
 
-## 16. Implementation Order
+## 17. Implementation Order
 
 The changes should be executed in the following sequence. Each step is
 independently shippable and leaves the system in a working state.
@@ -577,13 +619,14 @@ independently shippable and leaves the system in a working state.
   and `StorageBackend.get_dataset`
 - add viewer preference store (low priority, can be a simple JSON file initially)
 
-## 17. Open Questions
+## 18. Open Questions
 
-No open questions remain for steps 1–3. Before executing step 5, settle:
+No open questions remain. The downstream metadata requirements are fully
+specified in `docs/METADATA_SPEC.md`, which also defines the SQLite schema
+for step 5 and documents which fields the `opx-strategy` consumer depends
+on from day one.
 
-- What metadata fields are required by the downstream system on day one?
-
-## 18. Current Recommendation
+## 19. Current Recommendation
 
 Recommended path:
 
