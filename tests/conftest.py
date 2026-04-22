@@ -2,6 +2,7 @@
 
 from datetime import date
 from pathlib import Path
+from unittest.mock import patch
 import sys
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -69,3 +70,10 @@ def reset_config_cache():
     reset_runtime_config()
     yield
     reset_runtime_config()
+
+
+@pytest.fixture(autouse=True)
+def isolate_data_dir(tmp_path: Path):
+    """Prevent any test from reading or writing the real XDG data directory."""
+    with patch("opx_chain.storage.factory._default_data_dir", return_value=tmp_path / "xdg"):
+        yield

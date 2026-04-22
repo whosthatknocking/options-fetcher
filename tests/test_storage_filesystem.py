@@ -323,6 +323,7 @@ def test_factory_returns_filesystem_backend_when_enabled(tmp_path: Path):
     config = make_runtime_config(
         storage_enabled=True,
         storage_backend="filesystem",
+        storage_dir=tmp_path,
         debug_dump_dir=tmp_path / "debug",
     )
     backend = get_storage_backend(config)
@@ -368,6 +369,7 @@ def test_factory_passes_dataset_format_to_backend(tmp_path: Path):
         storage_enabled=True,
         storage_backend="filesystem",
         storage_dataset_format="parquet",
+        storage_dir=tmp_path,
         debug_dump_dir=tmp_path / "debug",
     )
     backend = get_storage_backend(config)
