@@ -431,3 +431,36 @@ def test_position_option_survives_filters(monkeypatch):
     result = fetch.fetch_ticker_option_chain("TEST", position_set=position_set)
 
     assert "TESTC2" in result["contract_symbol"].values
+
+
+def test_append_underlying_snapshot_fields_is_stale_underlying_price_stays_nullable_boolean():
+    """is_stale_underlying_price must be bool/None (object dtype), never float.
+    When `underlying_price_time` is NaT the result cell is None (unknown); when
+    it is present the cell is a Python bool derived from the staleness compare.
+    """
+    df = pd.DataFrame([{"contract_symbol": "X"}, {"contract_symbol": "Y"}])
+    fresh_snapshot = {
+        "underlying_price_time": pd.Timestamp("2026-03-20T15:55:00Z"),
+        "underlying_day_change_pct": 0.0,
+        "historical_volatility": 0.25,
+    }
+    fetched_at = pd.Timestamp("2026-03-20T16:00:00Z")
+
+    fresh = fetch.append_underlying_snapshot_fields(
+        df.copy(), fresh_snapshot, fetched_at, stale_quote_seconds=3600
+    )
+    assert fresh["is_stale_underlying_price"].dtype == object
+    assert fresh.loc[0, "is_stale_underlying_price"] is False
+    assert fresh.loc[1, "is_stale_underlying_price"] is False
+
+    missing_snapshot = {
+        "underlying_price_time": pd.NaT,
+        "underlying_day_change_pct": 0.0,
+        "historical_volatility": 0.25,
+    }
+    missing = fetch.append_underlying_snapshot_fields(
+        df.copy(), missing_snapshot, fetched_at, stale_quote_seconds=3600
+    )
+    assert missing["is_stale_underlying_price"].dtype == object
+    assert missing.loc[0, "is_stale_underlying_price"] is None
+    assert missing.loc[1, "is_stale_underlying_price"] is None

@@ -545,3 +545,69 @@ def test_add_event_risk_flags_handles_missing_columns_gracefully():
     assert "earnings_within_5d" in result.columns
     assert "event_risk_score" in result.columns
     assert pd.isna(result.loc[0, "event_risk_score"])
+
+
+def test_add_screening_and_freshness_flags_is_stale_quote_stays_nullable_boolean(monkeypatch):
+    """is_stale_quote must be bool/None (object dtype) — not float64 from np.nan
+    coercion — so downstream validators that accept bool or missing pass it.
+    """
+    monkeypatch.setattr("opx_chain.metrics.get_runtime_config", make_score_config)
+    fetched_at = pd.Timestamp("2026-03-20T16:00:00Z")
+    frame = pd.DataFrame(
+        [
+            {
+                "option_type": "call",
+                "option_quote_time": pd.Timestamp("2026-03-20T15:55:00Z"),
+                "days_to_expiration": 14,
+                "strike_distance_pct": 0.02,
+                "premium_per_day": 0.04,
+                "iv_adjusted_premium_per_day": 0.04,
+                "theta_efficiency": 8.0,
+                "bid": 1.0,
+                "ask": 1.1,
+                "strike": 100.0,
+                "underlying_price": 102.0,
+                "open_interest": 150,
+                "volume": 20,
+                "delta_abs": 0.25,
+                "probability_itm": 0.22,
+                "has_valid_quote": True,
+                "has_nonzero_bid": True,
+                "has_nonzero_ask": True,
+                "has_valid_iv": True,
+                "has_valid_greeks": True,
+                "has_crossed_or_locked_market": False,
+                "bid_ask_spread_pct_of_mid": 0.08,
+            },
+            {
+                "option_type": "call",
+                "option_quote_time": pd.NaT,  # missing quote time → unknown staleness
+                "days_to_expiration": 14,
+                "strike_distance_pct": 0.02,
+                "premium_per_day": 0.04,
+                "iv_adjusted_premium_per_day": 0.04,
+                "theta_efficiency": 8.0,
+                "bid": 1.0,
+                "ask": 1.1,
+                "strike": 100.0,
+                "underlying_price": 102.0,
+                "open_interest": 150,
+                "volume": 20,
+                "delta_abs": 0.25,
+                "probability_itm": 0.22,
+                "has_valid_quote": True,
+                "has_nonzero_bid": True,
+                "has_nonzero_ask": True,
+                "has_valid_iv": True,
+                "has_valid_greeks": True,
+                "has_crossed_or_locked_market": False,
+                "bid_ask_spread_pct_of_mid": 0.08,
+            },
+        ]
+    )
+
+    result = add_screening_and_freshness_flags(frame.copy(), fetched_at=fetched_at)
+
+    assert result["is_stale_quote"].dtype == object
+    assert result.loc[0, "is_stale_quote"] is False
+    assert result.loc[1, "is_stale_quote"] is None
