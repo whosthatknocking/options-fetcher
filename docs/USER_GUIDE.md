@@ -360,7 +360,7 @@ Derived flags:
 Provider availability:
 
 - `marketdata`: earnings and dividend event data are fetched for every ticker
-  - `next_earnings_date_is_estimated` is currently `True` whenever Market Data returns a future earnings date, because the upstream endpoint documents future `reportDate` values as estimates
+  - `next_earnings_date_is_estimated` is currently `True` whenever Market Data returns a future earnings date that has not already reported, because the upstream endpoint documents future `reportDate` values as estimates and `opx-chain` skips stale rows whose `reportedEPS` is already populated
   - day counts for expirations, earnings, and ex-dividend dates use the `America/New_York` market calendar so the CSV stays aligned with Market Data's documented date semantics
 - `yfinance`: event fields are populated on a best-effort basis from Yahoo metadata (`info`, `calendar`, and `dividends`) when future dates are available; blanks remain expected when Yahoo does not expose usable future event data
 - `massive`: all event fields are blank for this provider

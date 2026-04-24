@@ -239,7 +239,7 @@ Field-mapping rules already implemented for Market Data include:
 - `last -> last_trade_price` for the option contract itself; `underlyingPrice` is not used for `last_trade_price`
 - `updated -> option_quote_time` for option rows; if stock quotes are unavailable, the latest chain row with a usable `underlyingPrice` is used as a fallback for `underlying_price` and `underlying_price_time`
 - `bid`, `ask`, `last`, `openInterest`, `volume`, `iv`, and greeks map directly into canonical fields
-- future `stocks/earnings/{symbol}/ reportDate` values are exposed with `next_earnings_date_is_estimated = true` because Market Data documents upcoming earnings dates as estimates rather than confirmed announcements
+- future `stocks/earnings/{symbol}/ reportDate` values are exposed with `next_earnings_date_is_estimated = true` because Market Data documents upcoming earnings dates as estimates rather than confirmed announcements; rows whose `reportedEPS` is already populated are treated as already reported and excluded from the upcoming-event selection even if the stale estimate remains in the future
 - runtime `today` and numeric Market Data event dates are interpreted on the `America/New_York` market calendar so expiration and catalyst day-count fields do not drift on non-Eastern hosts
 
 ## 6. Output Contract

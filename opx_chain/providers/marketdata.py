@@ -404,7 +404,14 @@ class MarketDataProvider(DataProvider):
         return best_quote
 
     def _fetch_next_earnings_date(self, ticker: str, today: date) -> str | None:
-        """Return the next upcoming earnings date as an ISO string, or None."""
+        """Return the next upcoming earnings date as an ISO string, or None.
+
+        Market Data keeps the pre-announcement `reportDate` estimate on a row
+        until a fresh estimate is issued, so a row whose actual report has
+        already been published can still surface with `reportDate` in the
+        future. Skip rows whose `reportedEPS` is already populated — those
+        fiscal periods have been reported regardless of what `reportDate` says.
+        """
         try:
             result = self._client().stocks.earnings(
                 ticker.upper(),
@@ -413,11 +420,16 @@ class MarketDataProvider(DataProvider):
             )
             earnings_data = self._raise_if_error(result, context="earnings request")
             report_dates = getattr(earnings_data, "reportDate", None) or []
-            upcoming = [
-                d
-                for raw in report_dates
-                if (d := _parse_event_date(raw)) is not None and d >= today
-            ]
+            reported_eps = getattr(earnings_data, "reportedEPS", None) or []
+            upcoming: list[date] = []
+            for idx, raw in enumerate(report_dates):
+                parsed = _parse_event_date(raw)
+                if parsed is None or parsed < today:
+                    continue
+                eps = reported_eps[idx] if idx < len(reported_eps) else None
+                if eps is not None and not pd.isna(eps):
+                    continue
+                upcoming.append(parsed)
             return min(upcoming).isoformat() if upcoming else None
         except Exception:  # pylint: disable=broad-exception-caught
             return None

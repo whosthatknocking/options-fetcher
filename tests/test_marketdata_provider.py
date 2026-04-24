@@ -431,6 +431,41 @@ def test_marketdata_provider_load_ticker_events_parses_earnings_and_dividends(mo
     assert events["dividend_amount"] == pytest.approx(0.88)
 
 
+def test_marketdata_provider_skips_stale_estimate_when_reported_eps_present(monkeypatch):
+    """A future reportDate with reportedEPS populated reflects a stale pre-announcement estimate."""
+    patch_marketdata_client(monkeypatch)
+    today = date(2026, 4, 23)
+    monkeypatch.setattr(
+        "opx_chain.providers.marketdata.get_runtime_config",
+        lambda: make_runtime_config(today=today),
+    )
+    provider = MarketDataProvider()
+    client = fake_client(provider)
+
+    market_tz = ZoneInfo("America/New_York")
+    stale_estimate_ts = int(datetime(2026, 4, 28, tzinfo=market_tz).timestamp())
+    next_quarter_ts = int(datetime(2026, 7, 23, tzinfo=market_tz).timestamp())
+    client.stocks = type(
+        "StocksResource",
+        (),
+        {
+            "earnings": lambda _self, _sym, **_kw: type(
+                "StockEarnings",
+                (),
+                {
+                    "reportDate": [stale_estimate_ts, next_quarter_ts],
+                    "reportedEPS": [1.50, None],
+                    "s": "ok",
+                },
+            )(),
+        },
+    )()
+
+    events = provider.load_ticker_events("TSLA")
+
+    assert events["next_earnings_date"] == "2026-07-23"
+
+
 def test_marketdata_provider_parses_numeric_event_dates_in_market_timezone(monkeypatch):
     """Numeric dates should resolve using the provider's documented Eastern calendar."""
     patch_marketdata_client(monkeypatch)
