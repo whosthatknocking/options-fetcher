@@ -393,6 +393,28 @@ def test_massive_provider_retries_rate_limits(monkeypatch):
     assert sleeps == [1.0, 2.0]
 
 
+def test_massive_prepare_ticker_fetch_clears_snapshot_cache(monkeypatch):
+    """Massive should not reuse in-process snapshot payloads across fetches."""
+    provider = MassiveProvider()
+    calls = {"count": 0}
+
+    def fake_fetch_snapshot_results(_ticker):
+        calls["count"] += 1
+        return make_snapshot_results()
+
+    monkeypatch.setattr(provider, "_fetch_snapshot_results", fake_fetch_snapshot_results)
+
+    provider._snapshot_results("TSLA")  # pylint: disable=protected-access
+    provider._snapshot_results("TSLA")  # pylint: disable=protected-access
+
+    assert calls["count"] == 1
+
+    provider.prepare_ticker_fetch("TSLA")
+    provider._snapshot_results("TSLA")  # pylint: disable=protected-access
+
+    assert calls["count"] == 2
+
+
 def test_massive_provider_can_dump_each_http_response_page(monkeypatch, tmp_path: Path, capsys):
     """Shared provider debug mode should dump one Massive JSON file per HTTP response page."""
     provider = MassiveProvider()

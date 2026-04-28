@@ -114,6 +114,12 @@ class MassiveProvider(DataProvider):
         """Expose urllib3 logging used underneath the official client."""
         return ("urllib3",)
 
+    def prepare_ticker_fetch(self, ticker: str) -> None:  # pylint: disable=unused-argument
+        """Clear process-local ticker caches before a new fetch pipeline call."""
+        cache_clear = getattr(self._snapshot_results, "cache_clear", None)
+        if callable(cache_clear):
+            cache_clear()
+
     def _api_key(self) -> str:
         credentials = get_provider_credentials(self.name)
         return credentials["api_key"]

@@ -26,6 +26,13 @@ class StubProvider:
 
     name = "stub"
 
+    def __init__(self):
+        self.prepared_tickers = []
+
+    def prepare_ticker_fetch(self, ticker):
+        """Track the per-ticker fetch boundary hook."""
+        self.prepared_tickers.append(ticker)
+
     def load_underlying_snapshot(self, ticker):
         """Return a small underlying snapshot."""
         assert ticker == "TEST"
@@ -165,6 +172,22 @@ def test_fetch_ticker_option_chain_logs_raw_provider_row_counts(monkeypatch, cap
     ) in caplog.text
     assert "status=ok" in caplog.text
     assert "raw_provider_rows=3 raw_expirations=1" in caplog.text
+
+
+def test_fetch_ticker_option_chain_prepares_provider_before_loading(monkeypatch):
+    """Each ticker fetch should mark a boundary for provider-local memory caches."""
+    provider = StubProvider()
+    monkeypatch.setattr(fetch, "get_data_provider", lambda: provider)
+    monkeypatch.setattr(
+        fetch,
+        "get_runtime_config",
+        lambda: make_runtime_config(today=pd.Timestamp("2026-03-20").date()),
+    )
+
+    result = fetch.fetch_ticker_option_chain("TEST")
+
+    assert not result.empty
+    assert provider.prepared_tickers == ["TEST"]
 
 
 def test_fetch_ticker_option_chain_prints_stage_counts(monkeypatch, capsys):

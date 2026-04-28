@@ -117,6 +117,13 @@ class MarketDataProvider(DataProvider):
         """Expose SDK logs so the run log can capture provider-library messages."""
         return ("marketdata.logger",)
 
+    def prepare_ticker_fetch(self, ticker: str) -> None:  # pylint: disable=unused-argument
+        """Clear process-local ticker caches before a new fetch pipeline call."""
+        for cached_method in (self._chain_frame, self._fetch_stock_quote_snapshot):
+            cache_clear = getattr(cached_method, "cache_clear", None)
+            if callable(cache_clear):
+                cache_clear()
+
     def _api_token(self) -> str:
         credentials = get_provider_credentials(self.name)
         return credentials["api_token"]

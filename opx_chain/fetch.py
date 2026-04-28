@@ -141,6 +141,9 @@ def fetch_ticker_option_chain(  # pylint: disable=too-many-locals,too-many-branc
         cache = get_provider_cache(config)
         fetched_at = pd.Timestamp.now(tz=timezone.utc)
         provider = get_data_provider()
+        prepare_ticker_fetch = getattr(provider, "prepare_ticker_fetch", None)
+        if callable(prepare_ticker_fetch):
+            prepare_ticker_fetch(ticker)
         _emit_fetch_info(f"Loading {ticker}  ({provider.name})", logger=logger)
         snap_key = f"snapshot:{provider.name}:{ticker}"
         snapshot = _cache_get_json(cache, snap_key)

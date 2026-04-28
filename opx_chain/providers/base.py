@@ -67,6 +67,9 @@ class DataProvider(ABC):
 
     name: str
 
+    def prepare_ticker_fetch(self, ticker: str) -> None:  # pylint: disable=unused-argument
+        """Reset provider-local per-ticker state before a new fetch pipeline call."""
+
     @property
     def external_logger_names(self) -> tuple[str, ...]:
         """Logger names used by vendor libraries that should be routed to the run log."""

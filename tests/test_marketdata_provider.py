@@ -189,6 +189,28 @@ def test_marketdata_provider_builds_snapshot_and_option_chain(monkeypatch):
     assert fake_client(provider).last_chain_kwargs["mode"] is None  # pylint: disable=no-member
 
 
+def test_marketdata_prepare_ticker_fetch_clears_ticker_caches(monkeypatch):
+    """Market Data should not reuse in-process quote or chain caches across fetches."""
+    patch_marketdata_client(monkeypatch)
+    provider = MarketDataProvider()
+    client = fake_client(provider)
+    provider.prepare_ticker_fetch("TSLA")
+
+    provider._fetch_stock_quote_snapshot("TSLA")  # pylint: disable=protected-access
+    provider._fetch_stock_quote_snapshot("TSLA")  # pylint: disable=protected-access
+    provider._chain_frame("TSLA")  # pylint: disable=protected-access
+    provider._chain_frame("TSLA")  # pylint: disable=protected-access
+
+    assert client.last_chain_kwargs is not None  # pylint: disable=no-member
+    assert provider._fetch_stock_quote_snapshot.cache_info().hits == 1  # pylint: disable=protected-access,no-value-for-parameter
+    assert provider._chain_frame.cache_info().hits == 1  # pylint: disable=protected-access,no-value-for-parameter
+
+    provider.prepare_ticker_fetch("TSLA")
+
+    assert provider._fetch_stock_quote_snapshot.cache_info().currsize == 0  # pylint: disable=protected-access,no-value-for-parameter
+    assert provider._chain_frame.cache_info().currsize == 0  # pylint: disable=protected-access,no-value-for-parameter
+
+
 def test_marketdata_provider_snapshot_falls_back_to_latest_chain_row(monkeypatch):
     """Chain fallback should keep underlying price paired with the same row timestamp."""
     patch_marketdata_client(monkeypatch)
