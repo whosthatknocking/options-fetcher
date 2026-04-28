@@ -57,19 +57,18 @@ def _cache_put_json(cache, key: str, value: dict, ttl: int, logger=None) -> None
 
 def _prepare_cached_json_value(value):
     """Convert pandas/numpy scalar values into JSON-safe cache values."""
-    if value is pd.NaT:
-        return {_JSON_NAT_KEY: True}
+    prepared = value
+    is_nat = value is pd.NaT
     if isinstance(value, pd.Timestamp):
-        if pd.isna(value):
-            return {_JSON_NAT_KEY: True}
-        return {_JSON_TIMESTAMP_KEY: value.isoformat()}
-    if isinstance(value, dict):
-        return {key: _prepare_cached_json_value(item) for key, item in value.items()}
-    if isinstance(value, (list, tuple)):
-        return [_prepare_cached_json_value(item) for item in value]
-    if isinstance(value, np.generic):
-        return value.item()
-    return value
+        is_nat = pd.isna(value)
+        prepared = {_JSON_TIMESTAMP_KEY: value.isoformat()} if not is_nat else prepared
+    elif isinstance(value, dict):
+        prepared = {key: _prepare_cached_json_value(item) for key, item in value.items()}
+    elif isinstance(value, (list, tuple)):
+        prepared = [_prepare_cached_json_value(item) for item in value]
+    elif isinstance(value, np.generic):
+        prepared = value.item()
+    return {_JSON_NAT_KEY: True} if is_nat else prepared
 
 
 def _restore_cached_json_value(value):
