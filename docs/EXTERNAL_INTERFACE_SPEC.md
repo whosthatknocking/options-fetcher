@@ -102,11 +102,16 @@ from opx_chain.storage.base import StorageBackend
 from opx_chain.storage.models import DatasetHandle, DatasetRecord, RunRecord
 from opx_chain.storage.factory import get_storage_backend
 from opx_chain.utils import read_dataset_file
+from opx_chain.positions import OptionPositionKey, PositionSet, load_positions
 from opx_chain import SCHEMA_VERSION
 ```
 
 `read_dataset_file` is the only stable public import from `opx_chain.utils`;
 other helpers in that module remain internal.
+
+`load_positions`, `PositionSet`, and `OptionPositionKey` are the stable positions
+parsing surface for downstream consumers that need the same stock ticker expansion
+and held-option contract keys as `opx-fetch`.
 
 All other names within `opx_chain.fetcher`, `opx_chain.normalize`, `opx_chain.provider`,
 and other internal modules are not part of the stable interface and may change across
@@ -222,6 +227,25 @@ df = read_dataset_file(handle.location)  # dispatches on .csv / .parquet extensi
 `read_dataset_file` is the recommended reader. It selects `pd.read_parquet` or
 `pd.read_csv` based on the file extension, matching `handle.format`. Parquet
 requires the optional `pyarrow` dependency (`pip install 'opx-chain[parquet]'`).
+
+### 3.8 Parsing positions consistently
+
+```python
+from opx_chain.positions import OptionPositionKey, PositionSet, load_positions
+
+positions: PositionSet = load_positions(Path("/path/to/positions.csv"))
+held_contracts: frozenset[OptionPositionKey] = positions.option_keys
+```
+
+`load_positions()` parses the same Fidelity positions CSV format used by
+`opx-fetch`. It returns a `PositionSet` with:
+
+- `stock_tickers`: stock symbols that should expand the effective fetch universe
+- `option_keys`: held option contracts as `OptionPositionKey` values with `ticker`,
+  `expiration_date`, `option_type`, and `strike`
+
+Missing, malformed, or unsupported files return an empty `PositionSet` instead of
+raising, matching the fetch pipeline's graceful fallback behavior.
 
 ---
 

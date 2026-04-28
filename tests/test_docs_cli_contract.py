@@ -70,6 +70,21 @@ def test_recommended_dataset_reader_is_stable_public_surface():
     assert "only stable public import from `opx_chain.utils`" in public_surface
 
 
+def test_positions_parser_is_stable_public_surface():
+    """Downstream positions parsing should be covered by the public API contract."""
+    spec = (ROOT / "docs" / "EXTERNAL_INTERFACE_SPEC.md").read_text(encoding="utf-8")
+    public_surface = spec.split("### 3.1 Public surface", maxsplit=1)[1]
+    public_surface = public_surface.split("### 3.2", maxsplit=1)[0]
+    positions_section = spec.split("### 3.8 Parsing positions consistently", maxsplit=1)[1]
+    import_line = (
+        "from opx_chain.positions import OptionPositionKey, PositionSet, load_positions"
+    )
+
+    assert import_line in public_surface
+    assert import_line in positions_section
+    assert "positions.option_keys" in positions_section
+
+
 def test_run_fetch_public_params_are_documented():
     """The in-process fetch contract should document every public parameter."""
     spec = (ROOT / "docs" / "EXTERNAL_INTERFACE_SPEC.md").read_text(encoding="utf-8")
