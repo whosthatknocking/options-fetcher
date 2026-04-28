@@ -3,6 +3,7 @@
 
 import gc
 import hashlib
+import sqlite3
 import warnings
 from datetime import timedelta
 from pathlib import Path
@@ -21,6 +22,7 @@ from opx_chain.storage.models import (
     RunContext,
     RunSummary,
     TickerFetchResult,
+    ValidationRecord,
 )
 from opx_chain.storage.sqlite_indexed import SqliteIndexedBackend
 
@@ -93,7 +95,6 @@ def test_sqlite_backend_satisfies_protocol(tmp_path: Path):
 def test_schema_initialises_on_first_connect(tmp_path: Path):
     """Constructor must create all tables and seed schema_version."""
     backend = _make_backend(tmp_path)
-    import sqlite3  # pylint: disable=import-outside-toplevel
     conn = sqlite3.connect(str(tmp_path / "opx-chain.db"))
     master = conn.execute("SELECT name FROM sqlite_master WHERE type='table'").fetchall()
     tables = {r[0] for r in master}
@@ -159,6 +160,30 @@ def test_record_ticker_result_persisted(tmp_path: Path):
     assert len(ticker_results) == 1
     assert ticker_results[0].ticker == "TSLA"
     assert ticker_results[0].kept_row_count == 40
+
+
+def test_record_validation_persisted(tmp_path: Path):
+    """record_validation must insert validation summaries into SQLite."""
+    backend = _make_backend(tmp_path)
+    run_id = backend.create_run(_make_context())
+
+    backend.record_validation(ValidationRecord(
+        run_id=run_id,
+        severity="warning",
+        code="MISSING_GREEKS",
+        count=3,
+        sample='{"field": "delta"}',
+    ))
+
+    conn = sqlite3.connect(str(tmp_path / "opx-chain.db"))
+    try:
+        row = conn.execute(
+            "SELECT run_id, severity, code, count, sample FROM validations"
+        ).fetchone()
+    finally:
+        conn.close()
+
+    assert row == (run_id, "warning", "MISSING_GREEKS", 3, '{"field": "delta"}')
 
 
 # ---------------------------------------------------------------------------

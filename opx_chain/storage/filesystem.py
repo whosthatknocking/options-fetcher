@@ -19,6 +19,7 @@ from opx_chain.storage.models import (
     RunSummary,
     TickerFetchResult,
     TickerRunRecord,
+    ValidationRecord,
     record_to_handle,
 )
 from opx_chain.storage._disk import write_artifact_bytes, write_dataset_artifact
@@ -182,6 +183,7 @@ class FilesystemBackend:
             "dataset_id": None,
             "error_summary": None,
             "ticker_results": [],
+            "validations": [],
         }
         self._write_run(run_id, data)
         return run_id
@@ -200,6 +202,17 @@ class FilesystemBackend:
             "error_summary": result.error_summary,
         })
         self._write_run(run_id, data)
+
+    def record_validation(self, record: ValidationRecord) -> None:
+        """Append a validation summary record to the run sidecar."""
+        data = self._read_run(record.run_id)
+        data.setdefault("validations", []).append({
+            "severity": record.severity,
+            "code": record.code,
+            "count": record.count,
+            "sample": record.sample,
+        })
+        self._write_run(record.run_id, data)
 
     def write_dataset(self, run_id: str, dataset: DatasetWrite) -> DatasetRecord:
         """Serialize the DataFrame, compute its hash, and write metadata."""

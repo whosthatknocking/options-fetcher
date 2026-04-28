@@ -2,6 +2,7 @@
 # pylint: disable=duplicate-code
 
 import hashlib
+import json
 from datetime import timedelta
 from pathlib import Path
 
@@ -20,6 +21,7 @@ from opx_chain.storage.models import (
     RunContext,
     RunSummary,
     TickerFetchResult,
+    ValidationRecord,
 )
 
 
@@ -147,6 +149,28 @@ def test_record_ticker_result_persisted(tmp_path: Path):
     assert len(ticker_results) == 1
     assert ticker_results[0].ticker == "TSLA"
     assert ticker_results[0].kept_row_count == 40
+
+
+def test_record_validation_persisted(tmp_path: Path):
+    """record_validation must append validation summaries to the run sidecar."""
+    backend = _make_backend(tmp_path)
+    run_id = backend.create_run(_make_context())
+
+    backend.record_validation(ValidationRecord(
+        run_id=run_id,
+        severity="error",
+        code="DUPLICATE_CONTRACT",
+        count=1,
+        sample='{"contract_symbol": "TSLA260620C00100000"}',
+    ))
+
+    data = json.loads((tmp_path / "runs" / run_id / "run.json").read_text(encoding="utf-8"))
+    assert data["validations"] == [{
+        "severity": "error",
+        "code": "DUPLICATE_CONTRACT",
+        "count": 1,
+        "sample": '{"contract_symbol": "TSLA260620C00100000"}',
+    }]
 
 
 # ---------------------------------------------------------------------------

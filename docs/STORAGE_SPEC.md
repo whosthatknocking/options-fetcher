@@ -370,6 +370,7 @@ The fetch pipeline and viewer depend on these two protocols:
 class StorageBackend(Protocol):
     def create_run(self, context: RunContext) -> str: ...
     def record_ticker_result(self, run_id: str, result: TickerFetchResult) -> None: ...
+    def record_validation(self, record: ValidationRecord) -> None: ...
     def write_dataset(self, run_id: str, dataset: DatasetWrite) -> DatasetRecord: ...
     def write_artifact(self, run_id: str, artifact: ArtifactWrite) -> ArtifactRecord: ...
     def list_datasets(
@@ -608,8 +609,9 @@ All seven steps are complete and shipped.
 
 ### Step 3 — Wire `fetcher.py` and `opx-check` ✓
 
-- `fetcher.py` calls `create_run` / `record_ticker_result` / `write_dataset` /
-  `finalize_run` / `fail_run` when storage is enabled
+- `fetcher.py` calls `create_run` / `record_ticker_result` /
+  `record_validation` / `write_dataset` / `finalize_run` / `fail_run` when
+  storage is enabled
 - `opx-check` uses `list_datasets(limit=100)` when storage is enabled and
   selects the newest readable CSV record
 - `also_write_csv` config key (default `true`) controls whether the timestamped

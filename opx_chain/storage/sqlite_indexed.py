@@ -21,6 +21,7 @@ from opx_chain.storage.models import (
     RunSummary,
     TickerFetchResult,
     TickerRunRecord,
+    ValidationRecord,
     record_to_handle,
 )
 from opx_chain.storage._disk import write_artifact_bytes, write_dataset_artifact
@@ -231,6 +232,23 @@ class SqliteIndexedBackend:
                     result.expiration_count,
                     result.status,
                     result.error_summary,
+                ),
+            )
+            conn.commit()
+
+    def record_validation(self, record: ValidationRecord) -> None:
+        """Insert a validation summary record for a run."""
+        with self._open_connection() as conn:
+            conn.execute(
+                """INSERT INTO validations
+                   (run_id, severity, code, count, sample)
+                   VALUES (?, ?, ?, ?, ?)""",
+                (
+                    record.run_id,
+                    record.severity,
+                    record.code,
+                    record.count,
+                    record.sample,
                 ),
             )
             conn.commit()

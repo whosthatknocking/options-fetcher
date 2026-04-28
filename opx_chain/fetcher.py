@@ -27,8 +27,9 @@ from opx_chain.storage.models import (
     RunContext,
     RunSummary,
     TickerFetchResult,
+    ValidationRecord,
 )
-from opx_chain.validate import emit_validation_report, validate_export_frame
+from opx_chain.validate import ValidationFinding, emit_validation_report, validate_export_frame
 
 RUNS_DIR = get_data_dir() / "runs"
 LOCKS_DIR = get_data_dir()
@@ -169,6 +170,39 @@ class _NullLogger:
 
     def error(self, *_a, **_kw):
         """No-op."""
+
+
+def _validation_sample(finding: ValidationFinding) -> str:
+    """Return a compact JSON sample for one validation finding."""
+    sample = {
+        "message": finding.message,
+        "row_index": finding.row_index,
+        "contract_symbol": finding.contract_symbol,
+        "field": finding.field,
+    }
+    return json.dumps(
+        {key: value for key, value in sample.items() if value is not None},
+        sort_keys=True,
+    )
+
+
+def _record_validation_findings(storage, run_id: str, findings: list[ValidationFinding]) -> None:
+    """Persist grouped validation findings to the storage backend."""
+    grouped: dict[tuple[str, str], dict[str, object]] = {}
+    for finding in findings:
+        key = (finding.severity, finding.code)
+        if key not in grouped:
+            grouped[key] = {"count": 0, "sample": _validation_sample(finding)}
+        grouped[key]["count"] = int(grouped[key]["count"]) + 1
+
+    for (severity, code), payload in sorted(grouped.items()):
+        storage.record_validation(ValidationRecord(
+            run_id=run_id,
+            severity=severity,
+            code=code,
+            count=int(payload["count"]),
+            sample=str(payload["sample"]),
+        ))
 
 
 def _do_fetch_with_lock_held(  # pylint: disable=too-many-branches,too-many-locals,too-many-statements
@@ -315,6 +349,8 @@ def _do_fetch_with_lock_held(  # pylint: disable=too-many-branches,too-many-loca
         if config.enable_validation:
             validation_findings.extend(validate_export_frame(combined))
             emit_validation_report(validation_findings, logger=logger)
+            if storage is not None and run_id is not None:
+                _record_validation_findings(storage, run_id, validation_findings)
         row_count = len(combined)
 
         write_csv = storage is None or config.storage_also_write_csv

@@ -19,6 +19,7 @@ from opx_chain.storage.models import (
     RunSummary,
     TickerFetchResult,
     TickerRunRecord,
+    ValidationRecord,
     record_to_handle,
 )
 
@@ -35,6 +36,7 @@ class MemoryBackend:
         self._runs: dict[str, RunRecord] = {}
         self._datasets: list[DatasetRecord] = []
         self._ticker_results: dict[str, list[TickerRunRecord]] = {}
+        self._validations: dict[str, list[ValidationRecord]] = {}
         self._artifacts: dict[str, list[ArtifactRecord]] = {}
         self._artifact_bytes: dict[str, bytes] = {}
 
@@ -68,6 +70,10 @@ class MemoryBackend:
             error_summary=result.error_summary,
         )
         self._ticker_results.setdefault(run_id, []).append(record)
+
+    def record_validation(self, record: ValidationRecord) -> None:
+        """Append a validation summary record under its run_id."""
+        self._validations.setdefault(record.run_id, []).append(record)
 
     def write_dataset(self, run_id: str, dataset: DatasetWrite) -> DatasetRecord:
         """Serialize the DataFrame in memory and record the dataset."""

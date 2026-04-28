@@ -9,6 +9,7 @@ import pandas as pd
 from conftest import make_runtime_config
 from opx_chain.providers.base import ProviderQuotaError
 from opx_chain.storage.memory import MemoryBackend
+from opx_chain.validate import ValidationFinding
 
 
 # ---------------------------------------------------------------------------
@@ -24,12 +25,14 @@ def _make_ticker_df(ticker: str = "TSLA") -> pd.DataFrame:
     })
 
 
-def _fetcher_patches(tmp_path: Path, config, backend, ticker_df=None):
+def _fetcher_patches(tmp_path: Path, config, backend, ticker_df=None, validation_findings=None):
     """Return a list of patch context managers for a minimal fetcher run."""
     from opx_chain import fetcher  # pylint: disable=import-outside-toplevel
 
     if ticker_df is None:
         ticker_df = _make_ticker_df()
+    if validation_findings is None:
+        validation_findings = []
 
     (tmp_path / "output").mkdir(parents=True, exist_ok=True)
     (tmp_path / "logs").mkdir(parents=True, exist_ok=True)
@@ -48,7 +51,7 @@ def _fetcher_patches(tmp_path: Path, config, backend, ticker_df=None):
             stock_tickers=set(), option_keys=set(), empty=True
         )),
         patch.object(fetcher, "fetch_ticker_option_chain", return_value=ticker_df),
-        patch.object(fetcher, "validate_export_frame", return_value=[]),
+        patch.object(fetcher, "validate_export_frame", return_value=validation_findings),
         patch.object(fetcher, "get_storage_backend", return_value=backend),
     ]
 
@@ -99,6 +102,53 @@ def test_fetcher_records_fetch_row_counts_from_dataframe_attrs(tmp_path: Path):
     assert ticker_result.normalized_row_count == 3
     assert ticker_result.kept_row_count == 2
     assert ticker_result.filtered_row_count == 1
+
+
+def test_fetcher_records_validation_findings_when_storage_enabled(tmp_path: Path):
+    """Storage-backed fetch runs must persist grouped validation summaries."""
+    from opx_chain import fetcher  # pylint: disable=import-outside-toplevel
+
+    backend = MemoryBackend()
+    config = make_runtime_config(storage_enabled=True)
+    findings = [
+        ValidationFinding(
+            severity="warning",
+            code="MISSING_FIELD",
+            message="bid is missing",
+            row_index=0,
+            contract_symbol="TSLA260620C00100000",
+            field="bid",
+        ),
+        ValidationFinding(
+            severity="warning",
+            code="MISSING_FIELD",
+            message="ask is missing",
+            row_index=1,
+            field="ask",
+        ),
+        ValidationFinding(
+            severity="error",
+            code="DUPLICATE_CONTRACT",
+            message="duplicate contract row",
+            contract_symbol="TSLA260620C00100000",
+        ),
+    ]
+    patches = _fetcher_patches(tmp_path, config, backend, validation_findings=findings)
+
+    with patches[0], patches[1], patches[2], patches[3], patches[4], \
+         patches[5], patches[6], patches[7], patches[8], patches[9], \
+         patches[10], patches[11]:
+        result = fetcher.main([])
+
+    assert result == 0
+    run_id = backend.list_datasets()[0].run_id
+    records = {
+        (record.severity, record.code): record
+        for record in backend._validations[run_id]  # pylint: disable=protected-access
+    }
+    assert records[("warning", "MISSING_FIELD")].count == 2
+    assert records[("error", "DUPLICATE_CONTRACT")].count == 1
+    assert '"field": "bid"' in records[("warning", "MISSING_FIELD")].sample
 
 
 def test_fetcher_finalizes_run_on_success(tmp_path: Path):

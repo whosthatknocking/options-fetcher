@@ -15,6 +15,7 @@ from opx_chain.storage.models import (
     RunRecord,
     RunSummary,
     TickerFetchResult,
+    ValidationRecord,
 )
 
 
@@ -24,6 +25,7 @@ class StorageBackend(Protocol):  # pylint: disable=too-few-public-methods
 
     def create_run(self, context: RunContext) -> str: ...  # pylint: disable=missing-function-docstring
     def record_ticker_result(self, run_id: str, result: TickerFetchResult) -> None: ...  # pylint: disable=missing-function-docstring
+    def record_validation(self, record: ValidationRecord) -> None: ...  # pylint: disable=missing-function-docstring
     def write_dataset(self, run_id: str, dataset: DatasetWrite) -> DatasetRecord: ...  # pylint: disable=missing-function-docstring
     def write_artifact(self, run_id: str, artifact: ArtifactWrite) -> ArtifactRecord: ...  # pylint: disable=missing-function-docstring
     def list_datasets(  # pylint: disable=missing-function-docstring,too-many-arguments,too-many-positional-arguments

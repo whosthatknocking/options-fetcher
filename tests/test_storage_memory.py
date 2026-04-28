@@ -17,6 +17,7 @@ from opx_chain.storage.models import (
     RunContext,
     RunSummary,
     TickerFetchResult,
+    ValidationRecord,
 )
 
 
@@ -200,6 +201,24 @@ def test_record_ticker_result_stored():
     assert len(stored) == 1
     assert stored[0].ticker == "TSLA"
     assert stored[0].kept_row_count == 40
+
+
+def test_record_validation_stored():
+    """record_validation must persist grouped validation findings under the run_id."""
+    backend = MemoryBackend()
+    run_id = backend.create_run(_make_context())
+    record = ValidationRecord(
+        run_id=run_id,
+        severity="warning",
+        code="MISSING_FIELD",
+        count=2,
+        sample='{"field": "bid"}',
+    )
+
+    backend.record_validation(record)
+
+    stored = backend._validations[run_id]  # pylint: disable=protected-access
+    assert stored == [record]
 
 
 # ---------------------------------------------------------------------------
