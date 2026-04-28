@@ -95,8 +95,8 @@ def test_main_prints_rows_written_after_saved(monkeypatch, capsys, tmp_path: Pat
 
     written = {}
 
-    def stub_write_options_csv(ticker_frames, output_path):
-        written["rows"] = sum(len(frame) for frame in ticker_frames)
+    def stub_write_options_csv(_ticker_frames, output_path):
+        written["rows"] = sum(len(frame) for frame in _ticker_frames)
         written["path"] = output_path
         output_path.parent.mkdir(parents=True, exist_ok=True)
         output_path.write_text("x" * 2048, encoding="utf-8")
@@ -112,6 +112,48 @@ def test_main_prints_rows_written_after_saved(monkeypatch, capsys, tmp_path: Pat
     assert f"Saved: {written['path']}" in stdout
     assert "rows=3  size=2.0 KB" in stdout
     assert stdout.index(f"Saved: {written['path']}") < stdout.index("rows=3  size=2.0 KB")
+
+
+def test_main_uses_storage_dir_for_side_csv_and_lock(monkeypatch, tmp_path: Path):
+    """storage.dir should override side-write and lock paths, not just storage artifacts."""
+    custom_data_dir = tmp_path / "custom-data"
+    monkeypatch.setattr(
+        main,
+        "get_runtime_config",
+        lambda: make_runtime_config(
+            tickers=("AAA",),
+            storage_dir=custom_data_dir,
+            storage_enabled=False,
+        ),
+    )
+    monkeypatch.setattr(
+        main,
+        "create_run_logger",
+        lambda: (StubLogger(), Path("/tmp/opx-run.log")),
+    )
+    monkeypatch.setattr(
+        main,
+        "fetch_ticker_option_chain",
+        (
+            lambda ticker, logger=None, validation_findings=None,
+            filtered_row_counts=None, position_set=None: pd.DataFrame([make_export_row()])
+        ),
+    )
+
+    written = {}
+
+    def stub_write_options_csv(_ticker_frames, output_path):
+        written["path"] = output_path
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        output_path.write_text("ok", encoding="utf-8")
+
+    monkeypatch.setattr(main, "write_options_csv", stub_write_options_csv)
+
+    assert main.main() == 0
+
+    assert written["path"].parent == custom_data_dir / "runs"
+    assert (custom_data_dir / "runs" / "options_engine_output_latest.csv").exists()
+    assert not (custom_data_dir / "fetcher.lock").exists()
 
 
 def test_main_prints_config_fallbacks(monkeypatch, capsys, tmp_path: Path):

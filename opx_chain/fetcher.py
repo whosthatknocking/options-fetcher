@@ -131,27 +131,44 @@ def _positions_fingerprint(positions_path: Path) -> str:
     return hashlib.sha256(positions_path.read_bytes()).hexdigest()
 
 
-def acquire_fetcher_lock():
+def _runtime_data_dir(config) -> Path:
+    """Return the run-data base directory for the resolved runtime config."""
+    return Path(config.storage_dir) if config.storage_dir else get_data_dir()
+
+
+def _runs_dir(config) -> Path:
+    """Return the directory for CSV side writes and latest pointers."""
+    return _runtime_data_dir(config) / "runs" if config.storage_dir else RUNS_DIR
+
+
+def _fetcher_lock_path(config) -> Path:
+    """Return the lock path for the resolved runtime config."""
+    return _runtime_data_dir(config) / "fetcher.lock" if config.storage_dir else FETCHER_LOCK_PATH
+
+
+def acquire_fetcher_lock(lock_path: Path | None = None):
     """Acquire an exclusive non-blocking lock for the fetcher process."""
-    LOCKS_DIR.mkdir(exist_ok=True)
-    handle = FETCHER_LOCK_PATH.open("w", encoding="utf-8")
+    resolved_lock_path = lock_path or FETCHER_LOCK_PATH
+    resolved_lock_path.parent.mkdir(parents=True, exist_ok=True)
+    handle = resolved_lock_path.open("w", encoding="utf-8")
     try:
         fcntl.flock(handle.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
     except OSError:
         handle.close()
         return None
-    handle.write(f"{FETCHER_LOCK_PATH}\n")
+    handle.write(f"{resolved_lock_path}\n")
     handle.flush()
     return handle
 
 
-def release_fetcher_lock(lock_handle):
+def release_fetcher_lock(lock_handle, lock_path: Path | None = None):
     """Close the lock handle and remove the lock file path after the run ends."""
+    resolved_lock_path = lock_path or FETCHER_LOCK_PATH
     try:
         lock_handle.close()
     finally:
         try:
-            FETCHER_LOCK_PATH.unlink()
+            resolved_lock_path.unlink()
         except FileNotFoundError:
             pass
 
@@ -371,18 +388,19 @@ def _do_fetch_with_lock_held(  # pylint: disable=too-many-branches,too-many-loca
                 _record_validation_findings(storage, run_id, validation_findings)
         row_count = len(combined)
 
+        runs_dir = _runs_dir(config)
         write_csv = storage is None or config.storage_also_write_csv
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         if storage is not None and run_id is not None:
-            csv_output_dir = RUNS_DIR / run_id / "output"
+            csv_output_dir = runs_dir / run_id / "output"
         else:
-            csv_output_dir = RUNS_DIR
+            csv_output_dir = runs_dir
         csv_output_dir.mkdir(parents=True, exist_ok=True)
         output_path = csv_output_dir / f"options_engine_output_{timestamp}.csv"
         if write_csv:
             export_df = write_options_csv([combined], output_path=output_path)
             file_size_bytes = output_path.stat().st_size
-            latest_path = RUNS_DIR / "options_engine_output_latest.csv"
+            latest_path = runs_dir / "options_engine_output_latest.csv"
             shutil.copy2(output_path, latest_path)
         else:
             export_df = prepare_export_frame([combined])
@@ -483,33 +501,35 @@ def run_fetch(
     Raises RuntimeError if the fetch produces no data.
     Propagates any provider-level exception on fatal failure.
     """
-    lock_handle = acquire_fetcher_lock()
+    config = get_runtime_config()
+    if tickers is not None:
+        config = replace(config, tickers=tuple(tickers))
+    if max_expiration_weeks is not None:
+        config = _with_max_expiration_weeks(config, max_expiration_weeks)
+    if stale_quote_seconds is not None:
+        config = replace(config, stale_quote_seconds=stale_quote_seconds)
+    lock_path = _fetcher_lock_path(config)
+    lock_handle = acquire_fetcher_lock(lock_path)
     if lock_handle is None:
-        raise RuntimeError(f"Another fetcher run is already active: {FETCHER_LOCK_PATH}")
+        raise RuntimeError(f"Another fetcher run is already active: {lock_path}")
     try:
-        config = get_runtime_config()
-        if tickers is not None:
-            config = replace(config, tickers=tuple(tickers))
-        if max_expiration_weeks is not None:
-            config = _with_max_expiration_weeks(config, max_expiration_weeks)
-        if stale_quote_seconds is not None:
-            config = replace(config, stale_quote_seconds=stale_quote_seconds)
         set_runtime_config_override(config)
         _do_fetch_with_lock_held(config, positions_path, cli_override=None)
     finally:
         set_runtime_config_override(None)
-        release_fetcher_lock(lock_handle)
+        release_fetcher_lock(lock_handle, lock_path)
 
 
 def main(argv=None):
     """Fetch configured tickers and write the consolidated CSV output."""
     args = parse_args(argv)
-    lock_handle = acquire_fetcher_lock()
+    config, cli_override = apply_cli_overrides(get_runtime_config(), args)
+    lock_path = _fetcher_lock_path(config)
+    lock_handle = acquire_fetcher_lock(lock_path)
     if lock_handle is None:
-        print(f"Another fetcher run is already active: {FETCHER_LOCK_PATH}")
+        print(f"Another fetcher run is already active: {lock_path}")
         return 1
     try:
-        config, cli_override = apply_cli_overrides(get_runtime_config(), args)
         set_runtime_config_override(config)
         _do_fetch_with_lock_held(config, args.positions, cli_override=cli_override,
                                  dry_run=args.dry_run)
@@ -520,7 +540,7 @@ def main(argv=None):
         return 1
     finally:
         set_runtime_config_override(None)
-        release_fetcher_lock(lock_handle)
+        release_fetcher_lock(lock_handle, lock_path)
 
 
 if __name__ == "__main__":

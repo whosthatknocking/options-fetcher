@@ -110,9 +110,11 @@ events_ttl = 86400             # TTL in seconds for ticker events cache entries
 Behavior:
 
 - when `enable = false` (or the `[storage]` section is absent), `fetcher.py`
-  calls `write_options_csv` directly, `opx-check` scans the XDG data-dir
-  `runs/` tree by filename, and the viewer discovers CSVs as today — no
-  behavior change
+  calls `write_options_csv` directly, `opx-check` scans the configured data-dir
+  `runs/` tree by filename, and the viewer discovers CSVs as today; if `dir`
+  is omitted, the configured data dir is the XDG data dir
+- `dir` overrides the fetcher lock location, timestamped CSV side-write
+  location, `_latest` copy, and storage backend run/artifact location together
 - when `enable = true`, `fetcher.py` writes through the configured
   `StorageBackend`, `opx-check` uses `list_datasets(limit=100)` and selects the
   newest readable CSV record, and the Python package interface becomes available
@@ -627,6 +629,8 @@ All seven steps are complete and shipped.
   selects the newest readable CSV record
 - `also_write_csv` config key (default `true`) controls whether the timestamped
   `runs/options_engine_output_<ts>.csv` is also written alongside the storage artifact
+- `storage.dir` controls the fetcher lock, timestamped CSV side write, `_latest`
+  copy, and storage backend root as one data directory
 
 ### Step 4 — Parquet serializer ✓
 

@@ -131,7 +131,9 @@ The viewer includes:
 ## Output
 
 `$XDG_DATA_HOME/opx-chain/` (defaulting to `~/.local/share/opx-chain/`) is the
-standard data directory used by all three tools.
+standard data directory. Setting `[storage] dir = "/path/to/dir"` makes `opx-fetch`
+use that directory for its lock, timestamped CSV side writes, `_latest` copy, and
+storage-managed run artifacts.
 
 When storage is enabled (`[storage] enable = true`), each run gets its own
 subdirectory under `runs/`:

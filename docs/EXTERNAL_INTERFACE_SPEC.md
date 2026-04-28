@@ -373,7 +373,8 @@ storage is disabled.
 
 When `[storage] also_write_csv = false` (default `true`), `opx-fetch` skips
 writing the timestamped
-`$XDG_DATA_HOME/opx-chain/runs/options_engine_output_<ts>.csv` file. Only the
+`<data-dir>/runs/options_engine_output_<ts>.csv` file. `<data-dir>` is
+`[storage].dir` when configured and otherwise `$XDG_DATA_HOME/opx-chain`. Only the
 storage-managed artifact is written. Downstream orchestrators that read the
 timestamped filename pattern must either keep `also_write_csv = true` or switch to
 reading through `get_storage_backend().list_datasets()`.
