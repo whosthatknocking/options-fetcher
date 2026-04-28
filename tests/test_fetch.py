@@ -14,6 +14,7 @@ import opx_chain.metrics
 import opx_chain.normalize
 from opx_chain.positions import EMPTY_POSITION_SET, OptionPositionKey, PositionSet
 from opx_chain.providers.base import OptionChainFrames
+from opx_chain.storage.cache import FilesystemCache
 
 
 def make_vendor_frame(rows):
@@ -149,6 +150,42 @@ class ErrorProvider:  # pylint: disable=too-few-public-methods
         raise RuntimeError(f"provider exploded for {ticker}")
 
 
+def test_json_cache_round_trips_pandas_snapshot_values(tmp_path):
+    """Snapshot cache writes should preserve pandas scalar semantics."""
+    cache = FilesystemCache(tmp_path)
+    value = {
+        "underlying_price": np.float64(100.5),
+        "underlying_price_time": pd.Timestamp("2026-03-20T13:45:00Z"),
+        "missing_time": pd.NaT,
+        "nested": {"values": [np.int64(3), pd.Timestamp("2026-03-20T13:46:00Z")]},
+    }
+
+    fetch._cache_put_json(cache, "snapshot:stub:TEST", value, ttl=300)  # pylint: disable=protected-access
+    cached = fetch._cache_get_json(cache, "snapshot:stub:TEST")  # pylint: disable=protected-access
+
+    assert cached is not None
+    assert cached["underlying_price"] == 100.5
+    assert cached["underlying_price_time"] == pd.Timestamp("2026-03-20T13:45:00Z")
+    assert cached["missing_time"] is pd.NaT
+    assert cached["nested"]["values"] == [3, pd.Timestamp("2026-03-20T13:46:00Z")]
+
+
+def test_json_cache_logs_unserializable_values(tmp_path, caplog):
+    """Unsupported cache values should be visible rather than silently skipped."""
+    cache = FilesystemCache(tmp_path)
+    caplog.set_level("WARNING")
+
+    fetch._cache_put_json(  # pylint: disable=protected-access
+        cache,
+        "snapshot:stub:BAD",
+        {"unsupported": object()},
+        ttl=300,
+    )
+
+    assert cache.get("snapshot:stub:BAD") is None
+    assert "cache put skipped for key=snapshot:stub:BAD" in caplog.text
+
+
 def test_fetch_ticker_option_chain_logs_raw_provider_row_counts(monkeypatch, caplog):
     """Log raw provider counts before app-side filtering changes the row set."""
     monkeypatch.setattr(fetch, "get_data_provider", StubProvider)
@@ -188,6 +225,42 @@ def test_fetch_ticker_option_chain_prepares_provider_before_loading(monkeypatch)
 
     assert not result.empty
     assert provider.prepared_tickers == ["TEST"]
+
+
+def test_fetch_ticker_option_chain_reuses_serialized_snapshot_cache(monkeypatch, tmp_path):
+    """Cached snapshots should avoid repeated provider calls and remain timestamp-like."""
+    class CountingProvider(StubProvider):
+        """Provider that records snapshot calls across fetches."""
+
+        def __init__(self):
+            super().__init__()
+            self.snapshot_calls = 0
+
+        def load_underlying_snapshot(self, ticker):
+            self.snapshot_calls += 1
+            return super().load_underlying_snapshot(ticker)
+
+    provider = CountingProvider()
+    monkeypatch.setattr(fetch, "get_data_provider", lambda: provider)
+
+    def config_factory():
+        return make_runtime_config(
+            today=pd.Timestamp("2026-03-20").date(),
+            provider_cache_backend="filesystem",
+            provider_cache_dir=tmp_path,
+        )
+
+    monkeypatch.setattr(fetch, "get_runtime_config", config_factory)
+    monkeypatch.setattr(opx_chain.normalize, "get_runtime_config", config_factory)
+    monkeypatch.setattr(opx_chain.metrics, "get_runtime_config", config_factory)
+
+    first = fetch.fetch_ticker_option_chain("TEST")
+    second = fetch.fetch_ticker_option_chain("TEST")
+
+    assert not first.empty
+    assert not second.empty
+    assert provider.snapshot_calls == 1
+    assert second["underlying_price_time"].iloc[0] == pd.Timestamp("2026-03-20T13:45:00Z")
 
 
 def test_fetch_ticker_option_chain_prints_stage_counts(monkeypatch, capsys):

@@ -2,6 +2,7 @@
 
 from datetime import datetime, timezone
 import json
+import logging
 import pickle
 
 import numpy as np
@@ -26,6 +27,10 @@ from opx_chain.providers import get_data_provider
 from opx_chain.storage.cache import get_provider_cache
 from opx_chain.validate import validate_option_rows
 
+_JSON_TIMESTAMP_KEY = "__opx_pd_timestamp__"
+_JSON_NAT_KEY = "__opx_pd_nat__"
+_LOGGER = logging.getLogger(__name__)
+
 
 def _cache_get_json(cache, key: str) -> dict | None:
     """Return a cached dict if the key is present and unexpired, else None."""
@@ -33,17 +38,51 @@ def _cache_get_json(cache, key: str) -> dict | None:
     if data is None:
         return None
     try:
-        return json.loads(data)
+        return _restore_cached_json_value(json.loads(data))
     except (json.JSONDecodeError, ValueError):
         return None
 
 
-def _cache_put_json(cache, key: str, value: dict, ttl: int) -> None:
-    """Serialise value to JSON and store in cache. Silently skips on serialisation error."""
+def _cache_put_json(cache, key: str, value: dict, ttl: int, logger=None) -> None:
+    """Serialise value to JSON and store in cache."""
     try:
-        cache.put(key, json.dumps(value).encode(), ttl)
-    except (TypeError, ValueError):
-        pass
+        cache.put(key, json.dumps(_prepare_cached_json_value(value)).encode(), ttl)
+    except (TypeError, ValueError) as exc:
+        message = f"cache put skipped for key={key}: {exc}"
+        if logger:
+            logger.warning(message)
+        else:
+            _LOGGER.warning(message)
+
+
+def _prepare_cached_json_value(value):
+    """Convert pandas/numpy scalar values into JSON-safe cache values."""
+    if value is pd.NaT:
+        return {_JSON_NAT_KEY: True}
+    if isinstance(value, pd.Timestamp):
+        if pd.isna(value):
+            return {_JSON_NAT_KEY: True}
+        return {_JSON_TIMESTAMP_KEY: value.isoformat()}
+    if isinstance(value, dict):
+        return {key: _prepare_cached_json_value(item) for key, item in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [_prepare_cached_json_value(item) for item in value]
+    if isinstance(value, np.generic):
+        return value.item()
+    return value
+
+
+def _restore_cached_json_value(value):
+    """Restore pandas scalar values from their JSON-safe cache representation."""
+    if isinstance(value, dict):
+        if set(value) == {_JSON_NAT_KEY}:
+            return pd.NaT
+        if set(value) == {_JSON_TIMESTAMP_KEY}:
+            return pd.Timestamp(value[_JSON_TIMESTAMP_KEY])
+        return {key: _restore_cached_json_value(item) for key, item in value.items()}
+    if isinstance(value, list):
+        return [_restore_cached_json_value(item) for item in value]
+    return value
 
 
 def _cache_get_chain(cache, key: str) -> OptionChainFrames | None:
@@ -149,7 +188,7 @@ def fetch_ticker_option_chain(  # pylint: disable=too-many-locals,too-many-branc
         snapshot = _cache_get_json(cache, snap_key)
         if snapshot is None:
             snapshot = provider.load_underlying_snapshot(ticker)
-            _cache_put_json(cache, snap_key, snapshot, config.provider_snapshot_ttl)
+            _cache_put_json(cache, snap_key, snapshot, config.provider_snapshot_ttl, logger=logger)
         underlying_price = snapshot["underlying_price"]
         snap_time = snapshot["underlying_price_time"]
         _emit_fetch_info(
@@ -204,7 +243,7 @@ def fetch_ticker_option_chain(  # pylint: disable=too-many-locals,too-many-branc
         events = _cache_get_json(cache, events_key)
         if events is None:
             events = provider.load_ticker_events(ticker)
-            _cache_put_json(cache, events_key, events, config.provider_events_ttl)
+            _cache_put_json(cache, events_key, events, config.provider_events_ttl, logger=logger)
         earnings = events.get("next_earnings_date") or "none"
         ex_div = events.get("next_ex_div_date") or "none"
         _emit_fetch_info(
