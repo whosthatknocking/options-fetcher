@@ -101,8 +101,12 @@ from opx_chain.fetcher import run_fetch
 from opx_chain.storage.base import StorageBackend
 from opx_chain.storage.models import DatasetHandle, DatasetRecord, RunRecord
 from opx_chain.storage.factory import get_storage_backend
+from opx_chain.utils import read_dataset_file
 from opx_chain import SCHEMA_VERSION
 ```
+
+`read_dataset_file` is the only stable public import from `opx_chain.utils`;
+other helpers in that module remain internal.
 
 All other names within `opx_chain.fetcher`, `opx_chain.normalize`, `opx_chain.provider`,
 and other internal modules are not part of the stable interface and may change across

@@ -44,3 +44,15 @@ def test_project_spec_lists_builtin_filter_defaults():
 
     for line in expected_lines:
         assert line in spec
+
+
+def test_recommended_dataset_reader_is_stable_public_surface():
+    """The recommended artifact reader must not live outside the public API list."""
+    spec = (ROOT / "docs" / "EXTERNAL_INTERFACE_SPEC.md").read_text(encoding="utf-8")
+    public_surface = spec.split("### 3.1 Public surface", maxsplit=1)[1]
+    public_surface = public_surface.split("### 3.2", maxsplit=1)[0]
+    reader_section = spec.split("### 3.7 Reading the chain artifact", maxsplit=1)[1]
+
+    assert "from opx_chain.utils import read_dataset_file" in public_surface
+    assert "from opx_chain.utils import read_dataset_file" in reader_section
+    assert "only stable public import from `opx_chain.utils`" in public_surface
