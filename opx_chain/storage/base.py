@@ -1,4 +1,4 @@
-"""Storage port protocols for the opx storage layer."""
+"""Storage port protocols for the opx-chain storage layer."""
 
 from __future__ import annotations
 

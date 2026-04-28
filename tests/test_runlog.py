@@ -3,8 +3,26 @@
 import logging
 from pathlib import Path
 
+import pytest
+
 from conftest import make_runtime_config
 from opx_chain.runlog import create_run_logger
+
+
+@pytest.fixture(autouse=True)
+def restore_run_logger():
+    """Reset the shared run logger so tests do not leak handlers or propagation."""
+    logger = logging.getLogger("opx_chain.run")
+    original_level = logger.level
+    original_propagate = logger.propagate
+    original_handlers = list(logger.handlers)
+    yield
+    for handler in logger.handlers:
+        handler.close()
+    logger.handlers.clear()
+    logger.handlers.extend(original_handlers)
+    logger.setLevel(original_level)
+    logger.propagate = original_propagate
 
 
 def _stub_runlog_dependencies(monkeypatch, tmp_path):
@@ -39,6 +57,7 @@ def test_create_run_logger_routes_yfinance_errors_to_run_log(monkeypatch, tmp_pa
     for handler in logger.handlers:
         handler.flush()
 
+    assert logger.name == "opx_chain.run"
     contents = log_path.read_text(encoding="utf-8")
     assert "run_started" in contents
     assert "remote request failed for TSLA" in contents

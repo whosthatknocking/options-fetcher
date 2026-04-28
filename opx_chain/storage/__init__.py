@@ -1,1 +1,1 @@
-"""Storage layer for the opx pipeline."""
+"""Storage layer for the opx-chain pipeline."""

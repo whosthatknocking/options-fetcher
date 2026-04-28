@@ -42,7 +42,7 @@ def create_run_logger():
     log_path = logs_dir / "opx_runs.log"
     _migrate_legacy_shared_log(get_data_dir() / "logs" / "opx_runs.log", log_path)
 
-    logger = logging.getLogger("opx.run")
+    logger = logging.getLogger("opx_chain.run")
     logger.setLevel(logging.INFO)
     logger.handlers.clear()
     logger.propagate = False
