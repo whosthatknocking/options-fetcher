@@ -239,8 +239,9 @@ class SqliteIndexedBackend:
         """Serialize the DataFrame, store metadata in SQLite, and return a DatasetRecord."""
         output_dir = self._runs_dir / run_id / "output"
         output_dir.mkdir(parents=True, exist_ok=True)
+        serializer = get_serializer(dataset.format)
         dataset_id, artifact_path, content_hash = write_dataset_artifact(
-            dataset.data, output_dir, self._dataset_format, self._serializer
+            dataset.data, output_dir, dataset.format, serializer
         )
         now = _now()
         record = DatasetRecord(
@@ -250,7 +251,7 @@ class SqliteIndexedBackend:
             provider=dataset.provider,
             schema_version=dataset.schema_version,
             row_count=len(dataset.data),
-            format=self._dataset_format,
+            format=dataset.format,
             location=str(artifact_path),
             content_hash=content_hash,
         )
@@ -267,7 +268,7 @@ class SqliteIndexedBackend:
                     dataset.provider,
                     dataset.schema_version,
                     len(dataset.data),
-                    self._dataset_format,
+                    dataset.format,
                     str(artifact_path),
                     content_hash,
                 ),

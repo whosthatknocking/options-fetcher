@@ -1,5 +1,6 @@
 """Tests for MemoryBackend: protocol satisfaction and write roundtrips."""
 
+import io
 from datetime import timedelta
 
 import pandas as pd
@@ -256,6 +257,26 @@ def test_write_dataset_links_run_to_dataset_id():
     record = _write(backend, run_id)
 
     assert backend._runs[run_id].dataset_id == record.dataset_id  # pylint: disable=protected-access
+
+
+def test_write_dataset_parquet_stores_matching_bytes():
+    """MemoryBackend must not store CSV bytes under parquet metadata."""
+    pytest.importorskip("pyarrow")
+    backend = MemoryBackend()
+    run_id = backend.create_run(_make_context())
+    df = _make_dataframe()
+    record = backend.write_dataset(
+        run_id,
+        DatasetWrite(data=df, provider="yfinance", schema_version=1, format="parquet"),
+    )
+
+    content = backend._artifact_bytes[record.dataset_id]  # pylint: disable=protected-access
+    result = pd.read_parquet(io.BytesIO(content))
+
+    assert record.format == "parquet"
+    assert record.location.endswith(".parquet")
+    assert list(result.columns) == list(df.columns)
+    assert len(result) == len(df)
 
 
 def test_content_hash_is_deterministic():

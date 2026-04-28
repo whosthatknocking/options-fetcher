@@ -25,12 +25,17 @@ from opx_chain.storage.models import (
 from opx_chain.storage.sqlite_indexed import SqliteIndexedBackend
 
 
-def _make_backend(tmp_path: Path, max_runs_retained: int = 0) -> SqliteIndexedBackend:
+def _make_backend(
+    tmp_path: Path,
+    max_runs_retained: int = 0,
+    dataset_format: str = "csv",
+) -> SqliteIndexedBackend:
     return SqliteIndexedBackend(
         db_path=tmp_path / "opx-chain.db",
         runs_dir=tmp_path / "runs",
         debug_dir=tmp_path / "debug",
         max_runs_retained=max_runs_retained,
+        dataset_format=dataset_format,
     )
 
 
@@ -275,6 +280,20 @@ def test_write_dataset_links_run(tmp_path: Path):
 
     run = backend.get_run(run_id)
     assert run.dataset_id == record.dataset_id
+
+
+def test_write_dataset_uses_payload_format_over_backend_default(tmp_path: Path):
+    """DatasetWrite.format must control serialization even when backend default differs."""
+    backend = _make_backend(tmp_path, dataset_format="parquet")
+    run_id = backend.create_run(_make_context())
+    record = backend.write_dataset(
+        run_id,
+        DatasetWrite(data=_make_dataframe(), provider="yfinance", schema_version=1, format="csv"),
+    )
+
+    assert record.format == "csv"
+    assert Path(record.location).suffix == ".csv"
+    assert pd.read_csv(record.location).shape[0] == record.row_count
 
 
 # ---------------------------------------------------------------------------

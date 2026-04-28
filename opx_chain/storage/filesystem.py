@@ -205,8 +205,9 @@ class FilesystemBackend:
         """Serialize the DataFrame, compute its hash, and write metadata."""
         output_dir = self._run_output_dir(run_id)
         output_dir.mkdir(parents=True, exist_ok=True)
+        serializer = get_serializer(dataset.format)
         dataset_id, artifact_path, content_hash = write_dataset_artifact(
-            dataset.data, output_dir, self._dataset_format, self._serializer
+            dataset.data, output_dir, dataset.format, serializer
         )
         record = DatasetRecord(
             dataset_id=dataset_id,
@@ -215,7 +216,7 @@ class FilesystemBackend:
             provider=dataset.provider,
             schema_version=dataset.schema_version,
             row_count=len(dataset.data),
-            format=self._dataset_format,
+            format=dataset.format,
             location=str(artifact_path),
             content_hash=content_hash,
         )

@@ -501,9 +501,11 @@ class DatasetSerializer(Protocol):
 
 Both `CsvSerializer` and `ParquetSerializer` are implemented in
 `opx_chain/storage/serializers.py`. `get_serializer(fmt)` returns the appropriate
-instance. `FilesystemBackend` and `SqliteIndexedBackend` select the serializer
-based on the `dataset_format` config option (`"csv"` default). The
-`DatasetHandle.format` field tells downstream consumers which reader to use.
+instance. `FilesystemBackend`, `SqliteIndexedBackend`, and `MemoryBackend`
+select the serializer from `DatasetWrite.format`; `opx-fetch` populates that
+field from the `dataset_format` config option (`"csv"` default). The
+`DatasetHandle.format` field tells downstream consumers which reader to use and
+must match the artifact bytes written by the backend.
 
 `ParquetSerializer` requires the optional `pyarrow` dependency
 (`pip install 'opx-chain[parquet]'`). Reading parquet files uses

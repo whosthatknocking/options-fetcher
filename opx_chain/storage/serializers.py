@@ -36,14 +36,7 @@ class ParquetSerializer:  # pylint: disable=too-few-public-methods
 
     def serialize(self, df: pd.DataFrame, path: str) -> int:
         """Write df to path as Parquet. Returns bytes written."""
-        try:
-            import pyarrow as _pyarrow  # pylint: disable=import-outside-toplevel
-            del _pyarrow
-        except ImportError as exc:
-            raise RuntimeError(
-                "Parquet serialization requires pyarrow. "
-                "Install it with: pip install 'opx-chain[parquet]'"
-            ) from exc
+        ensure_parquet_available()
         dest = Path(path)
         dest.parent.mkdir(parents=True, exist_ok=True)
         df.to_parquet(dest, index=False, engine="pyarrow")
@@ -62,3 +55,15 @@ def get_serializer(fmt: str) -> DatasetSerializer:
         return _SERIALIZERS[fmt]
     except KeyError as exc:
         raise ValueError(f"Unsupported dataset format: {fmt!r}") from exc
+
+
+def ensure_parquet_available() -> None:
+    """Raise a consistent error when the optional parquet dependency is missing."""
+    try:
+        import pyarrow as _pyarrow  # pylint: disable=import-outside-toplevel
+        del _pyarrow
+    except ImportError as exc:
+        raise RuntimeError(
+            "Parquet serialization requires pyarrow. "
+            "Install it with: pip install 'opx-chain[parquet]'"
+        ) from exc

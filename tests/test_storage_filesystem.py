@@ -394,12 +394,18 @@ def test_factory_returns_filesystem_backend_when_enabled(tmp_path: Path):
 # ---------------------------------------------------------------------------
 
 def test_write_dataset_parquet_creates_parquet_file(tmp_path: Path):
-    """write_dataset with dataset_format='parquet' must create a .parquet artifact."""
+    """write_dataset with payload format='parquet' must create a parquet artifact."""
     pytest.importorskip("pyarrow")
-    backend = _make_backend(tmp_path, dataset_format="parquet")
+    backend = _make_backend(tmp_path)
     run_id = backend.create_run(_make_context())
     record = backend.write_dataset(
-        run_id, DatasetWrite(data=_make_dataframe(), provider="yfinance", schema_version=1)
+        run_id,
+        DatasetWrite(
+            data=_make_dataframe(),
+            provider="yfinance",
+            schema_version=1,
+            format="parquet",
+        ),
     )
 
     assert record.format == "parquet"
@@ -410,16 +416,31 @@ def test_write_dataset_parquet_creates_parquet_file(tmp_path: Path):
 def test_write_dataset_parquet_is_readable(tmp_path: Path):
     """A parquet artifact written by FilesystemBackend must be readable by pandas."""
     pytest.importorskip("pyarrow")
-    backend = _make_backend(tmp_path, dataset_format="parquet")
+    backend = _make_backend(tmp_path)
     run_id = backend.create_run(_make_context())
     df = _make_dataframe()
     record = backend.write_dataset(
-        run_id, DatasetWrite(data=df, provider="yfinance", schema_version=1)
+        run_id,
+        DatasetWrite(data=df, provider="yfinance", schema_version=1, format="parquet"),
     )
 
     result = pd.read_parquet(record.location)
     assert list(result.columns) == list(df.columns)
     assert len(result) == len(df)
+
+
+def test_write_dataset_uses_payload_format_over_backend_default(tmp_path: Path):
+    """DatasetWrite.format must control serialization even when backend default differs."""
+    backend = _make_backend(tmp_path, dataset_format="parquet")
+    run_id = backend.create_run(_make_context())
+    record = backend.write_dataset(
+        run_id,
+        DatasetWrite(data=_make_dataframe(), provider="yfinance", schema_version=1, format="csv"),
+    )
+
+    assert record.format == "csv"
+    assert Path(record.location).suffix == ".csv"
+    assert pd.read_csv(record.location).shape[0] == record.row_count
 
 
 def test_factory_passes_dataset_format_to_backend(tmp_path: Path):
