@@ -125,7 +125,7 @@ def test_load_positions_payload_reads_rows_and_stops_before_footer(tmp_path: Pat
     assert "Footer notice" not in str(payload["rows"])
 
 
-def test_resolve_csv_path_rejects_path_traversal_names(tmp_path: Path, monkeypatch):
+def test_resolve_csv_path_rejects_undiscovered_dataset_names(tmp_path: Path, monkeypatch):
     """Viewer dataset selection should only accept discovered dataset basenames."""
     output_dir = tmp_path / "output"
     output_dir.mkdir()
@@ -137,12 +137,13 @@ def test_resolve_csv_path_rejects_path_traversal_names(tmp_path: Path, monkeypat
     monkeypatch.setattr(viewer, "_DATA_DIR_OVERRIDE", output_dir)
 
     assert viewer.resolve_csv_path(dataset_path.name) == dataset_path
-    try:
-        viewer.resolve_csv_path("../secret.csv")
-    except FileNotFoundError as exc:
-        assert str(exc) == "Dataset file not found: ../secret.csv"
-    else:
-        raise AssertionError("Expected FileNotFoundError for path traversal input")
+    for invalid_name in ("../secret.csv", "missing.csv", str(outside_path)):
+        try:
+            viewer.resolve_csv_path(invalid_name)
+        except FileNotFoundError as exc:
+            assert str(exc) == f"Dataset file not found: {invalid_name}"
+        else:
+            raise AssertionError(f"Expected FileNotFoundError for {invalid_name}")
 
 
 def test_build_ticker_summary_marks_estimated_marketdata_earnings_dates():

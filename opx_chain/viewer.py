@@ -38,7 +38,6 @@ CSV_PATTERN = "options_engine_output_*.csv"
 _DATA_DIR_OVERRIDE: Path | None = None
 _CSV_MODE: bool = False
 VIEWER_PREFS_PATH = get_default_viewer_prefs_path()
-ALLOWED_DATASET_SUFFIXES = frozenset({".csv", ".parquet"})
 HIDDEN_COLUMNS = {*UNWANTED_EXPORT_COLUMNS}
 DATASET_CARD_COLUMNS = (
     "premium_reference_method",
@@ -224,14 +223,6 @@ def resolve_csv_path(csv_name: str | None = None) -> Path:
     for candidate in files:
         if candidate.name == csv_name:
             return candidate
-
-    candidate_name = Path(csv_name)
-    if (
-        candidate_name.is_absolute()
-        or candidate_name.name != csv_name
-        or candidate_name.suffix.lower() not in ALLOWED_DATASET_SUFFIXES
-    ):
-        raise FileNotFoundError(f"Dataset file not found: {csv_name}")
 
     raise FileNotFoundError(f"Dataset file not found: {csv_name}")
 
