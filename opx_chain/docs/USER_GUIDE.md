@@ -201,7 +201,7 @@ These settings apply regardless of which provider is active.
 
 #### Shared Filtering Defaults
 
-- `FILTERS_MIN_BID = disabled`: bid minimum filter is disabled by default (previously `0.50`). Set it to a positive value to exclude contracts below that premium threshold.
+- `FILTERS_MIN_BID = disabled`: bid minimum screen is disabled by default (previously `0.50`). Set it to a positive value to mark contracts below that premium threshold as `passes_primary_screen=false`; it does not remove those rows from the exported dataset.
 - `FILTERS_MIN_OPEN_INTEREST = 100`: baseline open-interest threshold used by the screening metrics.
 - `FILTERS_MIN_VOLUME = 10`: baseline daily volume threshold used by the screening metrics.
 - `FILTERS_MAX_SPREAD_PCT_OF_MID = 0.25`: excludes contracts with spreads wider than 25% of midpoint.

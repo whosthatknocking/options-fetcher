@@ -48,6 +48,16 @@ def test_project_spec_lists_builtin_filter_defaults():
         assert line in spec
 
 
+def test_min_bid_docs_describe_screen_not_export_filter():
+    """filters_min_bid should be documented as a screen, not a row removal filter."""
+    guide = (ROOT / "docs" / "USER_GUIDE.md").read_text(encoding="utf-8")
+    project_spec = (ROOT / "docs" / "PROJECT_SPEC.md").read_text(encoding="utf-8")
+
+    assert "it does not remove those rows from the exported dataset" in guide
+    assert "rows are not removed solely by this threshold" in project_spec
+    assert "exclude contracts below that premium threshold" not in guide
+
+
 def test_recommended_dataset_reader_is_stable_public_surface():
     """The recommended artifact reader must not live outside the public API list."""
     spec = (ROOT / "docs" / "EXTERNAL_INTERFACE_SPEC.md").read_text(encoding="utf-8")

@@ -115,7 +115,7 @@ Defaults:
 - current built-in filter defaults include:
   - `filters_max_spread_pct_of_mid = 0.25`
   - `filters_max_strike_distance_pct = 0.35`
-  - `filters_min_bid = disabled` (set to a positive value to activate)
+  - `filters_min_bid = disabled` (set to a positive value to include bid threshold in `passes_primary_screen`; rows are not removed solely by this threshold)
   - `filters_min_open_interest = 100`
   - `filters_min_volume = 10`
   - `filters_enable = true`
