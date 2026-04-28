@@ -153,8 +153,10 @@ Not part of the downstream consumer's external interface.
 ## 7. SQLite Schema (Step 5)
 
 When `backend = sqlite` is configured, the following tables are created
-by the initial migration. Schema version is tracked in a `_schema_meta`
-table; the migration increments it on any structural change.
+by schema initialization. Schema version is tracked in a `_schema_meta`
+table. Existing databases with an older version are upgraded by numbered
+migrations before use; a schema-version bump without a migration fails
+startup instead of silently reusing an outdated layout.
 
 ```sql
 CREATE TABLE _schema_meta (

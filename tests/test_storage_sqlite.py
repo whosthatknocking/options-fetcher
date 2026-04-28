@@ -24,6 +24,7 @@ from opx_chain.storage.models import (
     TickerFetchResult,
     ValidationRecord,
 )
+import opx_chain.storage.sqlite_indexed as sqlite_indexed_mod
 from opx_chain.storage.sqlite_indexed import SqliteIndexedBackend
 
 
@@ -102,6 +103,44 @@ def test_schema_initialises_on_first_connect(tmp_path: Path):
     conn.close()
     run_id = backend.create_run(_make_context())
     assert run_id
+
+
+def test_schema_migration_updates_version_and_applies_sql(tmp_path: Path, monkeypatch):
+    """Existing databases must run migrations when the backend schema version advances."""
+    _make_backend(tmp_path)
+    monkeypatch.setattr(sqlite_indexed_mod, "_SCHEMA_VERSION", 2)
+    monkeypatch.setattr(
+        sqlite_indexed_mod,
+        "_SCHEMA_MIGRATIONS",
+        {2: "ALTER TABLE runs ADD COLUMN migration_marker TEXT;"},
+    )
+
+    _make_backend(tmp_path)
+
+    conn = sqlite3.connect(str(tmp_path / "opx-chain.db"))
+    try:
+        version = conn.execute(
+            "SELECT value FROM _schema_meta WHERE key = 'schema_version'"
+        ).fetchone()[0]
+        columns = {
+            row[1]
+            for row in conn.execute("PRAGMA table_info(runs)").fetchall()
+        }
+    finally:
+        conn.close()
+
+    assert version == "2"
+    assert "migration_marker" in columns
+
+
+def test_schema_migration_fails_when_required_step_is_missing(tmp_path: Path, monkeypatch):
+    """A schema-version bump without a migration must fail instead of silently reusing v1."""
+    _make_backend(tmp_path)
+    monkeypatch.setattr(sqlite_indexed_mod, "_SCHEMA_VERSION", 2)
+    monkeypatch.setattr(sqlite_indexed_mod, "_SCHEMA_MIGRATIONS", {})
+
+    with pytest.raises(RuntimeError, match="schema migration missing"):
+        _make_backend(tmp_path)
 
 
 # ---------------------------------------------------------------------------

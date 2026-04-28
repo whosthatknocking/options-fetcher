@@ -94,6 +94,7 @@ CREATE INDEX IF NOT EXISTS idx_runs_status         ON runs(status);
 """
 
 _SCHEMA_VERSION = 1
+_SCHEMA_MIGRATIONS: dict[int, str] = {}
 
 
 def _now() -> datetime:
@@ -152,15 +153,53 @@ class SqliteIndexedBackend:
     def _init_schema(self) -> None:
         with self._open_connection() as conn:
             conn.executescript(_SCHEMA_SQL)
-            existing = conn.execute(
-                "SELECT value FROM _schema_meta WHERE key = 'schema_version'"
-            ).fetchone()
-            if existing is None:
+            current_version = self._read_schema_version(conn)
+            if current_version is None:
                 conn.execute(
                     "INSERT INTO _schema_meta VALUES ('schema_version', ?)",
                     (str(_SCHEMA_VERSION),),
                 )
+            elif current_version > _SCHEMA_VERSION:
+                raise RuntimeError(
+                    "SQLite storage schema version "
+                    f"{current_version} is newer than supported version {_SCHEMA_VERSION}"
+                )
+            elif current_version < _SCHEMA_VERSION:
+                self._migrate_schema(conn, current_version, _SCHEMA_VERSION)
             conn.commit()
+
+    def _read_schema_version(self, conn: sqlite3.Connection) -> int | None:
+        row = conn.execute(
+            "SELECT value FROM _schema_meta WHERE key = 'schema_version'"
+        ).fetchone()
+        if row is None:
+            return None
+        try:
+            return int(row["value"])
+        except ValueError as exc:
+            raise RuntimeError(
+                "SQLite storage schema version is not an integer: "
+                f"{row['value']!r}"
+            ) from exc
+
+    def _migrate_schema(
+        self,
+        conn: sqlite3.Connection,
+        current_version: int,
+        target_version: int,
+    ) -> None:
+        for next_version in range(current_version + 1, target_version + 1):
+            migration = _SCHEMA_MIGRATIONS.get(next_version)
+            if migration is None:
+                raise RuntimeError(
+                    "SQLite storage schema migration missing: "
+                    f"{current_version}->{target_version}"
+                )
+            conn.executescript(migration)
+        conn.execute(
+            "UPDATE _schema_meta SET value = ? WHERE key = 'schema_version'",
+            (str(target_version),),
+        )
 
     def _sidecar_path(self, run_id: str, filename: str) -> Path:
         return self._runs_dir / run_id / filename
