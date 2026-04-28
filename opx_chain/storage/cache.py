@@ -30,6 +30,7 @@ class FilesystemCache:
 
     def __init__(self, cache_dir: Path) -> None:
         self._dir = Path(cache_dir)
+        self.prune_expired()
 
     def _key_paths(self, key: str) -> tuple[Path, Path]:
         digest = hashlib.sha256(key.encode()).hexdigest()
@@ -44,9 +45,11 @@ class FilesystemCache:
             meta = json.loads(meta_path.read_text(encoding="utf-8"))
             expires_at = datetime.fromisoformat(meta["expires_at"])
             if datetime.now(tz=timezone.utc) > expires_at:
+                self.invalidate(key)
                 return None
             return bin_path.read_bytes()
         except (OSError, KeyError, ValueError):
+            self.invalidate(key)
             return None
 
     def put(self, key: str, value: bytes, ttl_seconds: int) -> None:
@@ -65,6 +68,24 @@ class FilesystemCache:
         bin_path, meta_path = self._key_paths(key)
         bin_path.unlink(missing_ok=True)
         meta_path.unlink(missing_ok=True)
+
+    def prune_expired(self) -> None:
+        """Remove expired or unreadable cache entries from the cache directory."""
+        if not self._dir.exists():
+            return
+        now = datetime.now(tz=timezone.utc)
+        for meta_path in self._dir.glob("*.meta.json"):
+            bin_path = meta_path.with_name(meta_path.name.removesuffix(".meta.json") + ".bin")
+            try:
+                meta = json.loads(meta_path.read_text(encoding="utf-8"))
+                expires_at = datetime.fromisoformat(meta["expires_at"])
+            except (OSError, KeyError, ValueError):
+                meta_path.unlink(missing_ok=True)
+                bin_path.unlink(missing_ok=True)
+                continue
+            if now > expires_at:
+                meta_path.unlink(missing_ok=True)
+                bin_path.unlink(missing_ok=True)
 
 
 def get_provider_cache(config=None):

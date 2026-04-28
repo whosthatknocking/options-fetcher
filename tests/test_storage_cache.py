@@ -1,10 +1,18 @@
 """Tests for NullCache, FilesystemCache, and get_provider_cache factory."""
 
+import hashlib
+import json
 import time
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from conftest import make_runtime_config
 from opx_chain.storage.cache import FilesystemCache, NullCache, get_provider_cache
+
+
+def _cache_paths(cache_dir: Path, key: str) -> tuple[Path, Path]:
+    digest = hashlib.sha256(key.encode()).hexdigest()
+    return cache_dir / f"{digest}.bin", cache_dir / f"{digest}.meta.json"
 
 
 # ---------------------------------------------------------------------------
@@ -50,10 +58,49 @@ def test_filesystem_cache_invalidate_removes_entry(tmp_path: Path):
 
 def test_filesystem_cache_expired_returns_none(tmp_path: Path):
     """get must return None when the entry's TTL has elapsed."""
-    cache = FilesystemCache(tmp_path / "cache")
+    cache_dir = tmp_path / "cache"
+    cache = FilesystemCache(cache_dir)
     cache.put("k", b"x", ttl_seconds=1)
     time.sleep(1.1)
+
     assert cache.get("k") is None
+    bin_path, meta_path = _cache_paths(cache_dir, "k")
+    assert not bin_path.exists()
+    assert not meta_path.exists()
+
+
+def test_filesystem_cache_prunes_expired_entries_on_startup(tmp_path: Path):
+    """Constructor should remove stale cache files left by prior runs."""
+    cache_dir = tmp_path / "cache"
+    cache_dir.mkdir()
+    bin_path, meta_path = _cache_paths(cache_dir, "old-key")
+    bin_path.write_bytes(b"stale")
+    meta_path.write_text(
+        json.dumps({
+            "key": "old-key",
+            "expires_at": (datetime.now(tz=timezone.utc) - timedelta(seconds=1)).isoformat(),
+        }),
+        encoding="utf-8",
+    )
+
+    FilesystemCache(cache_dir)
+
+    assert not bin_path.exists()
+    assert not meta_path.exists()
+
+
+def test_filesystem_cache_prunes_unreadable_metadata_on_startup(tmp_path: Path):
+    """Corrupt metadata should not keep orphaned cache payloads forever."""
+    cache_dir = tmp_path / "cache"
+    cache_dir.mkdir()
+    bin_path, meta_path = _cache_paths(cache_dir, "bad-key")
+    bin_path.write_bytes(b"bad")
+    meta_path.write_text("{not json", encoding="utf-8")
+
+    FilesystemCache(cache_dir)
+
+    assert not bin_path.exists()
+    assert not meta_path.exists()
 
 
 def test_filesystem_cache_creates_directory(tmp_path: Path):

@@ -401,6 +401,10 @@ class ProviderCache(Protocol):
     def invalidate(self, key: str) -> None: ...
 ```
 
+`FilesystemCache` deletes expired entries when they are read and prunes expired
+or unreadable metadata when the cache object is created. This keeps TTL
+semantics from becoming append-only disk growth across normal fetch runs.
+
 `fail_run` is separate from `finalize_run` to make the error path explicit.
 It is called from the `except` blocks in `fetcher.py` and from the
 `KeyboardInterrupt` handler for the `interrupted` status.
@@ -640,6 +644,8 @@ All seven steps are complete and shipped.
 - `NullCache` and `FilesystemCache` in `opx_chain/storage/cache.py`
 - wired in `fetch.py` at the fetch-orchestration level; caches snapshot, chain,
   and events responses with configurable TTLs
+- filesystem cache prunes expired/corrupt entries on startup and deletes an
+  expired entry on read
 - config keys: `cache_backend`, `cache_dir`, `snapshot_ttl`, `chain_ttl`, `events_ttl`
 
 ### Step 7 — Viewer enhancements ✓
