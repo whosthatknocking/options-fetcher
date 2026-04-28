@@ -646,8 +646,8 @@ All seven steps are complete and shipped.
 
 - `opx-view --data-dir DIR` scans an arbitrary directory for `.csv` and
   `.parquet` files; default discovery queries the storage backend, falling back to the timestamped CSV glob
-- viewer preference store: `$XDG_CONFIG_HOME/opx-chain/viewer_prefs.json`,
-  GET/POST `/api/prefs`
+- viewer preference storage remains out of scope until there is a concrete UI
+  consumer; no preference API is exposed by the current viewer
 
 ## 18. Open Questions
 

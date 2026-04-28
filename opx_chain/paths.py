@@ -40,11 +40,6 @@ def get_default_config_path() -> Path:
     return get_config_dir() / "config.toml"
 
 
-def get_default_viewer_prefs_path() -> Path:
-    """Return the default viewer preferences path."""
-    return get_config_dir() / "viewer_prefs.json"
-
-
 def get_default_positions_path() -> Path:
     """Return the default user positions CSV path."""
     return get_data_dir() / "positions.csv"

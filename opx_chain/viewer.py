@@ -23,7 +23,6 @@ import pandas as pd
 from pandas.api.types import is_bool_dtype, is_numeric_dtype
 from opx_chain.config import get_runtime_config
 from opx_chain.export import UNWANTED_EXPORT_COLUMNS
-from opx_chain.paths import get_default_viewer_prefs_path
 from opx_chain.positions import DEFAULT_POSITIONS_PATH
 from opx_chain.storage.factory import get_data_dir, get_storage_backend
 from opx_chain.utils import read_dataset_file
@@ -37,7 +36,6 @@ POSITIONS_PATH = DEFAULT_POSITIONS_PATH
 CSV_PATTERN = "options_engine_output_*.csv"
 _DATA_DIR_OVERRIDE: Path | None = None
 _CSV_MODE: bool = False
-VIEWER_PREFS_PATH = get_default_viewer_prefs_path()
 HIDDEN_COLUMNS = {*UNWANTED_EXPORT_COLUMNS}
 DATASET_CARD_COLUMNS = (
     "premium_reference_method",
@@ -855,20 +853,6 @@ def make_file_listing() -> list[dict[str, Any]]:
     ]
 
 
-def load_viewer_prefs() -> dict[str, Any]:
-    """Load viewer preferences from disk, returning empty dict when absent."""
-    try:
-        return json.loads(VIEWER_PREFS_PATH.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError):
-        return {}
-
-
-def save_viewer_prefs(prefs: dict[str, Any]) -> None:
-    """Persist viewer preferences to disk."""
-    VIEWER_PREFS_PATH.parent.mkdir(parents=True, exist_ok=True)
-    VIEWER_PREFS_PATH.write_text(json.dumps(prefs, indent=2), encoding="utf-8")
-
-
 class ViewerRequestHandler(SimpleHTTPRequestHandler):
     """Static-file and JSON API handler for the local CSV viewer."""
 
@@ -914,7 +898,7 @@ class ViewerRequestHandler(SimpleHTTPRequestHandler):
             csv_name = query.get("file", [None])[0]
             self._respond_payload(load_csv_payload, csv_name)
             return
-        if parsed.path in {"/api/readme", "/api/reference"}:
+        if parsed.path == "/api/reference":
             self.respond_json({"markdown": load_field_reference_markdown()})
             return
         if parsed.path == "/api/summary":
@@ -922,28 +906,9 @@ class ViewerRequestHandler(SimpleHTTPRequestHandler):
             csv_name = query.get("file", [None])[0]
             self._respond_payload(build_summary_payload, csv_name)
             return
-        if parsed.path == "/api/prefs":
-            self.respond_json(load_viewer_prefs())
-            return
         if parsed.path == "/":
             self.path = "/index.html"  # pylint: disable=attribute-defined-outside-init
         super().do_GET()
-
-    def do_POST(self) -> None:  # pylint: disable=invalid-name
-        """Handle POST requests — currently only /api/prefs."""
-        parsed = urlparse(self.path)
-        if parsed.path == "/api/prefs":
-            length = int(self.headers.get("Content-Length", 0))
-            body = self.rfile.read(length)
-            try:
-                prefs = json.loads(body)
-            except json.JSONDecodeError:
-                self.respond_json({"error": "invalid JSON"}, status=HTTPStatus.BAD_REQUEST)
-                return
-            save_viewer_prefs(prefs)
-            self.respond_json({"ok": True})
-            return
-        self.respond_json({"error": "not found"}, status=HTTPStatus.NOT_FOUND)
 
     def respond_json(self, payload: dict[str, Any], status: HTTPStatus = HTTPStatus.OK) -> None:
         """Serialize and send a JSON response for one of the API endpoints."""

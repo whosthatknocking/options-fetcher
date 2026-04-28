@@ -22,7 +22,6 @@ def _make_xdg_test_paths(tmp_path: Path) -> dict[str, Path]:
         "cache_home": xdg_root / "cache",
         "config_path": xdg_root / "config" / "opx-chain" / "config.toml",
         "positions_path": xdg_root / "data" / "opx-chain" / "positions.csv",
-        "viewer_prefs_path": xdg_root / "config" / "opx-chain" / "viewer_prefs.json",
         "app_data_dir": xdg_root / "data" / "opx-chain",
     }
 
@@ -129,6 +128,5 @@ def isolate_xdg_dirs(tmp_path: Path, monkeypatch):
     viewer_mod = sys.modules.get("opx_chain.viewer")
     if viewer_mod is not None:
         monkeypatch.setattr(viewer_mod, "POSITIONS_PATH", paths["positions_path"])
-        monkeypatch.setattr(viewer_mod, "VIEWER_PREFS_PATH", paths["viewer_prefs_path"])
         monkeypatch.setattr(viewer_mod, "RUNS_DIR", paths["app_data_dir"] / "runs")
     yield

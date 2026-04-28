@@ -76,6 +76,19 @@ def test_viewer_has_no_dead_user_guide_loader():
     assert not hasattr(viewer, "USER_GUIDE_PATH")
 
 
+def test_viewer_has_no_unused_preferences_api_scaffold():
+    """The viewer should not expose preference endpoints without a UI consumer."""
+    source = (Path(__file__).resolve().parents[1] / "opx_chain" / "viewer.py").read_text(
+        encoding="utf-8"
+    )
+
+    assert "VIEWER_PREFS_PATH" not in source
+    assert "load_viewer_prefs" not in source
+    assert "save_viewer_prefs" not in source
+    assert '"/api/prefs"' not in source
+    assert '"/api/readme"' not in source
+
+
 def test_build_dataset_cards_only_promotes_dataset_wide_constant_values():
     """Only dataset-wide constant values should be promoted into header cards."""
     frame = pd.DataFrame(

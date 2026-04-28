@@ -37,7 +37,7 @@ This guide is for people changing the codebase, adding providers, or working on 
 
 Runtime-generated files live under the XDG base directories rather than the repository root:
 
-- `$XDG_CONFIG_HOME/opx-chain/` for `config.toml` and `viewer_prefs.json`
+- `$XDG_CONFIG_HOME/opx-chain/` for `config.toml`
 - `$XDG_DATA_HOME/opx-chain/` for `runs/`, `debug/`, `positions.csv`, and `fetcher.lock`
 - `$XDG_STATE_HOME/opx-chain/` for run logs
 - `$XDG_CACHE_HOME/opx-chain/` for provider cache files when `cache_backend = "filesystem"`
