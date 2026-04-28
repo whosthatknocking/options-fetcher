@@ -37,3 +37,12 @@ def test_storage_spec_uses_current_package_paths():
     assert "`opx/" not in spec
     assert "`opx[" not in spec
     assert "`opx." not in spec
+
+
+def test_storage_spec_documents_current_opx_check_lookup():
+    """The opx-check storage contract should match the implemented lookup."""
+    spec = (ROOT / "docs" / "STORAGE_SPEC.md").read_text(encoding="utf-8")
+
+    assert "`opx-check` uses `list_datasets(limit=100)`" in spec
+    assert "newest readable CSV record" in spec
+    assert "`opx-check` uses `list_datasets(limit=1)`" not in spec

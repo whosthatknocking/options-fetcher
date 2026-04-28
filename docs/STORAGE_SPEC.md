@@ -114,8 +114,9 @@ Behavior:
   `runs/` tree by filename, and the viewer discovers CSVs as today — no
   behavior change
 - when `enable = true`, `fetcher.py` writes through the configured
-  `StorageBackend`, `opx-check` uses `list_datasets(limit=1)`, and the Python
-  package interface becomes available to downstream consumers
+  `StorageBackend`, `opx-check` uses `list_datasets(limit=100)` and selects the
+  newest readable CSV record, and the Python package interface becomes available
+  to downstream consumers
 - `backend` is only read when `enable = true`; it is ignored otherwise
 - `also_write_csv = false` suppresses the timestamped CSV; only the
   storage-managed artifact (e.g. `~/.local/share/opx-chain/runs/<run-id>/output/<uuid>.parquet`)
@@ -537,12 +538,13 @@ sorting by filename timestamp. The SQLite backend implements pruning with a
 
 ## 13. `opx-check` Integration
 
-`opx-check` currently scans the output directory for the latest CSV by filename
-timestamp. Under the storage model it should use `list_datasets(limit=1)` to
-find the latest dataset and obtain its location from the returned `DatasetRecord`.
+When storage is disabled, `opx-check` scans the output directory for the latest
+CSV by filename timestamp. When storage is enabled, `opx-check` calls
+`list_datasets(limit=100)`, skips non-CSV records and records whose artifact no
+longer exists, then uses the newest readable CSV `DatasetRecord`.
 
-This decouples `opx-check` from the output directory naming convention and makes
-it format-agnostic once Parquet is supported.
+This decouples `opx-check` from the output directory naming convention while
+preserving CSV compatibility until the reader supports non-CSV datasets.
 
 ## 14. Testing Strategy
 
@@ -606,7 +608,8 @@ All seven steps are complete and shipped.
 
 - `fetcher.py` calls `create_run` / `record_ticker_result` / `write_dataset` /
   `finalize_run` / `fail_run` when storage is enabled
-- `opx-check` uses `list_datasets(limit=1)` when storage is enabled
+- `opx-check` uses `list_datasets(limit=100)` when storage is enabled and
+  selects the newest readable CSV record
 - `also_write_csv` config key (default `true`) controls whether the timestamped
   `runs/options_engine_output_<ts>.csv` is also written alongside the storage artifact
 
