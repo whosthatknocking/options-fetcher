@@ -28,3 +28,12 @@ def test_storage_spec_protocol_methods_match_runtime_protocol():
     }
 
     assert documented == runtime
+
+
+def test_storage_spec_uses_current_package_paths():
+    """Storage docs should not regress to the pre-rename `opx/` package paths."""
+    spec = (ROOT / "docs" / "STORAGE_SPEC.md").read_text(encoding="utf-8")
+
+    assert "`opx/" not in spec
+    assert "`opx[" not in spec
+    assert "`opx." not in spec

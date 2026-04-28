@@ -73,13 +73,13 @@ Implications:
 
 ### 3.4 Schema Version Tied to Export Contract
 
-The canonical column order in `opx/export.py` (`CANONICAL_EXPORT_COLUMNS`) is the
+The canonical column order in `opx_chain/export.py` (`CANONICAL_EXPORT_COLUMNS`) is the
 schema. Every time a column is added, removed, or reordered, the schema version
 must be incremented.
 
 Rules:
 
-- schema version is an integer, starting at `1`, defined as `SCHEMA_VERSION` in `opx/__init__.py`
+- schema version is an integer, starting at `1`, defined as `SCHEMA_VERSION` in `opx_chain/__init__.py`
 - it is written into every `DatasetRecord` at write time
 - the viewer and downstream consumers use it to detect schema drift between datasets
 - backward-compatibility is not guaranteed across schema versions; consumers should
@@ -499,14 +499,14 @@ class DatasetSerializer(Protocol):
 ```
 
 Both `CsvSerializer` and `ParquetSerializer` are implemented in
-`opx/storage/serializers.py`. `get_serializer(fmt)` returns the appropriate
+`opx_chain/storage/serializers.py`. `get_serializer(fmt)` returns the appropriate
 instance. `FilesystemBackend` and `SqliteIndexedBackend` select the serializer
 based on the `dataset_format` config option (`"csv"` default). The
 `DatasetHandle.format` field tells downstream consumers which reader to use.
 
 `ParquetSerializer` requires the optional `pyarrow` dependency
-(`pip install 'opx[parquet]'`). Reading parquet files uses
-`opx.utils.read_dataset_file(path)`, which dispatches on file extension.
+(`pip install 'opx-chain[parquet]'`). Reading parquet files uses
+`opx_chain.utils.read_dataset_file(path)`, which dispatches on file extension.
 
 ## 12. Dataset Retention
 
@@ -552,7 +552,7 @@ The storage layer should be tested through a `MemoryBackend`:
 - it is used in new tests that exercise the storage-enabled branch of `fetcher.py`
   and `opx-check`; existing tests that use `write_options_csv` directly are unchanged
 - it does not write any files, making test isolation trivial
-- it should be part of `opx/storage/` so it is importable by tests without patching
+- it should be part of `opx_chain/storage/` so it is importable by tests without patching
 
 The filesystem and SQLite backends are tested with `tmp_path` fixtures.
 
@@ -572,7 +572,7 @@ application-level abstraction.
 ## 16. Suggested Module Layout
 
 ```text
-opx/storage/
+opx_chain/storage/
   __init__.py
   base.py          # StorageBackend and ProviderCache protocols
   models.py        # domain records and write payload types
@@ -590,17 +590,17 @@ All seven steps are complete and shipped.
 
 ### Step 1 — Domain models and protocols ✓
 
-- `opx/storage/base.py` — `StorageBackend` and `ProviderCache` protocols
-- `opx/storage/models.py` — all records and write payloads
-- `opx/storage/serializers.py` — `DatasetSerializer` protocol and CSV implementation
-- `SCHEMA_VERSION: int = 1` in `opx/__init__.py`
-- `MemoryBackend` in `opx/storage/memory.py`
+- `opx_chain/storage/base.py` — `StorageBackend` and `ProviderCache` protocols
+- `opx_chain/storage/models.py` — all records and write payloads
+- `opx_chain/storage/serializers.py` — `DatasetSerializer` protocol and CSV implementation
+- `SCHEMA_VERSION: int = 1` in `opx_chain/__init__.py`
+- `MemoryBackend` in `opx_chain/storage/memory.py`
 
 ### Step 2 — Filesystem backend ✓
 
-- `FilesystemBackend` in `opx/storage/filesystem.py`
-- `StorageFactory` in `opx/storage/factory.py`
-- `[storage]` parsing in `opx/config.py`
+- `FilesystemBackend` in `opx_chain/storage/filesystem.py`
+- `StorageFactory` in `opx_chain/storage/factory.py`
+- `[storage]` parsing in `opx_chain/config.py`
 
 ### Step 3 — Wire `fetcher.py` and `opx-check` ✓
 
@@ -612,18 +612,18 @@ All seven steps are complete and shipped.
 
 ### Step 4 — Parquet serializer ✓
 
-- `ParquetSerializer` in `opx/storage/serializers.py`; requires `pyarrow`
+- `ParquetSerializer` in `opx_chain/storage/serializers.py`; requires `pyarrow`
 - `dataset_format` config option (`"csv"` default)
-- shared `read_dataset_file(path)` utility in `opx/utils.py` dispatches on extension
+- shared `read_dataset_file(path)` utility in `opx_chain/utils.py` dispatches on extension
 
 ### Step 5 — SQLite-indexed backend ✓
 
-- `SqliteIndexedBackend` in `opx/storage/sqlite_indexed.py`
+- `SqliteIndexedBackend` in `opx_chain/storage/sqlite_indexed.py`
 - WAL mode, foreign keys, version table; schema defined in `docs/METADATA_SPEC.md`
 
 ### Step 6 — Provider cache abstractions ✓
 
-- `NullCache` and `FilesystemCache` in `opx/storage/cache.py`
+- `NullCache` and `FilesystemCache` in `opx_chain/storage/cache.py`
 - wired in `fetch.py` at the fetch-orchestration level; caches snapshot, chain,
   and events responses with configurable TTLs
 - config keys: `cache_backend`, `cache_dir`, `snapshot_ttl`, `chain_ttl`, `events_ttl`
