@@ -48,6 +48,24 @@ def _with_fetch_counts(
     return df
 
 
+def _with_fetch_status(
+    df: pd.DataFrame,
+    status: str,
+    error_summary: str | None = None,
+) -> pd.DataFrame:
+    """Attach ticker-level fetch outcome diagnostics for storage metadata."""
+    df.attrs["fetch_status"] = status
+    if error_summary is not None:
+        df.attrs["fetch_error_summary"] = error_summary
+    return df
+
+
+def _exception_summary(exc: Exception) -> str:
+    """Return a compact exception summary for ticker-level storage metadata."""
+    message = f"{type(exc).__name__}: {exc}"
+    return message[:240]
+
+
 def _cache_get_json(cache, key: str) -> dict | None:
     """Return a cached dict if the key is present and unexpired, else None."""
     data = cache.get(key)
@@ -221,12 +239,15 @@ def fetch_ticker_option_chain(  # pylint: disable=too-many-locals,too-many-branc
                     "ticker=%s status=skipped reason=invalid_underlying_price",
                     ticker,
                 )
-            return _with_fetch_counts(
-                pd.DataFrame(),
-                raw_row_count=0,
-                normalized_row_count=0,
-                filtered_row_count=0,
-                raw_expiration_count=0,
+            return _with_fetch_status(
+                _with_fetch_counts(
+                    pd.DataFrame(),
+                    raw_row_count=0,
+                    normalized_row_count=0,
+                    filtered_row_count=0,
+                    raw_expiration_count=0,
+                ),
+                "skipped",
             )
 
         all_normalized_rows = []
@@ -356,12 +377,15 @@ def fetch_ticker_option_chain(  # pylint: disable=too-many-locals,too-many-branc
                     raw_contract_count,
                     raw_expiration_count,
                 )
-            return _with_fetch_counts(
-                pd.DataFrame(),
-                raw_row_count=raw_contract_count,
-                normalized_row_count=0,
-                filtered_row_count=0,
-                raw_expiration_count=raw_expiration_count,
+            return _with_fetch_status(
+                _with_fetch_counts(
+                    pd.DataFrame(),
+                    raw_row_count=raw_contract_count,
+                    normalized_row_count=0,
+                    filtered_row_count=0,
+                    raw_expiration_count=raw_expiration_count,
+                ),
+                "skipped",
             )
 
         # Pre-filter cross-row enrichment on the full unfiltered chain.
@@ -449,10 +473,14 @@ def fetch_ticker_option_chain(  # pylint: disable=too-many-locals,too-many-branc
                 getattr(provider, "name", "unknown"),
                 exc,
             )
-        return _with_fetch_counts(
-            pd.DataFrame(),
-            raw_row_count=0,
-            normalized_row_count=0,
-            filtered_row_count=0,
-            raw_expiration_count=0,
+        return _with_fetch_status(
+            _with_fetch_counts(
+                pd.DataFrame(),
+                raw_row_count=0,
+                normalized_row_count=0,
+                filtered_row_count=0,
+                raw_expiration_count=0,
+            ),
+            "error",
+            _exception_summary(exc),
         )

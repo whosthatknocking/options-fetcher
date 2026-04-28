@@ -104,6 +104,33 @@ def test_fetcher_records_fetch_row_counts_from_dataframe_attrs(tmp_path: Path):
     assert ticker_result.filtered_row_count == 1
 
 
+def test_fetcher_records_ticker_error_status_from_dataframe_attrs(tmp_path: Path):
+    """Per-ticker fetch failures must persist as errors, not skipped tickers."""
+    from opx_chain import fetcher  # pylint: disable=import-outside-toplevel
+
+    backend = MemoryBackend()
+    config = make_runtime_config(storage_enabled=True, tickers=("BAD", "GOOD"))
+    error_df = pd.DataFrame()
+    error_df.attrs["fetch_status"] = "error"
+    error_df.attrs["fetch_error_summary"] = "RuntimeError: provider exploded for BAD"
+    ok_df = _make_ticker_df("GOOD")
+    patches = _fetcher_patches(tmp_path, config, backend, ticker_df=ok_df)
+
+    with patches[0], patches[1], patches[2], patches[3], patches[4], \
+         patches[5], patches[6], patches[7], patches[8], \
+         patch.object(fetcher, "fetch_ticker_option_chain", side_effect=[error_df, ok_df]), \
+         patches[10], patches[11]:
+        result = fetcher.main([])
+
+    assert result == 0
+    run_id = backend.list_datasets()[0].run_id
+    ticker_results = backend._ticker_results[run_id]  # pylint: disable=protected-access
+    by_ticker = {result.ticker: result for result in ticker_results}
+    assert by_ticker["BAD"].status == "error"
+    assert by_ticker["BAD"].error_summary == "RuntimeError: provider exploded for BAD"
+    assert by_ticker["GOOD"].status == "ok"
+
+
 def test_fetcher_records_validation_findings_when_storage_enabled(tmp_path: Path):
     """Storage-backed fetch runs must persist grouped validation summaries."""
     from opx_chain import fetcher  # pylint: disable=import-outside-toplevel

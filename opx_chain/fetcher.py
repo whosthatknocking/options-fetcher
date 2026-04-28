@@ -323,6 +323,10 @@ def _do_fetch_with_lock_held(  # pylint: disable=too-many-branches,too-many-loca
                     int(ticker_df["expiration_date"].nunique())
                     if kept and "expiration_date" in ticker_df.columns else 0
                 )
+                fetch_status = attrs.get(
+                    "fetch_status",
+                    "ok" if not ticker_df.empty else "skipped",
+                )
                 storage.record_ticker_result(run_id, TickerFetchResult(
                     ticker=ticker,
                     raw_row_count=raw_count,
@@ -330,7 +334,8 @@ def _do_fetch_with_lock_held(  # pylint: disable=too-many-branches,too-many-loca
                     kept_row_count=kept,
                     filtered_row_count=filtered_this,
                     expiration_count=exp_count,
-                    status="ok" if not ticker_df.empty else "skipped",
+                    status=str(fetch_status),
+                    error_summary=attrs.get("fetch_error_summary"),
                 ))
 
         filtered_out_rows = sum(filtered_row_counts)

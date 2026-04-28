@@ -414,6 +414,8 @@ def test_fetch_ticker_option_chain_logs_provider_name_on_error(monkeypatch, capl
     result = fetch.fetch_ticker_option_chain("TEST", logger=logger)
 
     assert result.empty
+    assert result.attrs["fetch_status"] == "error"
+    assert result.attrs["fetch_error_summary"] == "RuntimeError: provider exploded for TEST"
     assert "provider=broken status=error" in caplog.text
 
 
