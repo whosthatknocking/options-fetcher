@@ -205,6 +205,18 @@ def _record_validation_findings(storage, run_id: str, findings: list[ValidationF
         ))
 
 
+def _run_log_reference(run_id: str, log_path: Path) -> bytes:
+    """Return a storage-managed reference to the shared append-only run log."""
+    payload = {
+        "artifact_type": "run_log",
+        "run_id": run_id,
+        "log_path": str(log_path.resolve()),
+        "log_scope": "shared_append_only",
+        "lookup_hint": "Search the shared log for this storage run_id.",
+    }
+    return json.dumps(payload, sort_keys=True, indent=2).encode()
+
+
 def _do_fetch_with_lock_held(  # pylint: disable=too-many-branches,too-many-locals,too-many-statements
     config,
     positions_path: Path | None,
@@ -214,6 +226,7 @@ def _do_fetch_with_lock_held(  # pylint: disable=too-many-branches,too-many-loca
 ) -> None:
     """Execute the fetch pipeline. Lock must already be held by caller. Raises on failure."""
     logger = None
+    log_path = None
     storage = None
     run_id = None
     try:
@@ -388,6 +401,12 @@ def _do_fetch_with_lock_held(  # pylint: disable=too-many-branches,too-many-loca
                     artifact_type="sidecar",
                     content=resolved_positions_path.read_bytes(),
                     filename="positions.csv",
+                ))
+            if log_path is not None:
+                storage.write_artifact(run_id, ArtifactWrite(
+                    artifact_type="run_log",
+                    content=_run_log_reference(run_id, log_path),
+                    filename="run_log_reference.json",
                 ))
             storage.finalize_run(run_id, RunSummary(status="complete"))
 

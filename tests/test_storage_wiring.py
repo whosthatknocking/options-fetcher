@@ -214,9 +214,30 @@ def test_fetcher_snapshots_positions_only_after_success(tmp_path: Path):
     assert result == 0
     run_id = backend.list_datasets()[0].run_id
     artifacts = backend._artifacts[run_id]  # pylint: disable=protected-access
-    assert len(artifacts) == 1
-    assert artifacts[0].artifact_type == "sidecar"
-    assert artifacts[0].location.endswith("/positions.csv")
+    sidecars = [artifact for artifact in artifacts if artifact.artifact_type == "sidecar"]
+    assert len(sidecars) == 1
+    assert sidecars[0].location.endswith("/positions.csv")
+
+
+def test_fetcher_records_run_log_reference_artifact(tmp_path: Path):
+    """Successful storage-backed runs must register the shared run log reference."""
+    from opx_chain import fetcher  # pylint: disable=import-outside-toplevel
+
+    backend = MemoryBackend()
+    config = make_runtime_config(storage_enabled=True)
+    patches = _fetcher_patches(tmp_path, config, backend)
+
+    with patches[0], patches[1], patches[2], patches[3], patches[4], \
+         patches[5], patches[6], patches[7], patches[8], patches[9], \
+         patches[10], patches[11]:
+        result = fetcher.main([])
+
+    assert result == 0
+    run_id = backend.list_datasets()[0].run_id
+    artifacts = backend._artifacts[run_id]  # pylint: disable=protected-access
+    run_logs = [artifact for artifact in artifacts if artifact.artifact_type == "run_log"]
+    assert len(run_logs) == 1
+    assert run_logs[0].location.endswith("/run_log_reference.json")
 
 
 def test_fetcher_fails_run_on_no_data(tmp_path: Path):
