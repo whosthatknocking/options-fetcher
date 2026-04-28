@@ -1,5 +1,6 @@
 """Documentation coverage tests for CLI contracts."""
 
+import inspect
 from pathlib import Path
 
 from opx_chain.config import (
@@ -10,6 +11,7 @@ from opx_chain.config import (
     DEFAULT_MIN_OPEN_INTEREST,
     DEFAULT_MIN_VOLUME,
 )
+from opx_chain.fetcher import run_fetch
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -56,3 +58,13 @@ def test_recommended_dataset_reader_is_stable_public_surface():
     assert "from opx_chain.utils import read_dataset_file" in public_surface
     assert "from opx_chain.utils import read_dataset_file" in reader_section
     assert "only stable public import from `opx_chain.utils`" in public_surface
+
+
+def test_run_fetch_public_params_are_documented():
+    """The in-process fetch contract should document every public parameter."""
+    spec = (ROOT / "docs" / "EXTERNAL_INTERFACE_SPEC.md").read_text(encoding="utf-8")
+    section = spec.split("### 3.2 Triggering a fresh fetch programmatically", maxsplit=1)[1]
+    section = section.split("### 3.3", maxsplit=1)[0]
+
+    for param in inspect.signature(run_fetch).parameters:
+        assert f"**`{param}`" in section

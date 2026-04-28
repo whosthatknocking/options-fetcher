@@ -122,6 +122,8 @@ run_fetch(tickers=("TSLA", "NVDA"))
 run_fetch(
     positions_path=Path.home() / ".local" / "share" / "opx-chain" / "positions.csv",
     tickers=("AAPL",),
+    max_expiration_weeks=34,
+    stale_quote_seconds=86_400,
 )
 ```
 
@@ -136,6 +138,15 @@ in semantics to the `--positions` CLI flag. When absent, the configured default 
 this run only. The override replaces `settings.tickers` entirely; the positions file
 can still add additional tickers via stock-ticker expansion. When absent, the configured
 `settings.tickers` is used unchanged.
+
+**`max_expiration_weeks` (optional `int`)** — overrides the configured maximum
+expiration window for this run only. `0` disables the max-expiration filter for the
+fetch. When absent, the configured `settings.max_expiration_weeks` is used unchanged.
+
+**`stale_quote_seconds` (optional `int`)** — overrides the configured stale quote
+threshold for this run only. Downstream callers use this to align fetch freshness with
+their own run policy without editing opx-chain config. When absent, the configured
+`settings.stale_quote_seconds` is used unchanged.
 
 **Errors:**
 
