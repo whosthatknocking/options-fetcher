@@ -380,8 +380,10 @@ class StorageBackend(Protocol):
         ticker: str | None = None,
     ) -> list[DatasetRecord]: ...
     def get_dataset(self, dataset_id: str) -> DatasetHandle: ...
+    def get_run(self, run_id: str) -> RunRecord: ...
     def finalize_run(self, run_id: str, summary: RunSummary) -> None: ...
     def fail_run(self, run_id: str, error: str) -> None: ...
+    def count_runs_today(self, provider: str) -> int: ...
 
 
 class ProviderCache(Protocol):
@@ -393,6 +395,11 @@ class ProviderCache(Protocol):
 `fail_run` is separate from `finalize_run` to make the error path explicit.
 It is called from the `except` blocks in `fetcher.py` and from the
 `KeyboardInterrupt` handler for the `interrupted` status.
+
+`get_run` returns the persisted `RunRecord` for downstream inspection.
+`count_runs_today(provider)` returns the number of runs started during the
+current US/Eastern calendar day for the given provider and is used by
+`fetcher.py` to print same-day run-count context before a fetch starts.
 
 `list_datasets` accepts optional filters so callers are not forced to load all
 records and filter in application code. Implementations that do not support
