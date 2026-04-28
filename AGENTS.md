@@ -91,7 +91,7 @@ Keep those files aligned with the implementation. If you change canonical fields
 
 ## Viewer and Export Conventions
 
-- Keep exported CSVs under `$XDG_DATA_HOME/opx-chain/runs/`, logs under `$XDG_DATA_HOME/opx-chain/logs/`, and optional provider payload dumps under `$XDG_DATA_HOME/opx-chain/debug/`.
+- Keep exported CSVs under `$XDG_DATA_HOME/opx-chain/runs/`, logs under `$XDG_STATE_HOME/opx-chain/logs/`, and optional provider payload dumps under `$XDG_DATA_HOME/opx-chain/debug/`.
 - If you change exported columns, also update the viewer serialization assumptions and field-reference docs.
 - Keep viewer endpoints and payloads aligned with the current tab model: `Dataset`, `Positions`, `Overview`, `Chain View`, and `Reference`.
 - Use JSON-serializable payloads only when sending data to the browser.

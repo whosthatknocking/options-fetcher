@@ -5,6 +5,7 @@ import time
 from datetime import datetime, timezone
 
 from opx_chain.config import SCRIPT_VERSION, get_runtime_config
+from opx_chain.paths import get_state_dir
 from opx_chain.providers import get_data_provider
 from opx_chain.storage.factory import get_data_dir
 
@@ -20,13 +21,26 @@ def configure_external_loggers(file_handler):
         provider_logger.addHandler(file_handler)
 
 
+def _migrate_legacy_shared_log(src, dst):
+    """Relocate the pre-XDG-state shared log without blocking a fetch run."""
+    if dst.exists() or not src.exists():
+        return
+    try:
+        dst.parent.mkdir(parents=True, exist_ok=True)
+        src.rename(dst)
+        src.parent.rmdir()
+    except OSError:
+        pass
+
+
 def create_run_logger():
     """Create the append-only run logger and return it with its file path."""
     config = get_runtime_config()
     timestamp = datetime.now(tz=timezone.utc).strftime("%Y%m%d_%H%M%S")
-    logs_dir = get_data_dir() / "logs"
+    logs_dir = get_state_dir() / "logs"
     logs_dir.mkdir(parents=True, exist_ok=True)
     log_path = logs_dir / "opx_runs.log"
+    _migrate_legacy_shared_log(get_data_dir() / "logs" / "opx_runs.log", log_path)
 
     logger = logging.getLogger("opx.run")
     logger.setLevel(logging.INFO)

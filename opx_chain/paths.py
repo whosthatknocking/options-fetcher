@@ -25,6 +25,11 @@ def get_data_dir() -> Path:
     return _xdg_base_dir("XDG_DATA_HOME", Path.home() / ".local" / "share") / APP_NAME
 
 
+def get_state_dir() -> Path:
+    """Return the app state directory."""
+    return _xdg_base_dir("XDG_STATE_HOME", Path.home() / ".local" / "state") / APP_NAME
+
+
 def get_cache_dir() -> Path:
     """Return the app cache directory."""
     return _xdg_base_dir("XDG_CACHE_HOME", Path.home() / ".cache") / APP_NAME
