@@ -39,10 +39,7 @@ _DATA_DIR_OVERRIDE: Path | None = None
 _CSV_MODE: bool = False
 VIEWER_PREFS_PATH = get_default_viewer_prefs_path()
 ALLOWED_DATASET_SUFFIXES = frozenset({".csv", ".parquet"})
-HIDDEN_COLUMNS = {
-    "roll_from_days_to_expiration",
-    *UNWANTED_EXPORT_COLUMNS,
-}
+HIDDEN_COLUMNS = {*UNWANTED_EXPORT_COLUMNS}
 DATASET_CARD_COLUMNS = (
     "premium_reference_method",
     "risk_free_rate_used",

@@ -2,6 +2,7 @@
 
 import numpy as np
 import pandas as pd
+from opx_chain import metrics
 from opx_chain.metrics import (
     add_iv_state_level,
     add_iv_state_term,
@@ -13,6 +14,11 @@ from opx_chain.metrics import (
 def _make_df(**columns):
     """Build a minimal DataFrame from keyword column arrays."""
     return pd.DataFrame(columns)
+
+
+def test_metrics_module_has_no_unused_roll_yield_builder():
+    """Roll-yield metrics are not part of the active fetch/export pipeline."""
+    assert not hasattr(metrics, "add_roll_yield_metrics")
 
 
 # ---------------------------------------------------------------------------

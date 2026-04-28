@@ -114,11 +114,6 @@ COLUMN_ORDER = [
 UNWANTED_EXPORT_COLUMNS = {
     "currency",
     "underlying_currency",
-    "roll_from_expiration_date",
-    "roll_days_added",
-    "roll_from_premium_reference_price",
-    "roll_net_credit",
-    "roll_yield",
     "fetch_status",
     "fetch_error",
     "script_version",

@@ -696,33 +696,3 @@ def add_theta_efficiency_below_p25(df):
         )
 
     return df
-
-
-def add_roll_yield_metrics(df):
-    """Compare each expiry to the nearest earlier expiry at the same strike and side."""
-    df = df.copy()
-    group_keys = ["underlying_symbol", "option_type", "strike"]
-    ordered = df.sort_values(group_keys + ["days_to_expiration", "expiration_date"]).copy()
-
-    grouped = ordered.groupby(group_keys)
-    ordered["roll_from_expiration_date"] = grouped["expiration_date"].shift(1)
-    ordered["roll_from_days_to_expiration"] = grouped["days_to_expiration"].shift(1)
-    ordered["roll_from_premium_reference_price"] = grouped["premium_reference_price"].shift(1)
-    ordered["roll_days_added"] = (
-        ordered["days_to_expiration"] - ordered["roll_from_days_to_expiration"]
-    )
-    ordered["roll_net_credit"] = (
-        ordered["premium_reference_price"] - ordered["roll_from_premium_reference_price"]
-    )
-    ordered["roll_yield"] = np.where(
-        ordered["roll_days_added"] > 0,
-        ordered["roll_net_credit"] / ordered["roll_days_added"],
-        np.nan,
-    )
-
-    ordered.loc[
-        ordered["roll_from_premium_reference_price"].isna() | (ordered["roll_days_added"] <= 0),
-        ["roll_days_added", "roll_net_credit", "roll_yield"],
-    ] = np.nan
-
-    return ordered.drop(columns=["roll_from_days_to_expiration"]).sort_index()

@@ -25,6 +25,11 @@ def test_extract_field_descriptions_reads_current_user_guide_entries():
     assert "Use it to group rows by underlying." in descriptions["underlying_symbol"]
 
 
+def test_hidden_columns_have_no_orphaned_roll_yield_fields():
+    """Viewer hidden columns should not preserve removed roll-yield scaffolding."""
+    assert not any(column.startswith("roll_") for column in viewer.HIDDEN_COLUMNS)
+
+
 def test_build_dataset_cards_only_promotes_dataset_wide_constant_values():
     """Only dataset-wide constant values should be promoted into header cards."""
     frame = pd.DataFrame(

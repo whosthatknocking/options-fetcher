@@ -4,7 +4,17 @@ from pathlib import Path
 
 import pandas as pd
 
-from opx_chain.export import CANONICAL_EXPORT_COLUMNS, reorder_export_columns, write_options_csv
+from opx_chain.export import (
+    CANONICAL_EXPORT_COLUMNS,
+    UNWANTED_EXPORT_COLUMNS,
+    reorder_export_columns,
+    write_options_csv,
+)
+
+
+def test_unwanted_export_columns_have_no_orphaned_roll_yield_fields():
+    """Dead roll-yield fields should not linger in export compatibility filters."""
+    assert not any(column.startswith("roll_") for column in UNWANTED_EXPORT_COLUMNS)
 
 
 def test_reorder_export_columns_drops_noncanonical_provider_fields():
