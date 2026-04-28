@@ -548,9 +548,9 @@ Behavior:
 - run records are retained independently of dataset pruning; they are small
 - malformed or negative values fall back to `0` (no pruning) with a warning
 
-The filesystem backend implements pruning by scanning the output directory and
-sorting by filename timestamp. The SQLite backend implements pruning with a
-`DELETE WHERE` on the dataset table ordered by `created_at`.
+Both storage backends prune by the semantic dataset `created_at` timestamp.
+The filesystem backend reads `created_at` from each dataset metadata sidecar;
+the SQLite backend orders the dataset table by `created_at`.
 
 ## 13. `opx-check` Integration
 

@@ -3,7 +3,8 @@
 
 import hashlib
 import json
-from datetime import timedelta
+import os
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import pandas as pd
@@ -59,6 +60,15 @@ def _write(backend: FilesystemBackend, run_id: str, rows: int = 3, provider: str
         run_id,
         DatasetWrite(data=_make_dataframe(rows), provider=provider, schema_version=1),
     )
+
+
+def _meta_path(record: DatasetRecord) -> Path:
+    return Path(record.location).with_suffix(".meta.json")
+
+
+def _touch_future_mtime(path: Path) -> None:
+    future = datetime.now(tz=timezone.utc).timestamp() + 3600
+    os.utime(path, (future, future))
 
 
 def _record_ticker(backend: FilesystemBackend, run_id: str, ticker: str) -> None:
@@ -355,6 +365,22 @@ def test_pruning_removes_oldest_when_limit_exceeded(tmp_path: Path):
     assert r3.dataset_id in ids
 
 
+def test_pruning_uses_created_at_not_meta_file_mtime(tmp_path: Path):
+    """Retention must use semantic dataset age, not mutable filesystem mtimes."""
+    backend = _make_backend(tmp_path, max_runs_retained=2)
+    run_id = backend.create_run(_make_context())
+    r1 = _write(backend, run_id)
+    r2 = _write(backend, run_id)
+    _touch_future_mtime(_meta_path(r1))
+
+    r3 = _write(backend, run_id)
+
+    ids = {record.dataset_id for record in backend.list_datasets()}
+    assert r1.dataset_id not in ids
+    assert r2.dataset_id in ids
+    assert r3.dataset_id in ids
+
+
 def test_pruning_removes_artifact_file(tmp_path: Path):
     """Pruning must delete the artifact CSV in addition to the meta file."""
     backend = _make_backend(tmp_path, max_runs_retained=1)
@@ -518,6 +544,19 @@ def test_list_datasets_until_excludes_newer_records(tmp_path: Path):
     results = backend.list_datasets(until=past)
 
     assert not results
+
+
+def test_list_datasets_orders_by_created_at_not_meta_file_mtime(tmp_path: Path):
+    """Filesystem listing order should match SQLite's created_at ordering."""
+    backend = _make_backend(tmp_path)
+    run_id = backend.create_run(_make_context())
+    r1 = _write(backend, run_id)
+    r2 = _write(backend, run_id)
+    _touch_future_mtime(_meta_path(r1))
+
+    results = backend.list_datasets()
+
+    assert [record.dataset_id for record in results[:2]] == [r2.dataset_id, r1.dataset_id]
 
 
 # ---------------------------------------------------------------------------

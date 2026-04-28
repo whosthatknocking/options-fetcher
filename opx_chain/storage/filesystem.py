@@ -38,6 +38,15 @@ def _str_to_dt(value: str | None) -> datetime | None:
     return datetime.fromisoformat(value) if value is not None else None
 
 
+def _dt_sort_key(value: datetime | None) -> datetime:
+    """Return a timezone-aware UTC datetime suitable for stable ordering."""
+    if value is None:
+        return datetime.min.replace(tzinfo=timezone.utc)
+    if value.tzinfo is None:
+        return value.replace(tzinfo=timezone.utc)
+    return value.astimezone(timezone.utc)
+
+
 class FilesystemBackend:
     """StorageBackend that writes metadata as JSON sidecars and artifacts as files.
 
@@ -146,12 +155,19 @@ class FilesystemBackend:
             content_hash=data["content_hash"],
         )
 
+    def _meta_created_at_sort_key(self, meta_path: Path) -> datetime:
+        try:
+            data = json.loads(meta_path.read_text(encoding="utf-8"))
+            return _dt_sort_key(_str_to_dt(data.get("created_at")))
+        except (OSError, TypeError, ValueError, json.JSONDecodeError):
+            return datetime.min.replace(tzinfo=timezone.utc)
+
     def _prune_datasets(self) -> None:
         if self._max_runs_retained <= 0:
             return
         meta_files = sorted(
             self._runs_dir.glob("*/output/*.meta.json"),
-            key=lambda p: p.stat().st_mtime,
+            key=self._meta_created_at_sort_key,
         )
         excess = len(meta_files) - self._max_runs_retained
         for meta_path in meta_files[:excess]:
@@ -271,13 +287,8 @@ class FilesystemBackend:
         """Return dataset records from meta files, newest first."""
         if not self._runs_dir.exists():
             return []
-        meta_files = sorted(
-            self._runs_dir.glob("*/output/*.meta.json"),
-            key=lambda p: p.stat().st_mtime,
-            reverse=True,
-        )
         results = []
-        for meta_path in meta_files:
+        for meta_path in self._runs_dir.glob("*/output/*.meta.json"):
             try:
                 record = self._meta_to_record(
                     json.loads(meta_path.read_text(encoding="utf-8"))
@@ -293,9 +304,8 @@ class FilesystemBackend:
             if ticker is not None and not self._run_has_ticker(record.run_id, ticker):
                 continue
             results.append(record)
-            if len(results) >= limit:
-                break
-        return results
+        results.sort(key=lambda record: _dt_sort_key(record.created_at), reverse=True)
+        return results[:limit]
 
     def get_dataset(self, dataset_id: str) -> DatasetHandle:
         """Return a DatasetHandle by loading the dataset's meta file."""
