@@ -62,6 +62,14 @@ opx-fetch --positions /path/to/runs/<run_id>/positions.csv
 
 When `--positions` is omitted, the fetcher still defaults to `$XDG_DATA_HOME/opx-chain/positions.csv` (default `~/.local/share/opx-chain/positions.csv`). If the override path does not exist or cannot be parsed, the run continues without position-aware ticker expansion or filter bypass, matching the existing graceful fallback behavior.
 
+To verify configuration, positions parsing, and storage reachability without provider API calls or output writes, run:
+
+```bash
+opx-fetch --dry-run
+```
+
+Dry runs print the tickers that would be fetched, the resolved positions source, and the storage backend check. They do not create run logs, datasets, sidecars, or provider requests.
+
 Check that every option position in the default positions file appears in the latest output CSV:
 
 ```bash

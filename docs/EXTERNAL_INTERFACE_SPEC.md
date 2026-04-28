@@ -35,7 +35,7 @@ normalization logic — is internal to `opx-chain` and may change without notice
 A downstream orchestrator invokes it as a subprocess:
 
 ```
-opx-fetch [--positions <path>] [--enable-filters | --disable-filters]
+opx-fetch [--positions <path>] [--dry-run] [--enable-filters | --disable-filters]
 ```
 
 The orchestrator must:
@@ -58,6 +58,13 @@ opx-fetch --positions /path/to/runs/<run_id>/positions.csv
 ```
 
 See `docs/PROJECT_SPEC.md` §7.3 for the full behaviour specification.
+
+**`--dry-run` (optional)**
+
+Validates the resolved config, parses the positions file, and checks storage
+backend reachability without provider API calls or output writes. A dry run exits
+`0` when those preflight checks pass. It is safe for operator diagnostics; a
+downstream orchestrator should not treat it as producing a new dataset.
 
 **Exit codes**
 

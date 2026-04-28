@@ -25,6 +25,8 @@ For one-off fetch runs, you can override the shared filter toggle from the CLI w
 
 `opx-fetch` also accepts `--positions /path/to/positions.csv` when you want one run to use a non-default positions file instead of `$XDG_DATA_HOME/opx-chain/positions.csv` (default `~/.local/share/opx-chain/positions.csv`).
 
+Use `opx-fetch --dry-run` to validate config, positions parsing, and storage reachability without provider API calls or output writes.
+
 After a fetch run, `opx-check` verifies that every option contract in the default positions file appears in the latest output CSV and reports coverage gaps:
 
 ```
