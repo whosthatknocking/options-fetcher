@@ -7,7 +7,7 @@ from dataclasses import dataclass
 import numpy as np
 import pandas as pd
 
-from opx_chain.schema import QUALITY_FLAG_FIELDS
+from opx_chain.schema import BOOLEAN_FIELDS
 
 
 REQUIRED_CORE_FIELDS = (
@@ -35,17 +35,6 @@ TIMESTAMP_FIELDS = (
     "option_quote_time",
     "underlying_price_time",
 )
-BOOLEAN_FIELDS = (
-    "is_in_the_money",
-    "next_earnings_date_is_estimated",
-    *QUALITY_FLAG_FIELDS,
-    "near_expiry_near_money_flag",
-    "passes_primary_screen",
-    "is_stale_quote",
-    "is_stale_underlying_price",
-)
-
-
 @dataclass(frozen=True)
 class ValidationFinding:
     """One validation finding emitted during row or file checks."""

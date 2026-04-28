@@ -2,12 +2,24 @@
 
 import pandas as pd
 
+from opx_chain.export import CANONICAL_EXPORT_COLUMNS
+from opx_chain.schema import BOOLEAN_FIELDS
 from opx_chain.validate import (
     emit_validation_report,
     summarize_validation_findings,
     validate_export_frame,
     validate_option_rows,
 )
+
+
+DERIVED_BOOLEAN_FIELDS = {
+    "earnings_within_5d",
+    "earnings_within_10d",
+    "ex_div_within_3d",
+    "has_negative_extrinsic_mid",
+    "theta_efficiency_below_p25",
+    "risk_model_inconsistent",
+}
 
 
 def make_valid_row(**overrides):
@@ -66,6 +78,35 @@ def test_validate_option_rows_flags_invalid_types_and_quote_order():
     assert any(f.code == "invalid_expiration_date" for f in findings)
     assert any(f.code == "invalid_quote_order" for f in findings)
     assert any(f.code == "invalid_boolean_field" for f in findings)
+
+
+def test_exported_boolean_fields_are_validated():
+    """Every exported boolean-like field should be covered by row validation."""
+    assert DERIVED_BOOLEAN_FIELDS.issubset(BOOLEAN_FIELDS)
+
+    for field in BOOLEAN_FIELDS:
+        assert field in CANONICAL_EXPORT_COLUMNS
+
+
+def test_validate_option_rows_flags_derived_boolean_fields():
+    """Derived boolean fields should not bypass invalid_boolean_field checks."""
+    frame = pd.DataFrame(
+        [
+            make_valid_row(
+                earnings_within_5d="yes",
+                earnings_within_10d="no",
+                ex_div_within_3d=1,
+                has_negative_extrinsic_mid="false",
+                theta_efficiency_below_p25="true",
+                risk_model_inconsistent=0,
+            )
+        ]
+    )
+
+    findings = validate_option_rows(frame)
+    fields = {finding.field for finding in findings if finding.code == "invalid_boolean_field"}
+
+    assert DERIVED_BOOLEAN_FIELDS.issubset(fields)
 
 
 def test_validate_export_frame_flags_missing_columns_and_duplicates():
