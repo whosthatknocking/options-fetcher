@@ -8,7 +8,8 @@ data_provider = "yfinance"
 # position-aware ticker expansion and post-download filter bypass.
 
 # Shared filtering
-filters_min_bid = null
+# Omit filters_min_bid to disable this optional screen; TOML has no null literal.
+# filters_min_bid = 0.50
 filters_min_open_interest = 100
 filters_min_volume = 10
 filters_max_spread_pct_of_mid = 0.25

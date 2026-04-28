@@ -45,6 +45,17 @@ def test_load_runtime_config_uses_defaults_when_file_is_absent(tmp_path: Path):
     assert config.config_path == tmp_path / "missing.toml"
 
 
+def test_example_config_is_valid_toml():
+    """The tracked example should be directly copyable as a user config."""
+    config_path = Path(__file__).resolve().parents[1] / "config" / "example.toml"
+
+    config = load_runtime_config(config_path)
+
+    assert config.config_path == config_path
+    assert config.min_bid is None
+    assert not any("could not be parsed" in warning for warning in config.config_warnings)
+
+
 def test_load_runtime_config_uses_eastern_market_calendar_for_today(tmp_path: Path, monkeypatch):
     """Runtime today should follow the U.S. market calendar instead of host-local midnight."""
 
