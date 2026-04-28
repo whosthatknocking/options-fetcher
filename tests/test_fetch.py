@@ -285,6 +285,10 @@ def test_fetch_ticker_option_chain_prints_stage_counts(monkeypatch, capsys):
     assert "TEST: normalize  rows=3" in stdout
     assert "TEST: filter  rows=1  dropped=2" in stdout
     assert "TEST: done  rows=1  expirations=1  raw=3" in stdout
+    assert result.attrs["raw_row_count"] == 3
+    assert result.attrs["normalized_row_count"] == 3
+    assert result.attrs["filtered_row_count"] == 2
+    assert result.attrs["raw_expiration_count"] == 1
 
 
 def test_fetch_ticker_option_chain_explains_when_filters_remove_everything(monkeypatch, capsys):
@@ -305,6 +309,9 @@ def test_fetch_ticker_option_chain_explains_when_filters_remove_everything(monke
 
     stdout = capsys.readouterr().out
     assert result.empty
+    assert result.attrs["raw_row_count"] == 3
+    assert result.attrs["normalized_row_count"] == 3
+    assert result.attrs["filtered_row_count"] == 3
     assert "TEST: chain  2026-04-17  rows=3" in stdout
     assert "TEST: normalize  rows=3" in stdout
     assert (

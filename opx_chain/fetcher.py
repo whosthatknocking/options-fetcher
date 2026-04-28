@@ -275,16 +275,24 @@ def _do_fetch_with_lock_held(  # pylint: disable=too-many-branches,too-many-loca
             if not ticker_df.empty:
                 ticker_frames.append(ticker_df)
             if storage is not None and run_id is not None:
-                filtered_this = sum(filtered_row_counts[counts_before:])
                 kept = len(ticker_df)
+                attrs = getattr(ticker_df, "attrs", {})
+                filtered_this = int(
+                    attrs.get(
+                        "filtered_row_count",
+                        sum(filtered_row_counts[counts_before:]),
+                    )
+                )
+                normalized_count = int(attrs.get("normalized_row_count", kept + filtered_this))
+                raw_count = int(attrs.get("raw_row_count", normalized_count))
                 exp_count = (
                     int(ticker_df["expiration_date"].nunique())
                     if kept and "expiration_date" in ticker_df.columns else 0
                 )
                 storage.record_ticker_result(run_id, TickerFetchResult(
                     ticker=ticker,
-                    raw_row_count=kept + filtered_this,
-                    normalized_row_count=kept + filtered_this,
+                    raw_row_count=raw_count,
+                    normalized_row_count=normalized_count,
                     kept_row_count=kept,
                     filtered_row_count=filtered_this,
                     expiration_count=exp_count,

@@ -75,6 +75,32 @@ def test_fetcher_calls_write_dataset_when_storage_enabled(tmp_path: Path):
     assert len(datasets) == 1
 
 
+def test_fetcher_records_fetch_row_counts_from_dataframe_attrs(tmp_path: Path):
+    """Storage ticker metadata must preserve raw and normalized fetch counts."""
+    from opx_chain import fetcher  # pylint: disable=import-outside-toplevel
+
+    backend = MemoryBackend()
+    config = make_runtime_config(storage_enabled=True)
+    ticker_df = _make_ticker_df()
+    ticker_df.attrs["raw_row_count"] = 5
+    ticker_df.attrs["normalized_row_count"] = 3
+    ticker_df.attrs["filtered_row_count"] = 1
+    patches = _fetcher_patches(tmp_path, config, backend, ticker_df=ticker_df)
+
+    with patches[0], patches[1], patches[2], patches[3], patches[4], \
+         patches[5], patches[6], patches[7], patches[8], patches[9], \
+         patches[10], patches[11]:
+        result = fetcher.main([])
+
+    assert result == 0
+    run_id = backend.list_datasets()[0].run_id
+    ticker_result = backend._ticker_results[run_id][0]  # pylint: disable=protected-access
+    assert ticker_result.raw_row_count == 5
+    assert ticker_result.normalized_row_count == 3
+    assert ticker_result.kept_row_count == 2
+    assert ticker_result.filtered_row_count == 1
+
+
 def test_fetcher_finalizes_run_on_success(tmp_path: Path):
     """Successful fetch must finalize the run with status=complete."""
     from opx_chain import fetcher  # pylint: disable=import-outside-toplevel

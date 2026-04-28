@@ -32,6 +32,22 @@ _JSON_NAT_KEY = "__opx_pd_nat__"
 _LOGGER = logging.getLogger(__name__)
 
 
+def _with_fetch_counts(
+    df: pd.DataFrame,
+    *,
+    raw_row_count: int,
+    normalized_row_count: int,
+    filtered_row_count: int,
+    raw_expiration_count: int,
+) -> pd.DataFrame:
+    """Attach non-column fetch diagnostics used by storage metadata writers."""
+    df.attrs["raw_row_count"] = raw_row_count
+    df.attrs["normalized_row_count"] = normalized_row_count
+    df.attrs["filtered_row_count"] = filtered_row_count
+    df.attrs["raw_expiration_count"] = raw_expiration_count
+    return df
+
+
 def _cache_get_json(cache, key: str) -> dict | None:
     """Return a cached dict if the key is present and unexpired, else None."""
     data = cache.get(key)
@@ -205,7 +221,13 @@ def fetch_ticker_option_chain(  # pylint: disable=too-many-locals,too-many-branc
                     "ticker=%s status=skipped reason=invalid_underlying_price",
                     ticker,
                 )
-            return pd.DataFrame()
+            return _with_fetch_counts(
+                pd.DataFrame(),
+                raw_row_count=0,
+                normalized_row_count=0,
+                filtered_row_count=0,
+                raw_expiration_count=0,
+            )
 
         all_normalized_rows = []
         raw_contract_count = 0
@@ -334,7 +356,13 @@ def fetch_ticker_option_chain(  # pylint: disable=too-many-locals,too-many-branc
                     raw_contract_count,
                     raw_expiration_count,
                 )
-            return pd.DataFrame()
+            return _with_fetch_counts(
+                pd.DataFrame(),
+                raw_row_count=raw_contract_count,
+                normalized_row_count=0,
+                filtered_row_count=0,
+                raw_expiration_count=raw_expiration_count,
+            )
 
         # Pre-filter cross-row enrichment on the full unfiltered chain.
         all_normalized = pd.concat(all_normalized_rows, ignore_index=True)
@@ -378,6 +406,13 @@ def fetch_ticker_option_chain(  # pylint: disable=too-many-locals,too-many-branc
         # Post-filter enrichment on surviving rows.
         combined = add_theta_efficiency_below_p25(combined)
         combined = add_expected_move_by_expiration(combined)
+        combined = _with_fetch_counts(
+            combined,
+            raw_row_count=raw_contract_count,
+            normalized_row_count=pre_filter_count,
+            filtered_row_count=dropped_rows,
+            raw_expiration_count=raw_expiration_count,
+        )
         if logger:
             logger.info(
                 (
@@ -414,4 +449,10 @@ def fetch_ticker_option_chain(  # pylint: disable=too-many-locals,too-many-branc
                 getattr(provider, "name", "unknown"),
                 exc,
             )
-        return pd.DataFrame()
+        return _with_fetch_counts(
+            pd.DataFrame(),
+            raw_row_count=0,
+            normalized_row_count=0,
+            filtered_row_count=0,
+            raw_expiration_count=0,
+        )
