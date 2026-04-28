@@ -206,9 +206,16 @@ Examples:
 - column widths
 - pinned symbols
 
-Lower priority than run and dataset storage. The viewer currently reads datasets
-directly from the filesystem; migrating it to the storage port should happen in
-a separate step after the fetcher migration is complete.
+Viewer dataset discovery is already storage-aware. When storage is enabled and
+the viewer is not forced into CSV mode, the viewer discovers datasets through
+`StorageBackend.list_datasets()` and resolves the returned artifact locations.
+It falls back to filesystem discovery when storage is disabled, when CSV mode or
+an explicit data-dir override is active, or when the storage index has no
+readable artifact paths.
+
+Persisting viewer/user preferences remains lower priority than run and dataset
+storage. Preference state is separate from dataset discovery and should be added
+only after the storage-backed dataset path is stable.
 
 ## 6. Domain Records
 

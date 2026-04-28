@@ -46,3 +46,13 @@ def test_storage_spec_documents_current_opx_check_lookup():
     assert "`opx-check` uses `list_datasets(limit=100)`" in spec
     assert "newest readable CSV record" in spec
     assert "`opx-check` uses `list_datasets(limit=1)`" not in spec
+
+
+def test_storage_spec_documents_current_viewer_storage_discovery():
+    """The viewer storage contract should match the implemented discovery path."""
+    spec = (ROOT / "docs" / "STORAGE_SPEC.md").read_text(encoding="utf-8")
+
+    assert "viewer discovers datasets through" in spec
+    assert "`StorageBackend.list_datasets()`" in spec
+    assert "falls back to filesystem discovery" in spec
+    assert "migrating it to the storage port should happen" not in spec
