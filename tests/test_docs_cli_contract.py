@@ -112,3 +112,22 @@ def test_agents_architecture_map_lists_load_bearing_modules():
 
     for entry in required_entries:
         assert entry in agents_doc
+
+
+def test_canonical_doc_indexes_list_storage_and_metadata_specs():
+    """Canonical doc indexes should surface storage and metadata specs."""
+    agents_doc = (ROOT / "AGENTS.md").read_text(encoding="utf-8")
+    source_of_truth = agents_doc.split("## Source of Truth", maxsplit=1)[1]
+    source_of_truth = source_of_truth.split("## Architecture Map", maxsplit=1)[0]
+
+    project_spec = (ROOT / "docs" / "PROJECT_SPEC.md").read_text(encoding="utf-8")
+    doc_layout = project_spec.split("### 8.1 Documentation Layout", maxsplit=1)[1]
+    doc_layout = doc_layout.split("### 8.2", maxsplit=1)[0]
+
+    required_docs = (
+        "docs/STORAGE_SPEC.md",
+        "docs/METADATA_SPEC.md",
+    )
+    for doc_path in required_docs:
+        assert f"`{doc_path}`" in source_of_truth
+        assert f"`{doc_path}`" in doc_layout

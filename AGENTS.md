@@ -22,9 +22,12 @@ When behavior, naming, or scope is unclear, use these files in this order:
 1. `docs/PROJECT_SPEC.md`
 2. `docs/USER_GUIDE.md`
 3. `docs/FIELD_REFERENCE.md`
-4. `docs/DEVELOPMENT.md`
-5. `README.md`
-6. `docs/DESIGN_SPEC.md` for UI direction; `docs/EXTERNAL_INTERFACE_SPEC.md` for downstream integration intent
+4. `docs/STORAGE_SPEC.md`
+5. `docs/METADATA_SPEC.md`
+6. `docs/EXTERNAL_INTERFACE_SPEC.md`
+7. `docs/DEVELOPMENT.md`
+8. `README.md`
+9. `docs/DESIGN_SPEC.md` for UI direction
 
 Keep those files aligned with the implementation. If you change canonical fields, provider behavior, config keys, CLI behavior, viewer behavior, or validation semantics, update the docs in the same task.
 

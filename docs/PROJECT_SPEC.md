@@ -398,8 +398,12 @@ Current structure:
 
 - `README.md`: short landing page
 - `docs/USER_GUIDE.md`: user-facing setup, running, config, and behavior
-- `docs/DEVELOPMENT.md`: contributor/development reference
 - `docs/FIELD_REFERENCE.md`: canonical field descriptions and provider mapping matrix
+- `docs/STORAGE_SPEC.md`: storage backend, provider cache, artifacts, and retention contract
+- `docs/METADATA_SPEC.md`: persisted run, dataset, ticker, validation, and artifact metadata semantics
+- `docs/EXTERNAL_INTERFACE_SPEC.md`: stable public API surface for downstream tools
+- `docs/DEVELOPMENT.md`: contributor/development reference
+- `docs/DESIGN_SPEC.md`: viewer UI direction and visual standards
 
 ### 8.2 Provider-Aware Documentation
 
