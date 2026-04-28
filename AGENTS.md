@@ -10,6 +10,7 @@ This file gives project-specific guidance to AI agents working in this repositor
 - Main entrypoints:
   - `opx-fetch` for data collection and CSV export
   - `opx-view` for the local HTTP viewer
+  - `opx-check` for validating positions against the latest exported dataset
 - Packaging:
   - install with `python -m pip install -e .`
   - dev install with `python -m pip install -e ".[dev]"`
@@ -41,6 +42,12 @@ Keep those files aligned with the implementation. If you change canonical fields
 - `opx_chain/config.py`
   - config loading from `$XDG_CONFIG_HOME/opx-chain/config.toml` (default `~/.config/opx-chain/config.toml`)
   - defaults, fallback warnings, provider selection, and runtime override support
+- `opx_chain/paths.py`
+  - XDG config, data, state, cache, positions, and viewer preference path resolution
+- `opx_chain/positions.py`
+  - Fidelity positions parsing, ticker expansion, option-key extraction, and default positions path
+- `opx_chain/check_positions.py`
+  - `opx-check` CLI entrypoint for confirming portfolio tickers are represented in the latest dataset
 - `opx_chain/providers/`
   - provider contract in `base.py`
   - vendor implementations in `yfinance.py`, `massive.py`, and `marketdata.py`
@@ -54,6 +61,16 @@ Keep those files aligned with the implementation. If you change canonical fields
   - canonical export column handling and CSV writing
 - `opx_chain/validate.py`
   - row-level and export-level validation
+- `opx_chain/schema.py`
+  - shared canonical schema constants, quality flags, and boolean-field vocabulary
+- `opx_chain/storage/`
+  - storage backend protocol, metadata models, serializers, provider cache, and filesystem/SQLite/memory implementations
+- `opx_chain/runlog.py`
+  - shared fetch-run logging and log path reporting
+- `opx_chain/utils.py`
+  - stable dataset reader and small scalar/file utility helpers shared across fetch, storage, and downstream consumers
+- `opx_chain/version.py`
+  - package version lookup used by runtime reporting
 - `opx_chain/viewer.py`
   - local HTTP server
   - CSV discovery and serialization

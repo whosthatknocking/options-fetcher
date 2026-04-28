@@ -68,3 +68,22 @@ def test_run_fetch_public_params_are_documented():
 
     for param in inspect.signature(run_fetch).parameters:
         assert f"**`{param}`" in section
+
+
+def test_agents_architecture_map_lists_load_bearing_modules():
+    """Agent guidance should keep the architecture map aligned with core modules."""
+    agents_doc = (ROOT / "AGENTS.md").read_text(encoding="utf-8")
+    required_entries = (
+        "`opx-check`",
+        "`opx_chain/check_positions.py`",
+        "`opx_chain/paths.py`",
+        "`opx_chain/positions.py`",
+        "`opx_chain/runlog.py`",
+        "`opx_chain/schema.py`",
+        "`opx_chain/storage/`",
+        "`opx_chain/utils.py`",
+        "`opx_chain/version.py`",
+    )
+
+    for entry in required_entries:
+        assert entry in agents_doc
