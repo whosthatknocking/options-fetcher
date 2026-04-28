@@ -17,8 +17,8 @@ def build_config(viewer_host: str, viewer_port: int):
     )()
 
 
-def test_extract_field_descriptions_reads_current_user_guide_entries():
-    """User-guide field descriptions should stay discoverable for the viewer."""
+def test_extract_field_descriptions_reads_current_field_reference_entries():
+    """Field-reference descriptions should stay discoverable for the viewer."""
     descriptions = viewer.extract_field_descriptions()
 
     assert "underlying_symbol" in descriptions
@@ -68,6 +68,12 @@ def test_viewer_markdown_loader_falls_back_to_packaged_docs(tmp_path: Path):
 def test_hidden_columns_have_no_orphaned_roll_yield_fields():
     """Viewer hidden columns should not preserve removed roll-yield scaffolding."""
     assert not any(column.startswith("roll_") for column in viewer.HIDDEN_COLUMNS)
+
+
+def test_viewer_has_no_dead_user_guide_loader():
+    """The viewer runtime should depend on the field-reference document only."""
+    assert not hasattr(viewer, "load_user_guide_text")
+    assert not hasattr(viewer, "USER_GUIDE_PATH")
 
 
 def test_build_dataset_cards_only_promotes_dataset_wide_constant_values():

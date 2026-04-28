@@ -31,7 +31,6 @@ from opx_chain.utils import read_dataset_file
 
 _PKG_ROOT = Path(__file__).resolve().parent
 STATIC_ROOT = _PKG_ROOT / "viewer_static"
-USER_GUIDE_PATH = _PKG_ROOT.parent / "docs" / "USER_GUIDE.md"
 FIELD_REFERENCE_PATH = _PKG_ROOT.parent / "docs" / "FIELD_REFERENCE.md"
 RUNS_DIR = get_data_dir() / "runs"
 POSITIONS_PATH = DEFAULT_POSITIONS_PATH
@@ -234,11 +233,6 @@ def resolve_positions_path(path: Path | None = None) -> Path:
     if candidate.exists() and candidate.is_file():
         return candidate
     raise FileNotFoundError(f"Positions CSV file not found: {candidate}")
-
-
-def load_user_guide_text() -> str:
-    """Load the user guide for field descriptions and the reference tab."""
-    return load_viewer_markdown("USER_GUIDE.md", USER_GUIDE_PATH)
 
 
 def load_field_reference_markdown() -> str:
