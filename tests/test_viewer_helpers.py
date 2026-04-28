@@ -41,6 +41,21 @@ def test_viewer_packaged_docs_match_canonical_docs():
         assert packaged == canonical
 
 
+def test_field_reference_yfinance_event_booleans_match_runtime_support():
+    """YFinance event docs should not claim derived event flags are unsupported."""
+    field_reference_path = Path(__file__).resolve().parents[1] / "docs" / "FIELD_REFERENCE.md"
+    field_reference = field_reference_path.read_text(encoding="utf-8")
+    table = field_reference.split("### Corporate Event Mapping", maxsplit=1)[1]
+    table = table.split("### Run Metadata Mapping", maxsplit=1)[0]
+
+    for field in ("earnings_within_5d", "earnings_within_10d", "ex_div_within_3d"):
+        row = next(line for line in table.splitlines() if line.startswith(f"| `{field}`"))
+        yfinance_cell = row.split("|")[2].strip()
+
+        assert yfinance_cell.startswith("Derived:")
+        assert "event fetching is not implemented" not in yfinance_cell
+
+
 def test_viewer_markdown_loader_falls_back_to_packaged_docs(tmp_path: Path):
     """Non-editable installs should not require a sibling source-tree docs directory."""
     missing_source_doc = tmp_path / "missing" / "FIELD_REFERENCE.md"
