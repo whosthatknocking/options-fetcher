@@ -419,6 +419,52 @@ def test_run_fetch_tickers_override_replaces_config_tickers(tmp_path: Path):
     assert set_call[0][0].tickers == ("AAPL",)
 
 
+def test_run_fetch_max_expiration_override_updates_derived_date(tmp_path: Path):
+    """run_fetch(max_expiration_weeks=...) must keep the derived filter date in sync."""
+    from opx_chain import fetcher  # pylint: disable=import-outside-toplevel
+
+    backend = MemoryBackend()
+    config = make_runtime_config(
+        storage_enabled=True,
+        max_expiration_weeks=14,
+        max_expiration="2026-06-30",
+    )
+    patches = _fetcher_patches(tmp_path, config, backend)
+
+    with ExitStack() as stack:
+        mocks = [stack.enter_context(p) for p in patches]
+        fetcher.run_fetch(max_expiration_weeks=4)
+
+    mock_set_config = mocks[6]
+    set_call = mock_set_config.call_args_list[0]
+    active_config = set_call[0][0]
+    assert active_config.max_expiration_weeks == 4
+    assert active_config.max_expiration == "2026-04-17"
+
+
+def test_run_fetch_max_expiration_override_can_disable_filter(tmp_path: Path):
+    """run_fetch(max_expiration_weeks=0) should disable the max-expiration filter."""
+    from opx_chain import fetcher  # pylint: disable=import-outside-toplevel
+
+    backend = MemoryBackend()
+    config = make_runtime_config(
+        storage_enabled=True,
+        max_expiration_weeks=14,
+        max_expiration="2026-06-30",
+    )
+    patches = _fetcher_patches(tmp_path, config, backend)
+
+    with ExitStack() as stack:
+        mocks = [stack.enter_context(p) for p in patches]
+        fetcher.run_fetch(max_expiration_weeks=0)
+
+    mock_set_config = mocks[6]
+    set_call = mock_set_config.call_args_list[0]
+    active_config = set_call[0][0]
+    assert active_config.max_expiration_weeks == 0
+    assert active_config.max_expiration is None
+
+
 def test_check_positions_falls_back_to_scan_when_disabled(tmp_path: Path):
     """opx-check must fall back to directory scanning when storage is disabled."""
     from opx_chain import check_positions as cp  # pylint: disable=import-outside-toplevel

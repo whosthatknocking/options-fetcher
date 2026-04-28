@@ -2,7 +2,7 @@
 
 import argparse
 from dataclasses import replace
-from datetime import datetime
+from datetime import datetime, timedelta
 import fcntl
 import hashlib
 import json
@@ -78,6 +78,20 @@ def apply_cli_overrides(config, args):
     if args.disable_filters:
         return replace(config, enable_filters=False), "filters_enable=false"
     return config, None
+
+
+def _with_max_expiration_weeks(config, max_expiration_weeks: int):
+    """Return config with the expiration-window source and derived date in sync."""
+    max_expiration = (
+        None
+        if max_expiration_weeks == 0
+        else (config.today + timedelta(weeks=max_expiration_weeks)).isoformat()
+    )
+    return replace(
+        config,
+        max_expiration_weeks=max_expiration_weeks,
+        max_expiration=max_expiration,
+    )
 
 
 def format_file_size(byte_count):
@@ -409,7 +423,7 @@ def run_fetch(
         if tickers is not None:
             config = replace(config, tickers=tuple(tickers))
         if max_expiration_weeks is not None:
-            config = replace(config, max_expiration_weeks=max_expiration_weeks)
+            config = _with_max_expiration_weeks(config, max_expiration_weeks)
         if stale_quote_seconds is not None:
             config = replace(config, stale_quote_seconds=stale_quote_seconds)
         set_runtime_config_override(config)
