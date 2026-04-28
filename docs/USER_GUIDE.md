@@ -254,7 +254,7 @@ The file is re-read on every run. If the file does not exist or cannot be parsed
 
 If you need a one-off override, pass `opx-fetch --positions /path/to/positions.csv`. That changes only the file path used for that process; it does not change `filters_enable`, and it does not affect later runs.
 
-The default positions path is user-local and outside version control — place your own export there without risk of committing personal data. The expected format is a standard Fidelity brokerage export. Stock rows use a plain ticker in the Symbol column; option rows use a leading dash followed by the OCC-style symbol:
+The default positions path is user-local and outside version control — place your own export there without risk of committing personal data. The expected format is a standard Fidelity brokerage export. Stock rows use a plain ticker in the Symbol column; option rows use Fidelity's leading-dash option shorthand in the Symbol column (`-TICKERYYMMDDCSTRIKE` or `-TICKERYYMMDDPSTRIKE`). Do not provide full OCC padded-strike symbols such as `-AAPL261016C00230000`; the positions parser expects Fidelity's plain decimal strike format such as `-AAPL261016C230`.
 
 ```
 Account Number,Account Name,Symbol,Description,...,Type

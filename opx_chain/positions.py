@@ -52,6 +52,10 @@ def _parse_option_symbol(raw: str) -> OptionPositionKey | None:
     if not m:
         return None
     ticker, yy, mm, dd, cp, strike_str = m.groups()
+    if strike_str.isdigit() and len(strike_str) == 8:
+        # Fidelity exports use a plain decimal strike; OCC uses an 8-digit
+        # strike scaled by 1000, which this parser intentionally does not decode.
+        return None
     return OptionPositionKey(
         ticker=ticker,
         expiration_date=f"20{yy}-{mm}-{dd}",

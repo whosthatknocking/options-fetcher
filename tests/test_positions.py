@@ -55,6 +55,17 @@ def test_load_positions_parses_option_keys(tmp_path):
     ) in result.option_keys
 
 
+def test_load_positions_rejects_occ_padded_option_symbols(tmp_path):
+    """Full OCC symbols should not be misread as Fidelity shorthand strikes."""
+    path = write_positions_csv(tmp_path, """\
+        Account Number,Account Name,Symbol,Description,Quantity,Last Price,Last Price Change,Current Value,Today's Gain/Loss Dollar,Today's Gain/Loss Percent,Total Gain/Loss Dollar,Total Gain/Loss Percent,Percent Of Account,Cost Basis Total,Average Cost Basis,Type
+        Z1,INDIVIDUAL, -AAPL261016C00230000,AAPL OCT 16 2026 $230 CALL,-1,$1.00,$0.00,-$100.00,,,,,,,,,Margin,
+    """)
+    result = load_positions(path)
+
+    assert result.option_keys == frozenset()
+
+
 def test_load_positions_excludes_cash_and_pending(tmp_path):
     """SPAXX and Pending activity rows are silently skipped."""
     path = write_positions_csv(tmp_path, """\
