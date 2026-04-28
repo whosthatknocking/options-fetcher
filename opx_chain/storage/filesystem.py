@@ -88,6 +88,17 @@ class FilesystemBackend:
         with path.open() as fh:
             return json.load(fh)
 
+    def _run_has_ticker(self, run_id: str, ticker: str) -> bool:
+        try:
+            data = self._read_run(run_id)
+        except (OSError, json.JSONDecodeError):
+            return False
+        expected = ticker.upper()
+        return any(
+            str(row.get("ticker", "")).upper() == expected
+            for row in data.get("ticker_results", [])
+        )
+
     def _write_run(self, run_id: str, data: dict) -> None:
         path = self._run_path(run_id)
         path.parent.mkdir(parents=True, exist_ok=True)
@@ -241,7 +252,7 @@ class FilesystemBackend:
         provider: str | None = None,
         since: datetime | None = None,
         until: datetime | None = None,
-        ticker: str | None = None,  # pylint: disable=unused-argument
+        ticker: str | None = None,
     ) -> list[DatasetRecord]:
         """Return dataset records from meta files, newest first."""
         if not self._runs_dir.exists():
@@ -264,6 +275,8 @@ class FilesystemBackend:
             if since is not None and record.created_at < since:
                 continue
             if until is not None and record.created_at > until:
+                continue
+            if ticker is not None and not self._run_has_ticker(record.run_id, ticker):
                 continue
             results.append(record)
             if len(results) >= limit:

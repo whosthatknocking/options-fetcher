@@ -314,24 +314,30 @@ class SqliteIndexedBackend:
         provider: str | None = None,
         since: datetime | None = None,
         until: datetime | None = None,
-        ticker: str | None = None,  # pylint: disable=unused-argument
+        ticker: str | None = None,
     ) -> list[DatasetRecord]:
         """Return dataset records from SQLite, newest first."""
-        sql = "SELECT * FROM datasets"
+        sql = "SELECT d.* FROM datasets d"
         params: list = []
         conditions: list[str] = []
         if provider is not None:
-            conditions.append("provider = ?")
+            conditions.append("d.provider = ?")
             params.append(provider)
         if since is not None:
-            conditions.append("created_at >= ?")
+            conditions.append("d.created_at >= ?")
             params.append(_dt_to_str(since))
         if until is not None:
-            conditions.append("created_at <= ?")
+            conditions.append("d.created_at <= ?")
             params.append(_dt_to_str(until))
+        if ticker is not None:
+            conditions.append(
+                "EXISTS (SELECT 1 FROM ticker_results tr "
+                "WHERE tr.run_id = d.run_id AND UPPER(tr.ticker) = UPPER(?))"
+            )
+            params.append(ticker)
         if conditions:
             sql += " WHERE " + " AND ".join(conditions)
-        sql += " ORDER BY created_at DESC LIMIT ?"
+        sql += " ORDER BY d.created_at DESC LIMIT ?"
         params.append(limit)
         with self._open_connection() as conn:
             rows = conn.execute(sql, params).fetchall()

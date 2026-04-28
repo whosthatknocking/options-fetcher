@@ -57,6 +57,21 @@ def _write(backend: SqliteIndexedBackend, run_id: str, rows: int = 3, provider: 
     )
 
 
+def _record_ticker(backend: SqliteIndexedBackend, run_id: str, ticker: str) -> None:
+    backend.record_ticker_result(
+        run_id,
+        TickerFetchResult(
+            ticker=ticker,
+            raw_row_count=50,
+            normalized_row_count=48,
+            kept_row_count=40,
+            filtered_row_count=8,
+            expiration_count=4,
+            status="ok",
+        ),
+    )
+
+
 # ---------------------------------------------------------------------------
 # Protocol satisfaction
 # ---------------------------------------------------------------------------
@@ -235,6 +250,21 @@ def test_list_datasets_filter_provider(tmp_path: Path):
 
     assert len(results) == 1
     assert results[0].provider == "yfinance"
+
+
+def test_list_datasets_filter_ticker(tmp_path: Path):
+    """list_datasets must filter by ticker before applying the limit."""
+    backend = _make_backend(tmp_path)
+    tsla_run_id = backend.create_run(_make_context(tickers=("TSLA",)))
+    _record_ticker(backend, tsla_run_id, "TSLA")
+    tsla_record = _write(backend, tsla_run_id)
+    aapl_run_id = backend.create_run(_make_context(tickers=("AAPL",)))
+    _record_ticker(backend, aapl_run_id, "AAPL")
+    _write(backend, aapl_run_id)
+
+    results = backend.list_datasets(limit=1, ticker="tsla")
+
+    assert [record.dataset_id for record in results] == [tsla_record.dataset_id]
 
 
 def test_write_dataset_links_run(tmp_path: Path):

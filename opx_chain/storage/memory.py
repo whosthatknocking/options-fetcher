@@ -112,7 +112,7 @@ class MemoryBackend:
         provider: str | None = None,
         since: datetime | None = None,
         until: datetime | None = None,
-        ticker: str | None = None,  # pylint: disable=unused-argument
+        ticker: str | None = None,
     ) -> list[DatasetRecord]:
         """Return datasets in reverse chronological order, newest first."""
         results = list(reversed(self._datasets))
@@ -122,6 +122,15 @@ class MemoryBackend:
             results = [r for r in results if r.created_at >= since]
         if until is not None:
             results = [r for r in results if r.created_at <= until]
+        if ticker is not None:
+            expected = ticker.upper()
+            results = [
+                record for record in results
+                if any(
+                    row.ticker.upper() == expected
+                    for row in self._ticker_results.get(record.run_id, [])
+                )
+            ]
         return results[:limit]
 
     def get_dataset(self, dataset_id: str) -> DatasetHandle:
