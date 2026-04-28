@@ -164,7 +164,29 @@ Current missing-key behavior:
 
 ### 5.1 Shared Provider Contract
 
-Providers implement a shared interface and map vendor payloads into the canonical schema.
+Providers implement `opx_chain.providers.base.DataProvider` and map vendor payloads into the canonical schema.
+
+Canonical runtime interface:
+
+```python
+class DataProvider(ABC):
+    def prepare_ticker_fetch(self, ticker: str) -> None: ...
+    @property
+    def external_logger_names(self) -> tuple[str, ...]: ...
+    def debug_dump_payload(self, ticker: str, label: str, payload) -> Path | None: ...
+    def load_ticker_events(self, ticker: str) -> dict: ...
+    def load_underlying_snapshot(self, ticker: str) -> dict: ...
+    def list_option_expirations(self, ticker: str) -> list[str]: ...
+    def load_option_chain(self, ticker: str, expiration_date: str) -> OptionChainFrames: ...
+    def normalize_option_frame(
+        self,
+        df: pd.DataFrame,
+        underlying_price: float,
+        expiration_date: str,
+        option_type: str,
+        ticker: str,
+    ) -> pd.DataFrame: ...
+```
 
 Shared contract rules:
 

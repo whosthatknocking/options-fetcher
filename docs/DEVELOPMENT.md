@@ -48,6 +48,17 @@ Runtime-generated files live under the XDG base directories rather than the repo
 
 The runtime uses exactly one active provider per run. The selected provider is recorded in `data_source`, and shared code paths keep the exported CSV pinned to the canonical column set documented in the user guide.
 
+Runtime interface:
+
+- `DataProvider.prepare_ticker_fetch`
+- `DataProvider.external_logger_names`
+- `DataProvider.debug_dump_payload`
+- `DataProvider.load_ticker_events`
+- `DataProvider.load_underlying_snapshot`
+- `DataProvider.list_option_expirations`
+- `DataProvider.load_option_chain`
+- `DataProvider.normalize_option_frame`
+
 Provider rules:
 
 - provider-native values should populate canonical columns when the semantics match
