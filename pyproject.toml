@@ -40,7 +40,7 @@ opx-check = "opx_chain.check_positions:main"
 include = ["opx_chain*"]
 
 [tool.setuptools.package-data]
-opx_chain = ["viewer_static/*"]
+opx_chain = ["viewer_static/*", "docs/*.md"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

@@ -1,0 +1,394 @@
+# opx User Guide
+
+`opx` downloads near-term option chains, enriches them with pricing and screening metrics, writes a timestamped CSV, and serves the local Options Screener UI for inspection.
+
+## Overview
+
+- Fetches call and put chains for configured tickers
+- Filters out zero-bid and wide-spread contracts before export
+- Limits strikes to a configurable band around spot
+- Computes Greeks, expected move, ROM-style metrics, option scoring, and volatility context
+- Writes a timestamped CSV plus an append-only run log
+- Includes the local Options Screener for exploring the output interactively
+
+The output is designed to be data-focused rather than decision-focused. It does not decide whether to close, roll, or open positions. Instead, it produces a richer dataset that can support those decisions elsewhere.
+
+Warning: Yahoo Finance quote timestamps can lag, and the collected option or underlying data may be stale. Sparse or empty option-chain results are especially common near the regular market open because Yahoo data is delayed and cached, option markets may not have fully formed yet, the `yfinance` API is scraping-based and can be unreliable, and immediate post-open liquidity is often thin. Always check the freshness fields in the CSV or browser before relying on the output for trading decisions.
+
+Warning: Massive options support for this project requires a Massive account with an options plan that exposes the option snapshot data, a usable underlying price, and quote access when you expect `bid` and `ask` to be populated. `Options Basic` does not expose the required access, `Options Starter` is the entry point for delayed options data, and lower tiers may still leave this app with trades but no quote fields. In practice, `bid` and `ask` access may require Massive's highest-cost quote-enabled options plan. Confirm your plan includes the quote and underlying-price coverage you expect before treating the output as current market data.
+
+Warning: Market Data support requires a Market Data account and API token. The provider uses the official `marketdata-sdk-py` client and currently pulls one full options chain plus a stock-quote snapshot per ticker fetch sequence, with additional event requests for earnings and dividends. Market Data's Free Forever tier is 24 hours delayed for both stock and options data, so this provider is not suitable for current-session option monitoring unless your plan includes fresher access.
+
+## Quick Start
+
+```
+python -m venv .venv
+source .venv/bin/activate
+python -m pip install --upgrade pip
+python -m pip install -e .
+mkdir -p "${XDG_CONFIG_HOME:-$HOME/.config}/opx-chain"
+cp config/example.toml "${XDG_CONFIG_HOME:-$HOME/.config}/opx-chain/config.toml"
+opx-fetch
+opx-view
+```
+
+For local development tools, install the optional extras instead:
+
+```
+python -m pip install -e ".[dev]"
+python -m playwright install
+```
+
+Then open `http://127.0.0.1:8000` in your browser.
+
+## Running
+
+Fetch data with `opx-fetch`.
+
+You can force the shared post-download filter toggle for a single run without editing `$XDG_CONFIG_HOME/opx-chain/config.toml` (default `~/.config/opx-chain/config.toml`):
+
+```bash
+opx-fetch --disable-filters
+opx-fetch --enable-filters
+```
+
+These flags override `settings.filters_enable` only for that process. If neither flag is passed, the fetcher uses the configured `filters_enable` value.
+
+You can also override the positions-file path for one run:
+
+```bash
+opx-fetch --positions /path/to/runs/<run_id>/positions.csv
+```
+
+When `--positions` is omitted, the fetcher still defaults to `$XDG_DATA_HOME/opx-chain/positions.csv` (default `~/.local/share/opx-chain/positions.csv`). If the override path does not exist or cannot be parsed, the run continues without position-aware ticker expansion or filter bypass, matching the existing graceful fallback behavior.
+
+To verify configuration, positions parsing, and storage reachability without provider API calls or output writes, run:
+
+```bash
+opx-fetch --dry-run
+```
+
+Dry runs print the tickers that would be fetched, the resolved positions source, and the storage backend check. They do not create run logs, datasets, sidecars, or provider requests.
+
+Check that every option position in the default positions file appears in the latest output CSV:
+
+```bash
+opx-check
+```
+
+The output line shows the path and when the file was fetched:
+
+```
+Output:    ~/.local/share/opx-chain/runs/<run-id>/output/<uuid>.parquet  (fetched 2026-04-22 07:07)
+```
+
+Pass `--positions` or `--output` to override the defaults:
+
+```bash
+opx-check --positions ~/my-positions.csv --output /path/to/artifact.parquet
+```
+
+`opx-check` exits with code `0` when all positions are found and `1` when any are missing, so it can be used in scripts.
+For found contracts, it also prints `passes_primary_screen=true|false`; when the value is `false`, the output prints a short indented `failed_filters:` list with the exact failed filter names such as `filters_max_spread_pct_of_mid` or `filters_min_open_interest`.
+
+Use `--freshness` when you want `opx-check` to recompute current option-chain age from the saved quote timestamps in the CSV:
+
+```bash
+opx-check --freshness
+```
+
+That summary is intentionally different from the stored `quote_age_seconds`, `underlying_price_age_seconds`, `is_stale_quote`, and `is_stale_underlying_price` fields. Those CSV columns describe freshness at fetch time. `opx-check --freshness` compares `option_quote_time` and `underlying_price_time` to the current clock when you run the command, so an old file will show `stale_now_rows` and `stale_underlyings_now` even if the fetch-time stale flags were `false` when the file was created.
+
+Run the local viewer:
+
+```
+opx-view
+```
+
+Open the viewer and launch the page in your default browser:
+
+```bash
+opx-view --open
+```
+
+The viewer binds to `settings.viewer_host` and `settings.viewer_port` from `$XDG_CONFIG_HOME/opx-chain/config.toml` (default `~/.config/opx-chain/config.toml`) by default. `OPX_VIEWER_HOST` and `OPX_VIEWER_PORT` still override those values when you need a one-off launch target.
+
+The viewer includes:
+
+- a sortable table for the exported CSV
+- a sortable `Positions` table for the default XDG data-dir positions file with the same row-detail modal used by the dataset table
+- shareable tab URLs using `?tab=table`, `?tab=positions`, `?tab=summary`, `?tab=chain`, or `?tab=readme`
+- hover descriptions on column headers pulled from this guide
+- a file selector for available CSV exports
+- a `Reference` tab that shows the CSV field documentation
+- an `Overview` tab for per-ticker snapshot metrics plus `Most Profitable`, `Moderate Risk`, `High Conviction Call`, and `High Conviction Put` highlights
+- a `Chain View` tab for per-ticker/per-expiration chart inspection of chain structure, premium, theta efficiency, and screening/liquidity summaries
+- a dark/light mode toggle
+- header filters, including numeric min/max filtering for numeric columns
+- dataset-level header cards for shared run metrics such as premium reference method
+- interactive chart marks in `Chain View` that show hover tooltips and open the existing row-detail modal on click
+
+## Output
+
+`$XDG_DATA_HOME/opx-chain/` (defaulting to `~/.local/share/opx-chain/`) is the
+standard data directory used by all three tools.
+
+When storage is enabled (`[storage] enable = true`), each run gets its own
+subdirectory under `runs/`:
+
+```text
+~/.local/share/opx-chain/runs/<run-id>/run.json           # run metadata
+~/.local/share/opx-chain/runs/<run-id>/output/<uuid>.parquet   # dataset_format = "parquet" (default)
+~/.local/share/opx-chain/runs/<run-id>/output/<uuid>.csv       # dataset_format = "csv"
+```
+
+When `also_write_csv = true` (the default), a timestamped CSV is also written
+inside the run's output directory alongside a `_latest` copy:
+
+```text
+~/.local/share/opx-chain/runs/<run-id>/output/options_engine_output_YYYYMMDD_HHMMSS.csv
+~/.local/share/opx-chain/runs/options_engine_output_latest.csv
+```
+
+When storage is disabled, the timestamped CSV and latest copy land directly in `runs/`:
+
+```text
+~/.local/share/opx-chain/runs/options_engine_output_YYYYMMDD_HHMMSS.csv
+~/.local/share/opx-chain/runs/options_engine_output_latest.csv
+```
+
+All three tools (`opx-fetch`, `opx-check`, `opx-view`) discover artifacts through the
+storage backend automatically — no `--data-dir` flag is needed.
+
+Operational details that are not row-specific are written to:
+
+```text
+~/.local/state/opx-chain/logs/opx_runs.log
+```
+
+The run log records:
+
+- per-expiration raw row counts returned by the active provider before app-side filtering
+- per-ticker raw contract totals and kept-row totals
+- provider-library error messages routed into the same log file when available
+- final CSV row count and file size after export
+
+If `debug_dump_provider_payload = true`, raw provider payload JSON files are also written under `debug_dump_dir`. Relative `debug_dump_dir` values resolve under `$XDG_DATA_HOME/opx-chain/`; the default `debug_dump_dir = "debug"` becomes `~/.local/share/opx-chain/debug/`. Massive dumps are written per API response page with filenames such as `massive_TSLA_snapshot_chain_page_001_...json`, while yfinance dumps use labels such as `yfinance_TSLA_option_chain_2026-04-17_...json`.
+
+## Configuration
+
+Runtime configuration lives in `$XDG_CONFIG_HOME/opx-chain/config.toml` (default `~/.config/opx-chain/config.toml`). If the file is absent, the app falls back to built-in defaults and uses `yfinance` as the active provider.
+
+If individual config values are missing, malformed, or out of range, the loader applies built-in defaults for those fields and the fetcher prints the resolved values plus any fallback warnings at startup.
+
+Start from the tracked example at [`config/example.toml`](config/example.toml):
+
+```
+mkdir -p "${XDG_CONFIG_HOME:-$HOME/.config}/opx-chain"
+cp config/example.toml "${XDG_CONFIG_HOME:-$HOME/.config}/opx-chain/config.toml"
+```
+
+Then update provider placeholders in `$XDG_CONFIG_HOME/opx-chain/config.toml` (default `~/.config/opx-chain/config.toml`) for the provider you actually use.
+
+### Shared Settings
+
+These settings apply regardless of which provider is active.
+
+#### Shared Runtime Defaults
+
+- `TICKERS = ["TSLA", "NVDA", "UBER", "MSFT", "GOOGL", "ORCL", "PLTR"]`: list of underlyings to fetch.
+- `data_provider = "yfinance"`: provider implementation used by the fetch pipeline.
+
+#### Shared Filtering Defaults
+
+- `FILTERS_MIN_BID = disabled`: bid minimum filter is disabled by default (previously `0.50`). Set it to a positive value to exclude contracts below that premium threshold.
+- `FILTERS_MIN_OPEN_INTEREST = 100`: baseline open-interest threshold used by the screening metrics.
+- `FILTERS_MIN_VOLUME = 10`: baseline daily volume threshold used by the screening metrics.
+- `FILTERS_MAX_SPREAD_PCT_OF_MID = 0.25`: excludes contracts with spreads wider than 25% of midpoint.
+- `FILTERS_MAX_STRIKE_DISTANCE_PCT = 0.35`: keeps only strikes within +/-35% of the latest underlying price.
+
+#### Shared Analytics and Freshness Defaults
+
+- `RISK_FREE_RATE = 0.045`: risk-free rate used in Black-Scholes calculations.
+- `HV_LOOKBACK_DAYS = 30`: lookback window for historical volatility.
+- `TRADING_DAYS_PER_YEAR = 252`: annualization factor for volatility.
+- `STALE_QUOTE_SECONDS = 10800`: staleness threshold for option and underlying quotes.
+- `MAX_EXPIRATION_WEEKS = 34`: caps expirations to roughly the next eight months by default. Set it to any positive week count you want, or omit it (set to `null`) to disable the expiration cap entirely.
+
+#### Shared Viewer Defaults
+
+- `VIEWER_HOST = "127.0.0.1"`: default bind host used by `opx-view`.
+- `VIEWER_PORT = 8000`: default bind port used by `opx-view`.
+
+#### Shared Scoring Defaults
+
+- `OPTION_SCORE_INCOME_WEIGHT = 0.30`: weight on premium-per-day in the shared `option_score`.
+- `OPTION_SCORE_LIQUIDITY_WEIGHT = 0.30`: weight on spread, open interest, and volume in the shared `option_score`.
+- `OPTION_SCORE_RISK_WEIGHT = 0.25`: weight on the side-aware delta target in the shared `option_score`.
+- `OPTION_SCORE_EFFICIENCY_WEIGHT = 0.15`: weight on days-to-expiration and strike-distance efficiency in the shared `option_score`.
+
+#### Shared Diagnostics Defaults
+
+- `FILTERS_ENABLE = true`: applies the zero-bid, strike-band, and wide-spread row filters after download. Set it to `false` when you want the raw downloaded rows to remain in the exported dataset while still computing metrics and quality flags.
+- `ENABLE_VALIDATION = true`: runs shared row-level validation before post-download filtering and file-level validation before export. Set it to `false` when you want to skip validation findings and validation summary output entirely.
+- `DEBUG_DUMP_PROVIDER_PAYLOAD = false`: when `true`, dump raw provider payloads to JSON before normalization so missing fields can be inspected directly.
+- `DEBUG_DUMP_DIR = "debug"`: directory used for raw provider payload dumps. Relative values are resolved under `$XDG_DATA_HOME/opx-chain/`, so the default becomes `~/.local/share/opx-chain/debug/`. Dump filenames are prefixed with the provider name.
+
+### Provider Settings
+
+These settings are only used by the matching provider.
+
+#### Massive Settings
+
+- `[providers.massive].api_key`: Massive API key used only when `data_provider = "massive"`.
+- `providers.massive.snapshot_page_limit = 250`: per-request Massive snapshot page size used for the option-chain endpoint. Values above `250` are clamped because the Massive snapshot endpoint rejects larger limits.
+- `providers.massive.request_interval_seconds = 12.0`: minimum delay between Massive HTTP requests. This default is conservative for delayed-plan usage.
+
+#### Market Data Settings
+
+- `providers.marketdata.api_token`: Market Data API token used only when `data_provider = "marketdata"`.
+- `providers.marketdata.mode`: optional Market Data SDK mode. Valid values are `live`, `cached`, and `delayed`. If omitted, the SDK uses its default behavior for your account and plan. Mode support and effective recency depend on the plan you are paying for; the Free Forever tier remains 24 hours delayed.
+- `providers.marketdata.max_retries = 3`: retry count for Market Data rate-limit responses (`429`). The provider uses exponential backoff and honors `Retry-After` when the upstream response supplies it.
+- `providers.marketdata.request_interval_seconds = 0.0`: optional minimum spacing between Market Data HTTP requests. Leave it at `0.0` unless you want extra pacing for low-credit or low-throughput plans.
+
+### Portfolio Positions (`$XDG_DATA_HOME/opx-chain/positions.csv`)
+
+At the start of every run, `opx-fetch` reads `$XDG_DATA_HOME/opx-chain/positions.csv` (default `~/.local/share/opx-chain/positions.csv`, Fidelity export format) to drive two behaviors:
+
+- **Stock ticker expansion** _(always active)_: all stock tickers found in the file are added to the effective fetch list for the run, even if they are not listed in `settings.tickers`. Today's expiration is also kept for these tickers so that options expiring on the current date are available for position matching.
+- **Option filter bypass** _(active only when filters are enabled)_: any option contract that matches a row in the file (by ticker, expiration date, option type, and strike) bypasses all post-download quality filters. These rows are always included in the output regardless of bid, spread, or strike-distance settings. When `filters_enable = false` or `--disable-filters` is used, all rows are already kept unconditionally so the bypass has no effect.
+
+The file is re-read on every run. If the file does not exist or cannot be parsed, the run continues with normal behavior.
+
+If you need a one-off override, pass `opx-fetch --positions /path/to/positions.csv`. That changes only the file path used for that process; it does not change `filters_enable`, and it does not affect later runs.
+
+The default positions path is user-local and outside version control — place your own export there without risk of committing personal data. The expected format is a standard Fidelity brokerage export. Stock rows use a plain ticker in the Symbol column; option rows use Fidelity's leading-dash option shorthand in the Symbol column (`-TICKERYYMMDDCSTRIKE` or `-TICKERYYMMDDPSTRIKE`). Do not provide full OCC padded-strike symbols such as `-AAPL261016C00230000`; the positions parser expects Fidelity's plain decimal strike format such as `-AAPL261016C230`.
+
+```
+Account Number,Account Name,Symbol,Description,...,Type
+XXXXXXXXX,SAMPLE ACCOUNT,AAPL,APPLE INC,,,,,,,,,,,,Margin,
+XXXXXXXXX,SAMPLE ACCOUNT,MSFT,MICROSOFT CORP,,,,,,,,,,,,Margin,
+XXXXXXXXX,SAMPLE ACCOUNT, -AAPL261016C230,AAPL OCT 16 2026 $230 CALL,,,,,,,,,,,,Margin,
+XXXXXXXXX,SAMPLE ACCOUNT, -MSFT260918P380,MSFT SEP 18 2026 $380 PUT,,,,,,,,,,,,Margin,
+```
+
+### Common Configuration Tasks
+
+- Change `tickers` when you want a different watchlist.
+- Switch `data_provider` when you want to use a different market-data implementation.
+- Tighten or loosen the `filters_*` threshold values when you want a narrower or broader tradability filter.
+- Set `filters_enable = false` when you want to keep rows that would normally be removed by the shared post-download filters.
+- Use `opx-fetch --disable-filters` or `opx-fetch --enable-filters` when you want a one-off override without changing config.
+- Set `enable_validation = false` when you want to skip shared row/file validation and suppress validation summaries.
+- Turn on `debug_dump_provider_payload = true` when you need to inspect the raw provider payload and confirm whether fields such as `last_quote`, `underlying_asset`, or Yahoo chain columns were present before normalization.
+- Change `max_expiration_weeks` when you want a shorter or longer expiration window, or set it to `null` to disable the max-expiration cutoff entirely.
+- Change `viewer_host` or `viewer_port` when you want the local viewer to bind to a different interface or port by default.
+- Change the shared analytics or freshness settings only if you want different modeling assumptions.
+- Change the `option_score_*_weight` values when you want to tune the shared score without changing code. The weights must stay non-negative and their total must stay positive or the loader falls back to defaults.
+
+### Provider-Specific Configuration Tasks
+
+- Add `[providers.massive].api_key` only when you select `massive`.
+- Raise or lower `snapshot_page_limit` and `request_interval_seconds` to match your Massive plan and tolerance for throttling.
+
+- Add `[providers.marketdata].api_token` only when you select `marketdata`.
+- Set `[providers.marketdata].mode` when you want to force the Market Data SDK to use `live`, `cached`, or `delayed` mode instead of the provider default. Keep in mind that account entitlements still control whether fresher data is actually available.
+- Raise or lower `[providers.marketdata].max_retries` when you want a different tolerance for rate-limit retries.
+- Set `[providers.marketdata].request_interval_seconds` above `0.0` only when you want additional client-side pacing on top of the provider's normal serial request flow.
+
+## Filtering
+
+The shared filters are a first-pass dataset gate that runs before ranking and overview heuristics.
+
+Objective:
+
+- The filtering layer exists to trim the downloaded chain into a more tradable, reviewable dataset.
+- Its job is to remove contracts that are clearly too stale, too illiquid, too far from spot, or too weakly quoted to be useful for practical short-premium screening.
+- It is not intended to define the strategy by itself; it is an executability and relevance gate ahead of scoring.
+
+How to interpret it:
+
+- Tightening the filters makes the dataset narrower and more execution-focused, usually at the cost of excluding speculative or thinly traded contracts.
+- Loosening the filters broadens coverage, but it also increases the chance that high-ranking rows are driven by weak quotes, sparse volume, or far-from-spot strikes.
+- `filters_enable = false` is mainly useful when you want to inspect the raw normalized rows while still computing the same metrics and quality flags. `opx-fetch --disable-filters` is the one-run equivalent.
+
+## Scoring
+
+`option_score` is a shared derived field in the `0-100` range. It is intended for relative ranking within one run, not as an absolute trading recommendation.
+
+Objective:
+
+- The score exists to rank contracts by overall short-premium attractiveness after normalization, so the top of the dataset favors contracts that look richer, cleaner, and more executable rather than merely highest premium.
+- It is meant to compress several competing concerns into one sortable signal: income quality, liquidity and spread quality, practical time-to-expiration, and side-aware risk posture.
+- It is not meant to predict market direction, replace discretionary thesis work, or tell you whether a contract is universally "good" outside the current run and current filter set.
+
+How to interpret it:
+
+- Higher `option_score` means the row looks stronger on a combined basis, not just on one metric like raw ROM or premium.
+- A lower score does not necessarily mean the contract is unusable; it usually means some combination of spread quality, strike positioning, DTE profile, or risk efficiency is weaker than the higher-ranked alternatives in the same export.
+- `delta_safety_pct` is exported as a simple inverse-delta companion to `delta_abs`. Higher values mean lower absolute delta and typically more distance from an at-the-money or in-the-money risk profile.
+- `final_score` is the better summary value when you want the score after the row-level validation adjustment has been applied.
+
+Current scoring logic:
+
+- Expected fill: when `bid_ask_spread_pct_of_mid <= 10%`, scoring assumes fill at midpoint; otherwise it uses `bid + 25%` of the spread
+- Income: `premium_per_day` is now derived from `expected_fill_price / max(days_to_expiration, 1)`, then adjusted by implied volatility using a `0.30` IV baseline to form `iv_adjusted_premium_per_day`
+- Income scoring: penalizes `iv_adjusted_premium_per_day < 0.01` as near useless, then linearly rewards it from `0.01` up to the `0.05` cap
+- Execution: `spread_score` uses prompt tiers with `<10% => 100`, `10-15% => 85`, `15-25%` decaying linearly to `0`, and `>25% => 0`
+- DTE: `dte_score` uses prompt tiers with `7-21 => 100`, `5-6 => 75`, `22-35 => 85`, `36-45 => 65`, `<5 => 25`, and `>45 => 30`
+- Risk: delta is the only score-driving risk input; `probability_itm` is used only to validate whether the risk model looks inconsistent
+- Final score: `score_validation` flags `DISCREPANCY`, `UNDERVALUED`, or `ALIGNED`, and `final_score` applies the corresponding adjustment on top of `option_score`
+
+Default top-level weights:
+
+- `option_score_income_weight = 0.30`
+- `option_score_liquidity_weight = 0.30`
+- `option_score_risk_weight = 0.25`
+- `option_score_efficiency_weight = 0.15`
+
+The four `option_score_*_weight` settings control how much each component contributes to the final score. All weights must be non-negative, and their total must stay positive or the loader falls back to the built-in defaults shown above.
+
+## Event Risk
+
+The fetcher fetches upcoming corporate event data once per ticker and broadcasts it to every option row for that underlying. This gives every exported row a consistent view of near-term catalyst exposure regardless of expiration or strike.
+
+What is fetched:
+
+- Next upcoming earnings report date, whether that date is estimated, and how many days away it is
+- Next upcoming ex-dividend date, how many days away it is, and the associated per-share dividend amount
+
+Derived flags:
+
+- `next_earnings_date_is_estimated`: True when the provider documents the next earnings date as estimated rather than confirmed
+- `earnings_within_5d`: True when an earnings report falls within 5 calendar days and before the contract expires
+- `earnings_within_10d`: True when an earnings report falls within 10 calendar days and before the contract expires
+- `ex_div_within_3d`: True when an ex-dividend date falls within 3 calendar days and before the contract expires
+- `event_risk_score`: Composite 0–100 score combining earnings and dividend proximity for events that occur before expiration. Earnings within 5 days contributes 60 points, within 10 days contributes 30 points. Ex-dividend within 3 days adds 40 points, within 7 days adds 20 points. The total is capped at 100.
+
+Provider availability:
+
+- `marketdata`: earnings and dividend event data are fetched for every ticker
+  - `next_earnings_date_is_estimated` is currently `True` whenever Market Data returns a future earnings date that has not already reported, because the upstream endpoint documents future `reportDate` values as estimates and `opx-chain` skips stale rows whose `reportedEPS` is already populated
+  - day counts for expirations, earnings, and ex-dividend dates use the `America/New_York` market calendar so the CSV stays aligned with Market Data's documented date semantics
+- `yfinance`: event fields are populated on a best-effort basis from Yahoo metadata (`info`, `calendar`, and `dividends`) when future dates are available; blanks remain expected when Yahoo does not expose usable future event data
+- `massive`: all event fields are blank for this provider
+
+How to use it:
+
+- Use `earnings_within_5d` or `earnings_within_10d` as a hard filter when screening contracts that must not span an earnings announcement
+- Use `ex_div_within_3d` as a warning for short call positions on dividend-paying underlyings where early assignment risk is elevated near the ex-date
+- Use `event_risk_score` as a secondary ranking signal to down-weight otherwise attractive contracts that carry near-term binary event exposure
+
+## Runtime Behavior
+
+- The fetcher prints the config path it read, whether the file exists, and the full set of resolved runtime values it will apply.
+- When `--enable-filters` or `--disable-filters` is passed, the fetcher prints a `CLI overrides:` block before the resolved config so the one-run override is explicit.
+- Secret values are redacted in that output. For example, the Massive API key and Market Data token are shown as `set` or `not set`, never in plaintext.
+- When a config value is invalid and a code default is used instead, the fetcher prints a `Config fallbacks:` block so the override is visible.
+- When validation is enabled, the fetcher prints a validation summary after combining ticker frames and before writing the CSV.
+- During each ticker fetch, the fetcher prints provider progress, expiration counts, raw provider row counts, normalized-versus-kept row counts, and final kept rows so empty runs can be traced to a specific stage.
+- The fetcher exits with status `0` after a successful CSV write, `1` when the run finishes with `No data fetched.`, and `130` when interrupted with `Ctrl+C`.
+
+## Field Reference
+
+The full CSV field reference lives in [FIELD_REFERENCE.md](FIELD_REFERENCE.md).

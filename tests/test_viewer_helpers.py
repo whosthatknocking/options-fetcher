@@ -1,4 +1,5 @@
 """Viewer helper tests for field descriptions, cards, and freshness metadata."""
+from importlib import resources
 from pathlib import Path
 import textwrap
 
@@ -23,6 +24,30 @@ def test_extract_field_descriptions_reads_current_user_guide_entries():
     assert "underlying_symbol" in descriptions
     assert "delta_safety_pct" in descriptions
     assert "Use it to group rows by underlying." in descriptions["underlying_symbol"]
+
+
+def test_viewer_packaged_docs_match_canonical_docs():
+    """Wheel-installed viewer docs should stay synced with source docs."""
+    for filename in ("FIELD_REFERENCE.md", "USER_GUIDE.md"):
+        canonical = (Path(__file__).resolve().parents[1] / "docs" / filename).read_text(
+            encoding="utf-8"
+        )
+        packaged = (
+            resources.files("opx_chain")
+            .joinpath("docs", filename)
+            .read_text(encoding="utf-8")
+        )
+
+        assert packaged == canonical
+
+
+def test_viewer_markdown_loader_falls_back_to_packaged_docs(tmp_path: Path):
+    """Non-editable installs should not require a sibling source-tree docs directory."""
+    missing_source_doc = tmp_path / "missing" / "FIELD_REFERENCE.md"
+
+    markdown = viewer.load_viewer_markdown("FIELD_REFERENCE.md", missing_source_doc)
+
+    assert "underlying_symbol" in markdown
 
 
 def test_hidden_columns_have_no_orphaned_roll_yield_fields():

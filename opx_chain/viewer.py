@@ -14,6 +14,7 @@ import webbrowser
 from datetime import datetime
 from http import HTTPStatus
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
+from importlib import resources
 from pathlib import Path
 from typing import Any, TypedDict
 from urllib.parse import parse_qs, urlparse
@@ -237,12 +238,23 @@ def resolve_positions_path(path: Path | None = None) -> Path:
 
 def load_user_guide_text() -> str:
     """Load the user guide for field descriptions and the reference tab."""
-    return USER_GUIDE_PATH.read_text(encoding="utf-8")
+    return load_viewer_markdown("USER_GUIDE.md", USER_GUIDE_PATH)
 
 
 def load_field_reference_markdown() -> str:
     """Load the dedicated field-reference document used by the viewer."""
-    return FIELD_REFERENCE_PATH.read_text(encoding="utf-8")
+    return load_viewer_markdown("FIELD_REFERENCE.md", FIELD_REFERENCE_PATH)
+
+
+def load_viewer_markdown(filename: str, source_path: Path) -> str:
+    """Load viewer markdown from source checkout or packaged fallback docs."""
+    if source_path.exists():
+        return source_path.read_text(encoding="utf-8")
+    return (
+        resources.files("opx_chain")
+        .joinpath("docs", filename)
+        .read_text(encoding="utf-8")
+    )
 
 
 def extract_field_descriptions() -> dict[str, str]:
