@@ -778,6 +778,8 @@ def describe_runtime_config(config: RuntimeConfig) -> tuple[str, ...]:
             f"  providers.marketdata.api_token: {token_label}",
             f"  providers.marketdata.mode: {config.marketdata_mode or 'default'}",
             f"  providers.marketdata.max_retries: {config.marketdata_max_retries}",
+            f"  providers.marketdata.request_interval_seconds: "
+            f"{config.marketdata_request_interval_seconds}",
         ]
     elif config.data_provider == "massive":
         key_label = "set" if config.massive_api_key else "not set"

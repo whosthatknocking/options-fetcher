@@ -519,6 +519,33 @@ api_token = "market-token"
     assert "" not in lines
 
 
+def test_describe_runtime_config_includes_marketdata_request_interval(tmp_path: Path):
+    """Market Data provider output should show every pacing-related setting."""
+    config_path = tmp_path / "config.toml"
+    config_path.write_text(
+        """
+[settings]
+data_provider = "marketdata"
+
+[providers.marketdata]
+api_token = "market-token"
+mode = "cached"
+max_retries = 5
+request_interval_seconds = 0.5
+""".strip(),
+        encoding="utf-8",
+    )
+
+    lines = describe_runtime_config(load_runtime_config(config_path))
+
+    assert "Provider:" in lines
+    assert "  providers.marketdata.api_token: set" in lines
+    assert "  providers.marketdata.mode: cached" in lines
+    assert "  providers.marketdata.max_retries: 5" in lines
+    assert "  providers.marketdata.request_interval_seconds: 0.5" in lines
+    assert all("market-token" not in line for line in lines)
+
+
 def test_provider_registry_exposes_supported_providers():
     """The shared factory registry should enumerate the supported provider set."""
     assert set(PROVIDER_FACTORIES) == {"yfinance", "massive", "marketdata"}
