@@ -151,6 +151,7 @@ def test_main_prints_passes_primary_screen_true_for_passing_row(tmp_path, capsys
             "passes_primary_screen": True,
         },
     ])
+    os.utime(out_path, (1_776_000_000, 1_776_000_000))
 
     result = main(["--positions", str(pos_path), "--output", str(out_path)])
 
@@ -158,6 +159,7 @@ def test_main_prints_passes_primary_screen_true_for_passing_row(tmp_path, capsys
     assert result == 0
     assert f"Positions: {pos_path}" in captured.out
     assert f"Output:    {out_path}" in captured.out
+    assert "(fetched 2026-04-12T13:20:00Z)" in captured.out
     assert "passes_primary_screen=true" in captured.out
     assert "failed_filters:" not in captured.out
 

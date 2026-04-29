@@ -1,5 +1,5 @@
 """CLI tool to verify positions coverage and summarize saved-chain freshness."""
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from numbers import Real
 
@@ -29,6 +29,12 @@ def find_latest_output(runs_dir: Path = RUNS_DIR) -> Path | None:
 def _utc_now() -> pd.Timestamp:
     """Return the current UTC timestamp."""
     return pd.Timestamp.now(tz="UTC")
+
+
+def _format_file_mtime_utc(path: Path) -> str:
+    """Format a file mtime as an explicit UTC timestamp."""
+    modified_at = datetime.fromtimestamp(path.stat().st_mtime, tz=timezone.utc)
+    return modified_at.strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
 def check_positions(positions_path: Path | None = None, output_path: Path | None = None):
@@ -420,7 +426,7 @@ def main(argv=None):
     print(f"Positions: {positions_path}")
     print(
         f"Output:    {resolved_output}  "
-        f"(fetched {datetime.fromtimestamp(resolved_output.stat().st_mtime):%Y-%m-%d %H:%M})"
+        f"(fetched {_format_file_mtime_utc(resolved_output)})"
     )
     print()
 
