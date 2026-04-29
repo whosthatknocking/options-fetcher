@@ -147,6 +147,20 @@ Current Market Data request controls:
 - default `0.0`
 - adds client-side spacing between Market Data HTTP requests when needed
 
+Current Massive request controls:
+
+- optional `[providers.massive].snapshot_page_limit`
+- default `250`, clamped to the provider endpoint maximum
+- optional `[providers.massive].request_interval_seconds`
+- default `12.0`
+- adds client-side spacing between Massive HTTP requests
+- optional `[providers.massive].max_retries`
+- default `3`
+- used for snapshot-chain retry handling with exponential backoff
+- optional `[providers.massive].backoff_seconds`
+- default `1.0`
+- controls the base delay for Massive retry backoff
+
 Rules:
 
 - secrets must never be stored in tracked repo files
@@ -219,7 +233,8 @@ Implemented Massive behavior:
 
 - request page size is configurable and clamped to the endpoint maximum of `250`
 - request spacing is configurable through `providers.massive.request_interval_seconds`
-- provider retry handling uses exponential backoff with 3 retries
+- retry count is configurable through `providers.massive.max_retries`
+- retry exponential-backoff base is configurable through `providers.massive.backoff_seconds`
 - request caller header identifies the app as `opx-chain/<version>`
 - fetch progress prints per-page API status and row-count progress
 - raw per-response payload dumps can be written under `$XDG_DATA_HOME/opx-chain/debug/`

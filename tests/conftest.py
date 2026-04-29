@@ -60,6 +60,8 @@ def make_runtime_config(**overrides):
         "marketdata_request_interval_seconds": 0.0,
         "massive_snapshot_page_limit": 250,
         "massive_request_interval_seconds": 12.0,
+        "massive_max_retries": 3,
+        "massive_backoff_seconds": 1.0,
         "config_path": Path("/tmp/opx.toml"),
         "storage_enabled": False,
         "storage_backend": "filesystem",

@@ -52,6 +52,8 @@ DEFAULT_VIEWER_PORT = 8000
 MAX_MASSIVE_SNAPSHOT_PAGE_LIMIT = 250
 DEFAULT_MASSIVE_SNAPSHOT_PAGE_LIMIT = MAX_MASSIVE_SNAPSHOT_PAGE_LIMIT
 DEFAULT_MASSIVE_REQUEST_INTERVAL_SECONDS = 12.0
+DEFAULT_MASSIVE_MAX_RETRIES = 3
+DEFAULT_MASSIVE_BACKOFF_SECONDS = 1.0
 DEFAULT_DEBUG_DUMP_PROVIDER_PAYLOAD = False
 _RUNTIME_CONFIG_OVERRIDE: RuntimeConfig | None = None
 US_MARKET_TIMEZONE = ZoneInfo("America/New_York")
@@ -93,6 +95,8 @@ class RuntimeConfig:
     marketdata_request_interval_seconds: float
     massive_snapshot_page_limit: int
     massive_request_interval_seconds: float
+    massive_max_retries: int
+    massive_backoff_seconds: float
     debug_dump_provider_payload: bool
     debug_dump_dir: Path
     viewer_host: str
@@ -535,6 +539,22 @@ def load_runtime_config(config_path: Path | None = None) -> RuntimeConfig:  # py
             warnings=massive_warnings,
             validator=lambda value: value >= 0,
         ),
+        massive_max_retries=_resolve_config_value(
+            massive_settings.get("max_retries"),
+            field_name="providers.massive.max_retries",
+            default=DEFAULT_MASSIVE_MAX_RETRIES,
+            coercer=_coerce_int,
+            warnings=massive_warnings,
+            validator=lambda value: value >= 0,
+        ),
+        massive_backoff_seconds=_resolve_config_value(
+            massive_settings.get("backoff_seconds"),
+            field_name="providers.massive.backoff_seconds",
+            default=DEFAULT_MASSIVE_BACKOFF_SECONDS,
+            coercer=_coerce_float,
+            warnings=massive_warnings,
+            validator=lambda value: value >= 0,
+        ),
         config_path=resolved_path,
         storage_enabled=_resolve_config_value(
             storage_settings.get("enable"),
@@ -730,6 +750,8 @@ def describe_runtime_config(config: RuntimeConfig) -> tuple[str, ...]:
             f"  providers.massive.snapshot_page_limit: {config.massive_snapshot_page_limit}",
             f"  providers.massive.request_interval_seconds: "
             f"{config.massive_request_interval_seconds}",
+            f"  providers.massive.max_retries: {config.massive_max_retries}",
+            f"  providers.massive.backoff_seconds: {config.massive_backoff_seconds}",
         ]
     if config.storage_enabled:
         lines += [

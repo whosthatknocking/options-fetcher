@@ -28,8 +28,6 @@ from opx_chain.providers.base import (
 )
 from opx_chain.utils import coerce_float, normalize_timestamp
 
-MAX_RETRIES = 3
-BACKOFF_SECONDS = 1.0
 DEFAULT_SNAPSHOT_PAGE_LIMIT = DEFAULT_MASSIVE_SNAPSHOT_PAGE_LIMIT
 CALLER_USER_AGENT = f"opx-chain/{SCRIPT_VERSION}"
 
@@ -127,7 +125,7 @@ class MassiveProvider(DataProvider):
     @lru_cache(maxsize=1)
     def _client(self) -> RESTClient:
         """Construct the official Massive REST client once per provider instance."""
-        client = RESTClient(api_key=self._api_key(), retries=MAX_RETRIES, pagination=True)
+        client = RESTClient(api_key=self._api_key(), retries=self._max_retries(), pagination=True)
         client.headers["User-Agent"] = CALLER_USER_AGENT
         client.client.headers["User-Agent"] = CALLER_USER_AGENT
         client.client.request = self._wrap_logged_request(client.client.request)
@@ -141,6 +139,14 @@ class MassiveProvider(DataProvider):
     def _request_interval_seconds(self) -> float:
         """Return the configured minimum spacing between Massive HTTP requests."""
         return get_runtime_config().massive_request_interval_seconds
+
+    def _max_retries(self) -> int:
+        """Return the configured Massive retry count."""
+        return get_runtime_config().massive_max_retries
+
+    def _backoff_seconds(self) -> float:
+        """Return the configured Massive retry backoff base."""
+        return get_runtime_config().massive_backoff_seconds
 
     def _wrap_rate_limited_get(self, wrapped_get):
         """Enforce minimum spacing between underlying Massive client HTTP calls."""
@@ -216,7 +222,9 @@ class MassiveProvider(DataProvider):
         self._active_debug_ticker = ticker.upper()
 
         try:
-            for attempt in range(MAX_RETRIES + 1):
+            max_retries = self._max_retries()
+            backoff_seconds = self._backoff_seconds()
+            for attempt in range(max_retries + 1):
                 try:
                     results = self._client().list_snapshot_options_chain(
                         ticker.upper(),
@@ -231,9 +239,9 @@ class MassiveProvider(DataProvider):
                             "Massive authentication failed. Check [providers.massive] api_key "
                             f"in {get_default_config_path()}."
                         ) from exc
-                    if attempt == MAX_RETRIES:
+                    if attempt == max_retries:
                         raise
-                    time.sleep(BACKOFF_SECONDS * (2 ** attempt))
+                    time.sleep(backoff_seconds * (2 ** attempt))
 
             raise RuntimeError(
                 "Massive snapshot request failed without a response."

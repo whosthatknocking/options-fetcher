@@ -51,6 +51,8 @@ cache_dir = "cache"     # resolved under $XDG_CACHE_HOME/opx-chain/
 api_key = "replace-me"
 snapshot_page_limit = 250
 request_interval_seconds = 12.0
+max_retries = 3
+backoff_seconds = 1.0
 
 [providers.marketdata]
 api_token = "replace-me"

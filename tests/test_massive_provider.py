@@ -11,7 +11,7 @@ from massive.rest.models.snapshot import OptionContractSnapshot
 from conftest import make_runtime_config
 from opx_chain import fetch
 from opx_chain.greeks import compute_greeks
-from opx_chain.config import reset_runtime_config
+from opx_chain.config import reset_runtime_config, set_runtime_config_override
 from opx_chain.providers.base import ProviderAuthenticationError
 from opx_chain.providers.massive import (
     CALLER_USER_AGENT, DEFAULT_SNAPSHOT_PAGE_LIMIT, MassiveProvider,
@@ -331,6 +331,44 @@ def test_massive_provider_client_sets_app_user_agent(monkeypatch):
     assert client.client.headers["User-Agent"] == CALLER_USER_AGENT
 
 
+def test_massive_provider_client_uses_configured_retry_count(monkeypatch):
+    """The official Massive client retry count should come from runtime config."""
+    created = {}
+    set_runtime_config_override(make_runtime_config(massive_max_retries=5))
+    monkeypatch.setattr(
+        "opx_chain.providers.massive.get_provider_credentials",
+        lambda _provider_name: {"api_key": "secret"},
+    )
+
+    class FakeInnerClient:  # pylint: disable=too-few-public-methods
+        """Minimal inner HTTP client surface used by the provider wrapper."""
+
+        def __init__(self):
+            self.headers = {}
+
+        def request(self, method, url, *args, **kwargs):  # pylint: disable=unused-argument
+            """Placeholder request function."""
+            return None
+
+    class FakeRESTClient:  # pylint: disable=too-few-public-methods
+        """Minimal Massive RESTClient stand-in."""
+
+        def __init__(self, api_key, retries, pagination):
+            created["api_key"] = api_key
+            created["retries"] = retries
+            created["pagination"] = pagination
+            self.headers = {}
+            self.client = FakeInnerClient()
+            self._get = lambda *args, **kwargs: None  # pylint: disable=protected-access
+
+    monkeypatch.setattr("opx_chain.providers.massive.RESTClient", FakeRESTClient)
+    provider = MassiveProvider()
+
+    provider._client()  # pylint: disable=protected-access
+
+    assert created == {"api_key": "secret", "retries": 5, "pagination": True}
+
+
 def test_massive_provider_normalization_keeps_provider_greeks(monkeypatch):
     """Provider-native Massive greeks should survive normalization for later shared use."""
     monkeypatch.setattr(
@@ -358,6 +396,9 @@ def test_massive_provider_normalization_keeps_provider_greeks(monkeypatch):
 def test_massive_provider_retries_rate_limits(monkeypatch):
     """Rate-limited Massive requests should retry with exponential backoff."""
     provider = MassiveProvider()
+    set_runtime_config_override(
+        make_runtime_config(massive_max_retries=2, massive_backoff_seconds=0.25)
+    )
     attempts = {"count": 0}
     seen_params = []
     sleeps = []
@@ -390,7 +431,7 @@ def test_massive_provider_retries_rate_limits(monkeypatch):
     assert payload == ()
     assert attempts["count"] == 3
     assert seen_params == [{"limit": DEFAULT_SNAPSHOT_PAGE_LIMIT}] * 3
-    assert sleeps == [1.0, 2.0]
+    assert sleeps == [0.25, 0.5]
 
 
 def test_massive_prepare_ticker_fetch_clears_snapshot_cache(monkeypatch):

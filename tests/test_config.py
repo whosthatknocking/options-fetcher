@@ -34,6 +34,8 @@ def test_load_runtime_config_uses_defaults_when_file_is_absent(tmp_path: Path):
     assert config.option_score_efficiency_weight == 0.15
     assert config.massive_snapshot_page_limit == 250
     assert config.massive_request_interval_seconds == 12.0
+    assert config.massive_max_retries == 3
+    assert config.massive_backoff_seconds == 1.0
     assert config.debug_dump_provider_payload is False
     assert config.debug_dump_dir == get_default_debug_dump_dir()
     assert config.viewer_host == "127.0.0.1"
@@ -109,6 +111,8 @@ max_expiration_weeks = 8
 api_key = "secret"
 snapshot_page_limit = 250
 request_interval_seconds = 1.5
+max_retries = 4
+backoff_seconds = 2.5
 
 [providers.marketdata]
 api_token = "market-token"
@@ -146,6 +150,8 @@ request_interval_seconds = 0.75
     assert config.marketdata_request_interval_seconds == 0.75
     assert config.massive_snapshot_page_limit == 250
     assert config.massive_request_interval_seconds == 1.5
+    assert config.massive_max_retries == 4
+    assert config.massive_backoff_seconds == 2.5
     assert not any("providers.massive" in warning for warning in config.config_warnings)
     assert not any("providers.marketdata" in warning for warning in config.config_warnings)
 
@@ -377,6 +383,38 @@ request_interval_seconds = -1
     assert config.massive_request_interval_seconds == 12.0
     assert any("request_interval_seconds" in warning for warning in config.config_warnings)
 
+    negative_retries = tmp_path / "negative-retries.toml"
+    negative_retries.write_text(
+        """
+[settings]
+data_provider = "massive"
+
+[providers.massive]
+api_key = "secret"
+max_retries = -1
+""".strip(),
+        encoding="utf-8",
+    )
+    config = load_runtime_config(negative_retries)
+    assert config.massive_max_retries == 3
+    assert any("max_retries" in warning for warning in config.config_warnings)
+
+    negative_backoff = tmp_path / "negative-backoff.toml"
+    negative_backoff.write_text(
+        """
+[settings]
+data_provider = "massive"
+
+[providers.massive]
+api_key = "secret"
+backoff_seconds = -0.5
+""".strip(),
+        encoding="utf-8",
+    )
+    config = load_runtime_config(negative_backoff)
+    assert config.massive_backoff_seconds == 1.0
+    assert any("backoff_seconds" in warning for warning in config.config_warnings)
+
     bad_debug_toggle = tmp_path / "bad-debug-toggle.toml"
     bad_debug_toggle.write_text(
         """
@@ -565,6 +603,35 @@ request_interval_seconds = 0.5
     assert "  providers.marketdata.max_retries: 5" in lines
     assert "  providers.marketdata.request_interval_seconds: 0.5" in lines
     assert all("market-token" not in line for line in lines)
+
+
+def test_describe_runtime_config_includes_massive_retry_settings(tmp_path: Path):
+    """Massive provider output should show every retry and pacing setting."""
+    config_path = tmp_path / "config.toml"
+    config_path.write_text(
+        """
+[settings]
+data_provider = "massive"
+
+[providers.massive]
+api_key = "secret"
+snapshot_page_limit = 125
+request_interval_seconds = 2.0
+max_retries = 4
+backoff_seconds = 1.5
+""".strip(),
+        encoding="utf-8",
+    )
+
+    lines = describe_runtime_config(load_runtime_config(config_path))
+
+    assert "Provider:" in lines
+    assert "  providers.massive.api_key: set" in lines
+    assert "  providers.massive.snapshot_page_limit: 125" in lines
+    assert "  providers.massive.request_interval_seconds: 2.0" in lines
+    assert "  providers.massive.max_retries: 4" in lines
+    assert "  providers.massive.backoff_seconds: 1.5" in lines
+    assert all("secret" not in line for line in lines)
 
 
 def test_provider_registry_exposes_supported_providers():

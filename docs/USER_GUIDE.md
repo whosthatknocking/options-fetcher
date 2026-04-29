@@ -245,6 +245,8 @@ These settings are only used by the matching provider.
 - `[providers.massive].api_key`: Massive API key used only when `data_provider = "massive"`.
 - `providers.massive.snapshot_page_limit = 250`: per-request Massive snapshot page size used for the option-chain endpoint. Values above `250` are clamped because the Massive snapshot endpoint rejects larger limits.
 - `providers.massive.request_interval_seconds = 12.0`: minimum delay between Massive HTTP requests. This default is conservative for delayed-plan usage.
+- `providers.massive.max_retries = 3`: retry count for Massive snapshot-chain requests.
+- `providers.massive.backoff_seconds = 1.0`: base exponential-backoff delay used between Massive snapshot retries.
 
 #### Market Data Settings
 
@@ -291,7 +293,7 @@ XXXXXXXXX,SAMPLE ACCOUNT, -MSFT260918P380,MSFT SEP 18 2026 $380 PUT,,,,,,,,,,,,M
 ### Provider-Specific Configuration Tasks
 
 - Add `[providers.massive].api_key` only when you select `massive`.
-- Raise or lower `snapshot_page_limit` and `request_interval_seconds` to match your Massive plan and tolerance for throttling.
+- Raise or lower `snapshot_page_limit`, `request_interval_seconds`, `max_retries`, and `backoff_seconds` to match your Massive plan and tolerance for throttling.
 
 - Add `[providers.marketdata].api_token` only when you select `marketdata`.
 - Set `[providers.marketdata].mode` when you want to force the Market Data SDK to use `live`, `cached`, or `delayed` mode instead of the provider default. Keep in mind that account entitlements still control whether fresher data is actually available.
