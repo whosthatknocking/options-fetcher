@@ -146,9 +146,13 @@ def _emit_fetch_info(message, logger=None):
 
 def _frame_value_count(frame, column):
     """Count non-null values for one column without assuming the column exists."""
-    if column not in frame.columns:
+    columns = (column,) if isinstance(column, str) else tuple(column)
+    available_columns = [name for name in columns if name in frame.columns]
+    if not available_columns:
         return 0
-    return int(frame[column].notna().sum())
+    if len(available_columns) == 1:
+        return int(frame[available_columns[0]].notna().sum())
+    return int(frame[available_columns].notna().any(axis=1).sum())
 
 
 def append_underlying_snapshot_fields(df, snapshot, fetched_at, stale_quote_seconds):
@@ -306,8 +310,9 @@ def fetch_ticker_option_chain(  # pylint: disable=too-many-locals,too-many-branc
             put_bid_count = _frame_value_count(chain.puts, "bid")
             call_ask_count = _frame_value_count(chain.calls, "ask")
             put_ask_count = _frame_value_count(chain.puts, "ask")
-            call_trade_count = _frame_value_count(chain.calls, "last_trade_price")
-            put_trade_count = _frame_value_count(chain.puts, "last_trade_price")
+            last_trade_columns = ("last_trade_price", "lastPrice", "last")
+            call_trade_count = _frame_value_count(chain.calls, last_trade_columns)
+            put_trade_count = _frame_value_count(chain.puts, last_trade_columns)
             _emit_fetch_info(
                 f"{ticker}: chain  {expiration_date}  rows={expiration_raw_count}",
                 logger=logger,

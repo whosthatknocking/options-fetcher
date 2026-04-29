@@ -211,6 +211,60 @@ def test_fetch_ticker_option_chain_logs_raw_provider_row_counts(monkeypatch, cap
     assert "raw_provider_rows=3 raw_expirations=1" in caplog.text
 
 
+def test_fetch_ticker_option_chain_counts_vendor_trade_aliases(monkeypatch, caplog):
+    """Raw diagnostics should count vendor-specific last-trade price columns."""
+
+    class AliasTradeProvider(StubProvider):
+        """Provider that uses yfinance/marketdata-style last-trade names."""
+
+        name = "alias"
+
+        def load_option_chain(self, ticker, expiration_date):
+            chain = super().load_option_chain(ticker, expiration_date)
+            return OptionChainFrames(
+                calls=chain.calls.rename(columns={"last_trade_price": "lastPrice"}),
+                puts=chain.puts.rename(columns={"last_trade_price": "last"}),
+            )
+
+        def normalize_option_frame(  # pylint: disable=too-many-arguments,too-many-positional-arguments
+            self,
+            df,
+            underlying_price,
+            expiration_date,
+            option_type,
+            ticker,
+        ):
+            frame = df.rename(
+                columns={
+                    "lastPrice": "last_trade_price",
+                    "last": "last_trade_price",
+                }
+            )
+            return super().normalize_option_frame(
+                frame,
+                underlying_price,
+                expiration_date,
+                option_type,
+                ticker,
+            )
+
+    monkeypatch.setattr(fetch, "get_data_provider", AliasTradeProvider)
+    monkeypatch.setattr(
+        fetch,
+        "get_runtime_config",
+        lambda: make_runtime_config(today=pd.Timestamp("2026-03-20").date()),
+    )
+
+    caplog.set_level("INFO", logger="opx_chain.run")
+    logger = logging.getLogger("opx_chain.run")
+
+    result = fetch.fetch_ticker_option_chain("TEST", logger=logger)
+
+    assert not result.empty
+    assert "provider=alias expiration=2026-04-17 status=raw_provider_rows" in caplog.text
+    assert "call_trade_rows=2 put_trade_rows=1" in caplog.text
+
+
 def test_fetch_ticker_option_chain_logs_skipped_when_provider_has_no_frames(
     monkeypatch, caplog
 ):
