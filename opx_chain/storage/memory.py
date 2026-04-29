@@ -49,6 +49,7 @@ class MemoryBackend:
             finished_at=None,
             status="running",
             provider=context.provider,
+            tickers=context.tickers,
             config_fingerprint=context.config_fingerprint,
             positions_fingerprint=context.positions_fingerprint,
             dataset_id=None,
@@ -142,7 +143,8 @@ class MemoryBackend:
             expected = ticker.upper()
             results = [
                 record for record in results
-                if any(
+                if expected in {symbol.upper() for symbol in self._runs[record.run_id].tickers}
+                or any(
                     row.ticker.upper() == expected
                     for row in self._ticker_results.get(record.run_id, [])
                 )

@@ -75,8 +75,9 @@ def test_memory_backend_satisfies_protocol():
 def test_create_run_returns_string_id():
     """create_run must return a non-empty string identifier."""
     backend = MemoryBackend()
-    run_id = backend.create_run(_make_context())
+    run_id = backend.create_run(_make_context(tickers=("TSLA", "NVDA")))
     assert isinstance(run_id, str) and run_id
+    assert backend.get_run(run_id).tickers == ("TSLA", "NVDA")
 
 
 def test_write_dataset_roundtrip():
@@ -166,6 +167,19 @@ def test_list_datasets_filter_ticker():
     tsla_record = _write(backend, tsla_run_id)
     aapl_run_id = backend.create_run(_make_context(tickers=("AAPL",)))
     _record_ticker(backend, aapl_run_id, "AAPL")
+    _write(backend, aapl_run_id)
+
+    results = backend.list_datasets(limit=1, ticker="tsla")
+
+    assert [record.dataset_id for record in results] == [tsla_record.dataset_id]
+
+
+def test_list_datasets_filter_ticker_uses_run_context_tickers():
+    """Ticker filtering should work before any per-ticker result rows are recorded."""
+    backend = MemoryBackend()
+    tsla_run_id = backend.create_run(_make_context(tickers=("TSLA",)))
+    tsla_record = _write(backend, tsla_run_id)
+    aapl_run_id = backend.create_run(_make_context(tickers=("AAPL",)))
     _write(backend, aapl_run_id)
 
     results = backend.list_datasets(limit=1, ticker="tsla")

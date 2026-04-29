@@ -18,6 +18,7 @@ class RunRecord:
     finished_at: datetime | None
     status: str  # pending | running | complete | failed | interrupted
     provider: str
+    tickers: tuple[str, ...]
     config_fingerprint: str
     positions_fingerprint: str
     dataset_id: str | None

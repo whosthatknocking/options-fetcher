@@ -205,6 +205,7 @@ run: RunRecord = backend.get_run(run_id)
 
 Returns the `RunRecord` for the given `run_id`. Raises `KeyError` when the run
 does not exist. Downstream consumers use this to retrieve
+`RunRecord.tickers` — the effective fetch universe for that run — and
 `RunRecord.positions_fingerprint` — the SHA-256 of the positions file that was
 active when the chain was fetched — for cross-checking against the consumer's
 own positions fingerprint.
@@ -214,6 +215,7 @@ own positions fingerprint.
 ```python
 records = backend.list_datasets(limit=1)
 run = backend.get_run(records[0].run_id)
+assert "TSLA" in run.tickers
 assert run.positions_fingerprint == pipeline_positions_fingerprint
 ```
 

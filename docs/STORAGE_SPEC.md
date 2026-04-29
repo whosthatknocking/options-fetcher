@@ -234,16 +234,19 @@ class RunRecord:
     finished_at: datetime | None
     status: str  # pending | running | complete | failed | interrupted
     provider: str
+    tickers: tuple[str, ...]     # effective fetch universe for this run
     config_fingerprint: str   # SHA-256 of the resolved config fields that affect output
     positions_fingerprint: str  # SHA-256 of the positions file bytes; empty string if absent
     dataset_id: str | None
     error_summary: str | None
 ```
 
-`config_fingerprint` covers the fields that affect fetch output: provider,
-tickers, expiration ceiling, filter settings, and scoring weights. It does not
-cover log paths or debug flags. Two runs with the same fingerprint and the same
-positions fingerprint should produce structurally comparable datasets.
+`tickers` records the effective fetch universe for this run, including configured
+tickers and stock tickers expanded from the positions file. `config_fingerprint`
+covers the fields that affect fetch output: provider, tickers, expiration
+ceiling, filter settings, and scoring weights. It does not cover log paths or
+debug flags. Two runs with the same fingerprint and the same positions
+fingerprint should produce structurally comparable datasets.
 
 `positions_fingerprint` is the SHA-256 of the raw positions file bytes. It changes
 when any held position changes, making it easy to attribute output differences to
@@ -419,7 +422,9 @@ current US/Eastern calendar day for the given provider and is used by
 `list_datasets` accepts optional filters so callers are not forced to load all
 records and filter in application code. Implementations that do not support
 server-side filtering may apply them in memory, but the interface must be stable
-from day one.
+from day one. The ticker filter is evaluated against the run's effective
+`RunRecord.tickers` list; legacy records without persisted run tickers may fall
+back to per-ticker result rows.
 
 ## 9. Concurrency and Run Lifecycle
 

@@ -104,6 +104,9 @@ class FilesystemBackend:
         except (OSError, json.JSONDecodeError):
             return False
         expected = ticker.upper()
+        run_tickers = {str(symbol).upper() for symbol in data.get("tickers", [])}
+        if expected in run_tickers:
+            return True
         return any(
             str(row.get("ticker", "")).upper() == expected
             for row in data.get("ticker_results", [])
@@ -194,6 +197,7 @@ class FilesystemBackend:
             "finished_at": None,
             "status": "running",
             "provider": context.provider,
+            "tickers": list(context.tickers),
             "config_fingerprint": context.config_fingerprint,
             "positions_fingerprint": context.positions_fingerprint,
             "dataset_id": None,
@@ -338,6 +342,7 @@ class FilesystemBackend:
             finished_at=_str_to_dt(data.get("finished_at")),
             status=data["status"],
             provider=data["provider"],
+            tickers=tuple(data.get("tickers", ())),
             config_fingerprint=data["config_fingerprint"],
             positions_fingerprint=data["positions_fingerprint"],
             dataset_id=data.get("dataset_id"),

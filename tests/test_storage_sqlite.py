@@ -108,11 +108,11 @@ def test_schema_initialises_on_first_connect(tmp_path: Path):
 def test_schema_migration_updates_version_and_applies_sql(tmp_path: Path, monkeypatch):
     """Existing databases must run migrations when the backend schema version advances."""
     _make_backend(tmp_path)
-    monkeypatch.setattr(sqlite_indexed_mod, "_SCHEMA_VERSION", 2)
+    monkeypatch.setattr(sqlite_indexed_mod, "_SCHEMA_VERSION", 3)
     monkeypatch.setattr(
         sqlite_indexed_mod,
         "_SCHEMA_MIGRATIONS",
-        {2: "ALTER TABLE runs ADD COLUMN migration_marker TEXT;"},
+        {3: "ALTER TABLE runs ADD COLUMN migration_marker TEXT;"},
     )
 
     _make_backend(tmp_path)
@@ -129,14 +129,14 @@ def test_schema_migration_updates_version_and_applies_sql(tmp_path: Path, monkey
     finally:
         conn.close()
 
-    assert version == "2"
+    assert version == "3"
     assert "migration_marker" in columns
 
 
 def test_schema_migration_fails_when_required_step_is_missing(tmp_path: Path, monkeypatch):
     """A schema-version bump without a migration must fail instead of silently reusing v1."""
     _make_backend(tmp_path)
-    monkeypatch.setattr(sqlite_indexed_mod, "_SCHEMA_VERSION", 2)
+    monkeypatch.setattr(sqlite_indexed_mod, "_SCHEMA_VERSION", 3)
     monkeypatch.setattr(sqlite_indexed_mod, "_SCHEMA_MIGRATIONS", {})
 
     with pytest.raises(RuntimeError, match="schema migration missing"):
@@ -150,11 +150,12 @@ def test_schema_migration_fails_when_required_step_is_missing(tmp_path: Path, mo
 def test_create_run_initial_status_is_running(tmp_path: Path):
     """Newly created run must have status=running."""
     backend = _make_backend(tmp_path)
-    run_id = backend.create_run(_make_context())
+    run_id = backend.create_run(_make_context(tickers=("TSLA", "NVDA")))
 
     run = backend.get_run(run_id)
     assert run.status == "running"
     assert run.finished_at is None
+    assert run.tickers == ("TSLA", "NVDA")
 
 
 def test_finalize_run_sets_status_complete(tmp_path: Path):
@@ -329,6 +330,19 @@ def test_list_datasets_filter_ticker(tmp_path: Path):
     tsla_record = _write(backend, tsla_run_id)
     aapl_run_id = backend.create_run(_make_context(tickers=("AAPL",)))
     _record_ticker(backend, aapl_run_id, "AAPL")
+    _write(backend, aapl_run_id)
+
+    results = backend.list_datasets(limit=1, ticker="tsla")
+
+    assert [record.dataset_id for record in results] == [tsla_record.dataset_id]
+
+
+def test_list_datasets_filter_ticker_uses_run_context_tickers(tmp_path: Path):
+    """Ticker filtering should work before any per-ticker result rows are recorded."""
+    backend = _make_backend(tmp_path)
+    tsla_run_id = backend.create_run(_make_context(tickers=("TSLA",)))
+    tsla_record = _write(backend, tsla_run_id)
+    aapl_run_id = backend.create_run(_make_context(tickers=("AAPL",)))
     _write(backend, aapl_run_id)
 
     results = backend.list_datasets(limit=1, ticker="tsla")

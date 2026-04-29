@@ -110,11 +110,12 @@ def test_create_run_writes_sidecar(tmp_path: Path):
 def test_create_run_initial_status_is_running(tmp_path: Path):
     """Newly created run sidecar must have status=running."""
     backend = _make_backend(tmp_path)
-    run_id = backend.create_run(_make_context())
+    run_id = backend.create_run(_make_context(tickers=("TSLA", "NVDA")))
 
     run = backend.get_run(run_id)
     assert run.status == "running"
     assert run.finished_at is None
+    assert run.tickers == ("TSLA", "NVDA")
 
 
 def test_finalize_run_sets_status_complete(tmp_path: Path):
@@ -289,6 +290,19 @@ def test_list_datasets_filter_ticker(tmp_path: Path):
     tsla_record = _write(backend, tsla_run_id)
     aapl_run_id = backend.create_run(_make_context(tickers=("AAPL",)))
     _record_ticker(backend, aapl_run_id, "AAPL")
+    _write(backend, aapl_run_id)
+
+    results = backend.list_datasets(limit=1, ticker="tsla")
+
+    assert [record.dataset_id for record in results] == [tsla_record.dataset_id]
+
+
+def test_list_datasets_filter_ticker_uses_run_context_tickers(tmp_path: Path):
+    """Ticker filtering should work before any per-ticker result rows are recorded."""
+    backend = _make_backend(tmp_path)
+    tsla_run_id = backend.create_run(_make_context(tickers=("TSLA",)))
+    tsla_record = _write(backend, tsla_run_id)
+    aapl_run_id = backend.create_run(_make_context(tickers=("AAPL",)))
     _write(backend, aapl_run_id)
 
     results = backend.list_datasets(limit=1, ticker="tsla")

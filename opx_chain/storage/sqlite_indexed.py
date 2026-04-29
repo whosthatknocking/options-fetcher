@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import hashlib
+import json
 import sqlite3
 from contextlib import contextmanager
 import uuid
@@ -40,6 +41,7 @@ CREATE TABLE IF NOT EXISTS runs (
     finished_at           TEXT,
     status                TEXT NOT NULL,
     provider              TEXT NOT NULL,
+    tickers               TEXT NOT NULL DEFAULT '[]',
     config_fingerprint    TEXT NOT NULL,
     positions_fingerprint TEXT NOT NULL,
     dataset_id            TEXT,
@@ -93,8 +95,10 @@ CREATE INDEX IF NOT EXISTS idx_datasets_run_id     ON datasets(run_id);
 CREATE INDEX IF NOT EXISTS idx_runs_status         ON runs(status);
 """
 
-_SCHEMA_VERSION = 1
-_SCHEMA_MIGRATIONS: dict[int, str] = {}
+_SCHEMA_VERSION = 2
+_SCHEMA_MIGRATIONS: dict[int, str] = {
+    2: "ALTER TABLE runs ADD COLUMN tickers TEXT NOT NULL DEFAULT '[]';",
+}
 
 
 def _now() -> datetime:
@@ -238,13 +242,14 @@ class SqliteIndexedBackend:
         with self._open_connection() as conn:
             conn.execute(
                 """INSERT INTO runs
-                   (run_id, started_at, finished_at, status, provider,
+                   (run_id, started_at, finished_at, status, provider, tickers,
                     config_fingerprint, positions_fingerprint, dataset_id, error_summary)
-                   VALUES (?, ?, NULL, 'running', ?, ?, ?, NULL, NULL)""",
+                   VALUES (?, ?, NULL, 'running', ?, ?, ?, ?, NULL, NULL)""",
                 (
                     run_id,
                     _dt_to_str(_now()),
                     context.provider,
+                    json.dumps(list(context.tickers)),
                     context.config_fingerprint,
                     context.positions_fingerprint,
                 ),
@@ -388,10 +393,12 @@ class SqliteIndexedBackend:
             conditions.append("d.created_at <= ?")
             params.append(_dt_to_str(until))
         if ticker is not None:
+            sql += " JOIN runs r ON r.run_id = d.run_id"
             conditions.append(
-                "EXISTS (SELECT 1 FROM ticker_results tr "
-                "WHERE tr.run_id = d.run_id AND UPPER(tr.ticker) = UPPER(?))"
+                "(UPPER(r.tickers) LIKE UPPER(?) OR EXISTS (SELECT 1 FROM ticker_results tr "
+                "WHERE tr.run_id = d.run_id AND UPPER(tr.ticker) = UPPER(?)))"
             )
+            params.append(f'%"{ticker}"%')
             params.append(ticker)
         if conditions:
             sql += " WHERE " + " AND ".join(conditions)
@@ -444,6 +451,7 @@ class SqliteIndexedBackend:
             finished_at=_str_to_dt(row["finished_at"]),
             status=row["status"],
             provider=row["provider"],
+            tickers=tuple(json.loads(row["tickers"] or "[]")),
             config_fingerprint=row["config_fingerprint"],
             positions_fingerprint=row["positions_fingerprint"],
             dataset_id=row["dataset_id"],
