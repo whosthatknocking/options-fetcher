@@ -369,7 +369,7 @@ def fetch_ticker_option_chain(  # pylint: disable=too-many-locals,too-many-branc
             if logger:
                 logger.warning(
                     (
-                        "ticker=%s provider=%s status=ok rows=0 expirations=0 "
+                        "ticker=%s provider=%s status=skipped rows=0 expirations=0 "
                         "raw_provider_rows=%s raw_expirations=%s"
                     ),
                     ticker,

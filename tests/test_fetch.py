@@ -211,6 +211,40 @@ def test_fetch_ticker_option_chain_logs_raw_provider_row_counts(monkeypatch, cap
     assert "raw_provider_rows=3 raw_expirations=1" in caplog.text
 
 
+def test_fetch_ticker_option_chain_logs_skipped_when_provider_has_no_frames(
+    monkeypatch, caplog
+):
+    """Empty provider payloads should use the same skipped status in logs and storage."""
+
+    class EmptyChainProvider(StubProvider):
+        """Provider that reports an expiration but no usable option rows."""
+
+        def load_option_chain(self, ticker, expiration_date):
+            assert ticker == "TEST"
+            assert expiration_date == "2026-04-17"
+            return OptionChainFrames(calls=pd.DataFrame(), puts=pd.DataFrame())
+
+    monkeypatch.setattr(fetch, "get_data_provider", EmptyChainProvider)
+    monkeypatch.setattr(
+        fetch,
+        "get_runtime_config",
+        lambda: make_runtime_config(today=pd.Timestamp("2026-03-20").date()),
+    )
+
+    caplog.set_level("WARNING", logger="opx_chain.run")
+    logger = logging.getLogger("opx_chain.run")
+
+    result = fetch.fetch_ticker_option_chain("TEST", logger=logger)
+
+    assert result.empty
+    assert result.attrs["fetch_status"] == "skipped"
+    assert (
+        "ticker=TEST provider=stub status=skipped rows=0 expirations=0 "
+        "raw_provider_rows=0 raw_expirations=1"
+    ) in caplog.text
+    assert "ticker=TEST provider=stub status=ok rows=0" not in caplog.text
+
+
 def test_fetch_ticker_option_chain_prepares_provider_before_loading(monkeypatch):
     """Each ticker fetch should mark a boundary for provider-local memory caches."""
     provider = StubProvider()
