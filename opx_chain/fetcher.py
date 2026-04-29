@@ -19,7 +19,7 @@ from opx_chain.config import (
 from opx_chain.export import prepare_export_frame, write_options_csv
 from opx_chain.fetch import fetch_ticker_option_chain
 from opx_chain.positions import DEFAULT_POSITIONS_PATH, load_positions
-from opx_chain.runlog import create_run_logger
+from opx_chain.runlog import create_run_logger, log_run_started
 from opx_chain.storage.factory import get_data_dir, get_storage_backend
 from opx_chain.storage.models import (
     ArtifactWrite,
@@ -276,22 +276,7 @@ def _do_fetch_with_lock_held(  # pylint: disable=too-many-branches,too-many-loca
             print("Config fallbacks:")
             for warning in config.config_warnings:
                 print(f"  {warning}")
-        logger.info(
-            "run_context today=%s max_expiration=%s provider=%s config_path=%s",
-            config.today,
-            config.max_expiration,
-            config.data_provider,
-            config.config_path,
-        )
-        if cli_override:
-            logger.info("cli_override %s", cli_override)
-        for line in describe_runtime_config(config):
-            logger.info("config_applied %s", line)
-        for warning in config.config_warnings:
-            logger.warning("config_fallback %s", warning)
-
         resolved_positions_path = (positions_path or DEFAULT_POSITIONS_PATH).expanduser()
-        logger.info("positions path: %s", resolved_positions_path)
         position_set = load_positions(resolved_positions_path)
         extra_tickers = tuple(
             t for t in sorted(position_set.tickers) if t not in set(config.tickers)
@@ -307,13 +292,6 @@ def _do_fetch_with_lock_held(  # pylint: disable=too-many-branches,too-many-loca
             print(f"Positions ({resolved_positions_path}): file not found, skipping")
         if extra_tickers:
             print(f"  Added from positions: {', '.join(extra_tickers)}")
-        logger.info(
-            "positions stocks=%s options=%s extra_tickers=%s",
-            len(position_set.stock_tickers),
-            len(position_set.option_keys),
-            len(extra_tickers),
-        )
-
         if dry_run:
             print()
             print(f"Would fetch {len(effective_tickers)} ticker(s): {', '.join(effective_tickers)}")
@@ -330,6 +308,27 @@ def _do_fetch_with_lock_held(  # pylint: disable=too-many-branches,too-many-loca
                 config_fingerprint=_config_fingerprint(config),
                 positions_fingerprint=_positions_fingerprint(resolved_positions_path),
             ))
+        log_run_started(logger, run_id=run_id, config=config)
+        logger.info(
+            "run_context today=%s max_expiration=%s provider=%s config_path=%s",
+            config.today,
+            config.max_expiration,
+            config.data_provider,
+            config.config_path,
+        )
+        if cli_override:
+            logger.info("cli_override %s", cli_override)
+        for line in describe_runtime_config(config):
+            logger.info("config_applied %s", line)
+        for warning in config.config_warnings:
+            logger.warning("config_fallback %s", warning)
+        logger.info("positions path: %s", resolved_positions_path)
+        logger.info(
+            "positions stocks=%s options=%s extra_tickers=%s",
+            len(position_set.stock_tickers),
+            len(position_set.option_keys),
+            len(extra_tickers),
+        )
 
         ticker_frames = []
         validation_findings = []

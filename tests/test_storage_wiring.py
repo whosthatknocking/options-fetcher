@@ -241,6 +241,29 @@ def test_fetcher_records_run_log_reference_artifact(tmp_path: Path):
     assert run_logs[0].location.endswith("/run_log_reference.json")
 
 
+def test_fetcher_logs_storage_run_id_on_start(tmp_path: Path):
+    """The shared run log must use the storage UUID, not a parallel timestamp id."""
+    from opx_chain import fetcher  # pylint: disable=import-outside-toplevel
+
+    backend = MemoryBackend()
+    config = make_runtime_config(storage_enabled=True)
+    patches = _fetcher_patches(tmp_path, config, backend)
+
+    with ExitStack() as stack:
+        mocks = [stack.enter_context(patcher) for patcher in patches]
+        result = fetcher.main([])
+
+    assert result == 0
+    run_id = backend.list_datasets()[0].run_id
+    logger = mocks[7].return_value[0]  # create_run_logger return value
+    run_started = [
+        call for call in logger.info.call_args_list
+        if call.args and call.args[0].startswith("run_started ")
+    ]
+    assert len(run_started) == 1
+    assert run_started[0].args[1] == run_id
+
+
 def test_fetcher_fails_run_on_no_data(tmp_path: Path):
     """When no data is fetched, the run must be marked as failed."""
     from opx_chain import fetcher  # pylint: disable=import-outside-toplevel

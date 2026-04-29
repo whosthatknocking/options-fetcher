@@ -35,8 +35,6 @@ def _migrate_legacy_shared_log(src, dst):
 
 def create_run_logger():
     """Create the append-only run logger and return it with its file path."""
-    config = get_runtime_config()
-    timestamp = datetime.now(tz=timezone.utc).strftime("%Y%m%d_%H%M%S")
     logs_dir = get_state_dir() / "logs"
     logs_dir.mkdir(parents=True, exist_ok=True)
     log_path = logs_dir / "opx_runs.log"
@@ -55,11 +53,19 @@ def create_run_logger():
     configure_external_loggers(file_handler)
 
     logger.info("=" * 80)
+    return logger, log_path
+
+
+def log_run_started(logger, run_id: str | None = None, config=None) -> str:
+    """Write the canonical run-start line and return the emitted run identifier."""
+    if config is None:
+        config = get_runtime_config()
+    resolved_run_id = run_id or datetime.now(tz=timezone.utc).strftime("%Y%m%d_%H%M%S")
     logger.info(
         "run_started run_id=%s script_version=%s provider=%s config_path=%s",
-        timestamp,
+        resolved_run_id,
         SCRIPT_VERSION,
         config.data_provider,
         config.config_path,
     )
-    return logger, log_path
+    return resolved_run_id

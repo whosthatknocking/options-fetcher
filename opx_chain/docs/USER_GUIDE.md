@@ -170,6 +170,8 @@ Operational details that are not row-specific are written to:
 
 The run log records:
 
+- the storage `run_id` for storage-backed runs, so run-log lines correlate with
+  run metadata and dataset artifacts without timestamp cross-reference
 - per-expiration raw row counts returned by the active provider before app-side filtering
 - per-ticker raw contract totals and kept-row totals
 - provider-library error messages routed into the same log file when available

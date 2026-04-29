@@ -6,7 +6,7 @@ from pathlib import Path
 import pytest
 
 from conftest import make_runtime_config
-from opx_chain.runlog import create_run_logger
+from opx_chain.runlog import create_run_logger, log_run_started
 
 
 @pytest.fixture(autouse=True)
@@ -52,6 +52,7 @@ def test_create_run_logger_routes_yfinance_errors_to_run_log(monkeypatch, tmp_pa
     _stub_runlog_dependencies(monkeypatch, tmp_path)
 
     logger, log_path = create_run_logger()
+    log_run_started(logger, run_id="storage-run-123")
     logging.getLogger("yfinance").error("remote request failed for TSLA")
 
     for handler in logger.handlers:
@@ -59,7 +60,7 @@ def test_create_run_logger_routes_yfinance_errors_to_run_log(monkeypatch, tmp_pa
 
     assert logger.name == "opx_chain.run"
     contents = log_path.read_text(encoding="utf-8")
-    assert "run_started" in contents
+    assert "run_started run_id=storage-run-123" in contents
     assert "remote request failed for TSLA" in contents
     assert log_path.name == "opx_runs.log"
     assert log_path == tmp_path / "state" / "logs" / "opx_runs.log"
@@ -73,6 +74,7 @@ def test_create_run_logger_migrates_legacy_data_log(monkeypatch, tmp_path):
     legacy_log.write_text("legacy entry\n", encoding="utf-8")
 
     logger, log_path = create_run_logger()
+    log_run_started(logger, run_id="storage-run-456")
     for handler in logger.handlers:
         handler.flush()
 
@@ -80,4 +82,4 @@ def test_create_run_logger_migrates_legacy_data_log(monkeypatch, tmp_path):
     assert not legacy_log.exists()
     contents = log_path.read_text(encoding="utf-8")
     assert "legacy entry" in contents
-    assert "run_started" in contents
+    assert "run_started run_id=storage-run-456" in contents
