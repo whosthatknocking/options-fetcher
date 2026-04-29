@@ -195,6 +195,10 @@ Then update provider placeholders in `$XDG_CONFIG_HOME/opx-chain/config.toml` (d
 ### Shared Settings
 
 These settings apply regardless of which provider is active.
+Invalid numeric values fall back to the defaults with config warnings. Values that
+represent minimums must be non-negative except `filters_min_bid`, which must be
+positive when set; percentage caps, lookback windows, and annualization days must
+be positive.
 
 #### Shared Runtime Defaults
 

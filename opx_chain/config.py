@@ -361,6 +361,7 @@ def load_runtime_config(config_path: Path | None = None) -> RuntimeConfig:  # py
             default=DEFAULT_MIN_BID,
             coercer=_coerce_float,
             warnings=warnings,
+            validator=lambda value: value is None or value > 0,
         ),
         min_open_interest=_resolve_config_value(
             settings.get("filters_min_open_interest"),
@@ -368,6 +369,7 @@ def load_runtime_config(config_path: Path | None = None) -> RuntimeConfig:  # py
             default=DEFAULT_MIN_OPEN_INTEREST,
             coercer=_coerce_int,
             warnings=warnings,
+            validator=lambda value: value >= 0,
         ),
         min_volume=_resolve_config_value(
             settings.get("filters_min_volume"),
@@ -375,6 +377,7 @@ def load_runtime_config(config_path: Path | None = None) -> RuntimeConfig:  # py
             default=DEFAULT_MIN_VOLUME,
             coercer=_coerce_int,
             warnings=warnings,
+            validator=lambda value: value >= 0,
         ),
         max_spread_pct_of_mid=_resolve_config_value(
             settings.get("filters_max_spread_pct_of_mid"),
@@ -382,6 +385,7 @@ def load_runtime_config(config_path: Path | None = None) -> RuntimeConfig:  # py
             default=DEFAULT_MAX_SPREAD_PCT_OF_MID,
             coercer=_coerce_float,
             warnings=warnings,
+            validator=lambda value: value > 0,
         ),
         risk_free_rate=_resolve_config_value(
             settings.get("risk_free_rate"),
@@ -389,6 +393,7 @@ def load_runtime_config(config_path: Path | None = None) -> RuntimeConfig:  # py
             default=DEFAULT_RISK_FREE_RATE,
             coercer=_coerce_float,
             warnings=warnings,
+            validator=lambda value: value >= 0,
         ),
         hv_lookback_days=_resolve_config_value(
             settings.get("hv_lookback_days"),
@@ -396,6 +401,7 @@ def load_runtime_config(config_path: Path | None = None) -> RuntimeConfig:  # py
             default=DEFAULT_HV_LOOKBACK_DAYS,
             coercer=_coerce_int,
             warnings=warnings,
+            validator=lambda value: value > 0,
         ),
         trading_days_per_year=_resolve_config_value(
             settings.get("trading_days_per_year"),
@@ -494,6 +500,7 @@ def load_runtime_config(config_path: Path | None = None) -> RuntimeConfig:  # py
             default=DEFAULT_MAX_STRIKE_DISTANCE_PCT,
             coercer=_coerce_float,
             warnings=warnings,
+            validator=lambda value: value > 0,
         ),
         max_expiration_weeks=_resolve_config_value(
             settings.get("max_expiration_weeks"),

@@ -4,6 +4,8 @@ import tomllib
 from datetime import date, datetime, timezone
 from pathlib import Path
 
+import pytest
+
 from opx_chain.config import describe_runtime_config, load_runtime_config, reset_runtime_config
 from opx_chain.paths import (
     get_default_debug_dump_dir,
@@ -303,6 +305,42 @@ option_score_efficiency_weight = 0
     assert config.option_score_risk_weight == 0.25
     assert config.option_score_efficiency_weight == 0.15
     assert any("option_score_*_weight" in warning for warning in config.config_warnings)
+
+
+@pytest.mark.parametrize(
+    ("setting", "raw_value", "attribute", "default_value"),
+    [
+        ("filters_min_bid", "0", "min_bid", None),
+        ("filters_min_open_interest", "-1", "min_open_interest", 100),
+        ("filters_min_volume", "-1", "min_volume", 10),
+        ("filters_max_spread_pct_of_mid", "0", "max_spread_pct_of_mid", 0.25),
+        ("risk_free_rate", "-0.01", "risk_free_rate", 0.045),
+        ("hv_lookback_days", "0", "hv_lookback_days", 30),
+        ("trading_days_per_year", "0", "trading_days_per_year", 252),
+        ("filters_max_strike_distance_pct", "0", "max_strike_distance_pct", 0.35),
+    ],
+)
+def test_load_runtime_config_defaults_invalid_numeric_settings(
+    tmp_path: Path,
+    setting: str,
+    raw_value: str,
+    attribute: str,
+    default_value,
+):
+    """Invalid numeric settings should warn and fall back to safe defaults."""
+    config_path = tmp_path / f"{setting}.toml"
+    config_path.write_text(
+        f"""
+[settings]
+{setting} = {raw_value}
+""".strip(),
+        encoding="utf-8",
+    )
+
+    config = load_runtime_config(config_path)
+
+    assert getattr(config, attribute) == default_value
+    assert any(setting in warning for warning in config.config_warnings)
 
 
 def test_get_data_provider_returns_provider_from_runtime_config(monkeypatch, tmp_path: Path):
