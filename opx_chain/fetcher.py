@@ -2,7 +2,7 @@
 
 import argparse
 from dataclasses import replace
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import fcntl
 import hashlib
 import json
@@ -390,7 +390,7 @@ def _do_fetch_with_lock_held(  # pylint: disable=too-many-branches,too-many-loca
 
         runs_dir = _runs_dir(config)
         write_csv = storage is None or config.storage_also_write_csv
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        timestamp = datetime.now(tz=timezone.utc).strftime("%Y%m%d_%H%M%S")
         if storage is not None and run_id is not None:
             csv_output_dir = runs_dir / run_id / "output"
         else:

@@ -2,6 +2,7 @@
 
 # pylint: disable=duplicate-code
 
+from datetime import datetime, timezone
 from pathlib import Path
 
 import pandas as pd
@@ -154,6 +155,56 @@ def test_main_uses_storage_dir_for_side_csv_and_lock(monkeypatch, tmp_path: Path
     assert written["path"].parent == custom_data_dir / "runs"
     assert (custom_data_dir / "runs" / "options_engine_output_latest.csv").exists()
     assert not (custom_data_dir / "fetcher.lock").exists()
+
+
+def test_main_uses_utc_timestamp_for_side_csv_filename(monkeypatch, tmp_path: Path):
+    """Timestamped side-write CSV names should align with UTC run-log timestamps."""
+
+    class FixedDateTime:  # pylint: disable=too-few-public-methods
+        """Datetime shim that fails if the code asks for local time."""
+
+        @classmethod
+        def now(cls, tz=None):
+            """Return a fixed UTC timestamp and assert timezone-aware usage."""
+            assert tz is timezone.utc
+            return datetime(2026, 4, 27, 17, 0, 0, tzinfo=timezone.utc)
+
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(main, "datetime", FixedDateTime)
+    monkeypatch.setattr(main, "FETCHER_LOCK_PATH", tmp_path / "fetcher.lock")
+    monkeypatch.setattr(main, "LOCKS_DIR", tmp_path)
+    monkeypatch.setattr(main, "RUNS_DIR", tmp_path / "output")
+    monkeypatch.setattr(
+        main,
+        "get_runtime_config",
+        lambda: make_runtime_config(tickers=("AAA",), storage_enabled=False),
+    )
+    monkeypatch.setattr(
+        main,
+        "create_run_logger",
+        lambda: (StubLogger(), Path("/tmp/opx-run.log")),
+    )
+    monkeypatch.setattr(
+        main,
+        "fetch_ticker_option_chain",
+        (
+            lambda ticker, logger=None, validation_findings=None,
+            filtered_row_counts=None, position_set=None: pd.DataFrame([make_export_row()])
+        ),
+    )
+
+    written = {}
+
+    def stub_write_options_csv(_ticker_frames, output_path):
+        written["path"] = output_path
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        output_path.write_text("ok", encoding="utf-8")
+
+    monkeypatch.setattr(main, "write_options_csv", stub_write_options_csv)
+
+    assert main.main() == 0
+
+    assert written["path"].name == "options_engine_output_20260427_170000.csv"
 
 
 def test_main_prints_config_fallbacks(monkeypatch, capsys, tmp_path: Path):
