@@ -351,6 +351,59 @@ def test_fetch_ticker_option_chain_reuses_serialized_snapshot_cache(monkeypatch,
     assert second["underlying_price_time"].iloc[0] == pd.Timestamp("2026-03-20T13:45:00Z")
 
 
+def test_marketdata_cache_keys_include_mode(monkeypatch, tmp_path):
+    """Market Data cache entries must not cross live/delayed/cached modes."""
+
+    class CountingMarketDataProvider(StubProvider):
+        """Provider that records calls across mode changes."""
+
+        name = "marketdata"
+
+        def __init__(self):
+            super().__init__()
+            self.snapshot_calls = 0
+            self.event_calls = 0
+            self.chain_calls = 0
+
+        def load_underlying_snapshot(self, ticker):
+            self.snapshot_calls += 1
+            return super().load_underlying_snapshot(ticker)
+
+        def load_ticker_events(self, ticker):
+            self.event_calls += 1
+            return super().load_ticker_events(ticker)
+
+        def load_option_chain(self, ticker, expiration_date):
+            self.chain_calls += 1
+            return super().load_option_chain(ticker, expiration_date)
+
+    provider = CountingMarketDataProvider()
+    selected_mode = "delayed"
+    monkeypatch.setattr(fetch, "get_data_provider", lambda: provider)
+
+    def config_factory():
+        return make_runtime_config(
+            today=pd.Timestamp("2026-03-20").date(),
+            marketdata_mode=selected_mode,
+            provider_cache_backend="filesystem",
+            provider_cache_dir=tmp_path,
+        )
+
+    monkeypatch.setattr(fetch, "get_runtime_config", config_factory)
+    monkeypatch.setattr(opx_chain.normalize, "get_runtime_config", config_factory)
+    monkeypatch.setattr(opx_chain.metrics, "get_runtime_config", config_factory)
+
+    delayed = fetch.fetch_ticker_option_chain("TEST")
+    selected_mode = "live"
+    live = fetch.fetch_ticker_option_chain("TEST")
+
+    assert not delayed.empty
+    assert not live.empty
+    assert provider.snapshot_calls == 2
+    assert provider.event_calls == 2
+    assert provider.chain_calls == 2
+
+
 def test_fetch_ticker_option_chain_prints_stage_counts(monkeypatch, capsys):
     """Console output should show per-stage fetch counts for each ticker."""
     monkeypatch.setattr(fetch, "get_data_provider", StubProvider)

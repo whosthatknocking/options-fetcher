@@ -657,6 +657,9 @@ All seven steps are complete and shipped.
 - `NullCache` and `FilesystemCache` in `opx_chain/storage/cache.py`
 - wired in `fetch.py` at the fetch-orchestration level; caches snapshot, chain,
   and events responses with configurable TTLs
+- Market Data cache keys include the configured `[providers.marketdata].mode`
+  (`live`, `cached`, `delayed`, or provider default) so changing mode does not
+  reuse responses from a different recency mode
 - filesystem cache prunes expired/corrupt entries on startup and deletes an
   expired entry on read
 - config keys: `cache_backend`, `cache_dir`, `snapshot_ttl`, `chain_ttl`, `events_ttl`

@@ -137,6 +137,13 @@ def _cache_put_chain(cache, key: str, value: OptionChainFrames, ttl: int) -> Non
         pass
 
 
+def _provider_cache_scope(provider_name: str, config) -> str:
+    """Return the provider cache namespace for response-shaping provider config."""
+    if provider_name == "marketdata":
+        return f"{provider_name}:mode={config.marketdata_mode or 'default'}"
+    return provider_name
+
+
 def _emit_fetch_info(message, logger=None):
     """Print a fetch-progress message and mirror it to the run log when available."""
     print(message)
@@ -221,7 +228,8 @@ def fetch_ticker_option_chain(  # pylint: disable=too-many-locals,too-many-branc
         if callable(prepare_ticker_fetch):
             prepare_ticker_fetch(ticker)
         _emit_fetch_info(f"Loading {ticker}  ({provider.name})", logger=logger)
-        snap_key = f"snapshot:{provider.name}:{ticker}"
+        cache_scope = _provider_cache_scope(provider.name, config)
+        snap_key = f"snapshot:{cache_scope}:{ticker}"
         snapshot = _cache_get_json(cache, snap_key)
         if snapshot is None:
             snapshot = provider.load_underlying_snapshot(ticker)
@@ -285,7 +293,7 @@ def fetch_ticker_option_chain(  # pylint: disable=too-many-locals,too-many-branc
             exp_msg += f"  skipped={skipped_total}"
         _emit_fetch_info(exp_msg, logger=logger)
 
-        events_key = f"events:{provider.name}:{ticker}"
+        events_key = f"events:{cache_scope}:{ticker}"
         events = _cache_get_json(cache, events_key)
         if events is None:
             events = provider.load_ticker_events(ticker)
@@ -298,7 +306,7 @@ def fetch_ticker_option_chain(  # pylint: disable=too-many-locals,too-many-branc
         )
 
         for expiration_date in usable_expirations:
-            chain_key = f"chain:{provider.name}:{ticker}:{expiration_date}"
+            chain_key = f"chain:{cache_scope}:{ticker}:{expiration_date}"
             chain = _cache_get_chain(cache, chain_key)
             if chain is None:
                 chain = provider.load_option_chain(ticker, expiration_date)
