@@ -657,65 +657,6 @@ def load_runtime_config(config_path: Path | None = None) -> RuntimeConfig:  # py
     return config
 
 
-def validate_runtime_config(config: RuntimeConfig) -> None:
-    """Validate runtime config built programmatically outside the loader."""
-    if config.data_provider not in SUPPORTED_PROVIDERS:
-        supported = ", ".join(sorted(SUPPORTED_PROVIDERS))
-        raise ConfigError(
-            f"Unsupported provider '{config.data_provider}'. Supported providers: {supported}."
-        )
-    if config.data_provider == "massive" and not config.massive_api_key:
-        raise ConfigError(
-            "Missing Massive API key in "
-            f"'{config.config_path}'. Set [providers.massive] api_key when using "
-            "data_provider = 'massive'."
-        )
-    if config.data_provider == "marketdata" and not config.marketdata_api_token:
-        raise ConfigError(
-            "Missing Market Data API token in "
-            f"'{config.config_path}'. Set [providers.marketdata] api_token when using "
-            "data_provider = 'marketdata'."
-        )
-    if (
-        config.marketdata_mode is not None
-        and config.marketdata_mode not in SUPPORTED_MARKETDATA_MODES
-    ):
-        raise ConfigError(
-            "Config field 'providers.marketdata.mode' must be one of: "
-            f"{', '.join(sorted(SUPPORTED_MARKETDATA_MODES))}."
-        )
-    if config.marketdata_max_retries < 0:
-        raise ConfigError(
-            "Config field 'providers.marketdata.max_retries' must be non-negative."
-        )
-    if config.marketdata_request_interval_seconds < 0:
-        raise ConfigError(
-            "Config field 'providers.marketdata.request_interval_seconds' must be non-negative."
-        )
-    if (
-        config.option_score_income_weight
-        + config.option_score_liquidity_weight
-        + config.option_score_risk_weight
-        + config.option_score_efficiency_weight
-        <= 0
-    ):
-        raise ConfigError("Option score weights must sum to a positive value.")
-    if not 0 < config.massive_snapshot_page_limit <= MAX_MASSIVE_SNAPSHOT_PAGE_LIMIT:
-        raise ConfigError(
-            "Config field 'providers.massive.snapshot_page_limit' must be between 1 and 250."
-        )
-    if config.massive_request_interval_seconds < 0:
-        raise ConfigError(
-            "Config field 'providers.massive.request_interval_seconds' must be non-negative."
-        )
-    if not str(config.debug_dump_dir).strip():
-        raise ConfigError("Config field 'settings.debug_dump_dir' must not be blank.")
-    if not config.viewer_host.strip():
-        raise ConfigError("Config field 'settings.viewer_host' must not be blank.")
-    if not 1 <= config.viewer_port <= 65535:
-        raise ConfigError("Config field 'settings.viewer_port' must be between 1 and 65535.")
-
-
 @lru_cache(maxsize=1)
 def get_runtime_config() -> RuntimeConfig:
     """Return the cached runtime config for the current process."""
