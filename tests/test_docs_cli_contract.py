@@ -138,9 +138,11 @@ def test_provider_cache_default_path_is_documented_precisely():
     expected_path = "$XDG_CACHE_HOME/opx-chain/cache/"
     readme = (ROOT / "README.md").read_text(encoding="utf-8")
     development = (ROOT / "docs" / "DEVELOPMENT.md").read_text(encoding="utf-8")
+    agents = (ROOT / "AGENTS.md").read_text(encoding="utf-8")
 
     assert expected_path in readme
     assert expected_path in development
+    assert expected_path in agents
 
 
 def test_user_guide_shared_settings_use_lowercase_toml_keys():
