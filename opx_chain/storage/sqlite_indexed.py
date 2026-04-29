@@ -22,6 +22,7 @@ from opx_chain.storage.models import (
     RunSummary,
     TickerFetchResult,
     TickerRunRecord,
+    UNKNOWN_SCRIPT_VERSION,
     ValidationRecord,
     record_to_handle,
 )
@@ -41,6 +42,7 @@ CREATE TABLE IF NOT EXISTS runs (
     finished_at           TEXT,
     status                TEXT NOT NULL,
     provider              TEXT NOT NULL,
+    script_version        TEXT NOT NULL DEFAULT 'unknown',
     tickers               TEXT NOT NULL DEFAULT '[]',
     config_fingerprint    TEXT NOT NULL,
     positions_fingerprint TEXT NOT NULL,
@@ -53,6 +55,7 @@ CREATE TABLE IF NOT EXISTS datasets (
     run_id          TEXT NOT NULL REFERENCES runs(run_id),
     created_at      TEXT NOT NULL,
     provider        TEXT NOT NULL,
+    script_version  TEXT NOT NULL DEFAULT 'unknown',
     schema_version  INTEGER NOT NULL,
     row_count       INTEGER NOT NULL,
     format          TEXT NOT NULL,
@@ -95,9 +98,13 @@ CREATE INDEX IF NOT EXISTS idx_datasets_run_id     ON datasets(run_id);
 CREATE INDEX IF NOT EXISTS idx_runs_status         ON runs(status);
 """
 
-_SCHEMA_VERSION = 2
+_SCHEMA_VERSION = 3
 _SCHEMA_MIGRATIONS: dict[int, str] = {
     2: "ALTER TABLE runs ADD COLUMN tickers TEXT NOT NULL DEFAULT '[]';",
+    3: """
+       ALTER TABLE runs ADD COLUMN script_version TEXT NOT NULL DEFAULT 'unknown';
+       ALTER TABLE datasets ADD COLUMN script_version TEXT NOT NULL DEFAULT 'unknown';
+       """,
 }
 
 
@@ -242,13 +249,14 @@ class SqliteIndexedBackend:
         with self._open_connection() as conn:
             conn.execute(
                 """INSERT INTO runs
-                   (run_id, started_at, finished_at, status, provider, tickers,
+                   (run_id, started_at, finished_at, status, provider, script_version, tickers,
                     config_fingerprint, positions_fingerprint, dataset_id, error_summary)
-                   VALUES (?, ?, NULL, 'running', ?, ?, ?, ?, NULL, NULL)""",
+                   VALUES (?, ?, NULL, 'running', ?, ?, ?, ?, ?, NULL, NULL)""",
                 (
                     run_id,
                     _dt_to_str(_now()),
                     context.provider,
+                    context.script_version,
                     json.dumps(list(context.tickers)),
                     context.config_fingerprint,
                     context.positions_fingerprint,
@@ -311,6 +319,7 @@ class SqliteIndexedBackend:
             run_id=run_id,
             created_at=now,
             provider=dataset.provider,
+            script_version=dataset.script_version,
             schema_version=dataset.schema_version,
             row_count=len(dataset.data),
             format=dataset.format,
@@ -320,14 +329,15 @@ class SqliteIndexedBackend:
         with self._open_connection() as conn:
             conn.execute(
                 """INSERT INTO datasets
-                   (dataset_id, run_id, created_at, provider, schema_version,
+                   (dataset_id, run_id, created_at, provider, script_version, schema_version,
                     row_count, format, location, content_hash)
-                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
                 (
                     dataset_id,
                     run_id,
                     _dt_to_str(now),
                     dataset.provider,
+                    dataset.script_version,
                     dataset.schema_version,
                     len(dataset.data),
                     dataset.format,
@@ -451,6 +461,7 @@ class SqliteIndexedBackend:
             finished_at=_str_to_dt(row["finished_at"]),
             status=row["status"],
             provider=row["provider"],
+            script_version=row["script_version"] or UNKNOWN_SCRIPT_VERSION,
             tickers=tuple(json.loads(row["tickers"] or "[]")),
             config_fingerprint=row["config_fingerprint"],
             positions_fingerprint=row["positions_fingerprint"],
@@ -499,6 +510,7 @@ class SqliteIndexedBackend:
             run_id=row["run_id"],
             created_at=_str_to_dt(row["created_at"]),
             provider=row["provider"],
+            script_version=row["script_version"] or UNKNOWN_SCRIPT_VERSION,
             schema_version=row["schema_version"],
             row_count=row["row_count"],
             format=row["format"],

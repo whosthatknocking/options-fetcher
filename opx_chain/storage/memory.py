@@ -49,6 +49,7 @@ class MemoryBackend:
             finished_at=None,
             status="running",
             provider=context.provider,
+            script_version=context.script_version,
             tickers=context.tickers,
             config_fingerprint=context.config_fingerprint,
             positions_fingerprint=context.positions_fingerprint,
@@ -102,6 +103,7 @@ class MemoryBackend:
             format=dataset.format,
             location=f"memory://datasets/{dataset_id}.{dataset.format}",
             content_hash=content_hash,
+            script_version=dataset.script_version,
         )
         self._datasets.append(record)
         self._artifact_bytes[dataset_id] = content

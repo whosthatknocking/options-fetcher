@@ -28,6 +28,7 @@ One record per fetch run. Created by `create_run`, updated by
 | `finished_at` | `datetime` | YES | 2 | UTC timestamp when `finalize_run` or `fail_run` was called; `None` while running |
 | `status` | `str` | NO | 2 | `running` / `complete` / `failed` / `interrupted`; `create_run` sets `running` immediately; `pending` is reserved |
 | `provider` | `str` | NO | 2 | Data provider name (e.g., `marketdata`, `yfinance`); required for dataset provenance |
+| `script_version` | `str` | NO | 2 | opx-chain package version that opened the run; legacy records without this field read back as `unknown` |
 | `tickers` | `tuple[str, ...]` | NO | 2 | Effective fetch universe for this run, including configured tickers and stock tickers expanded from the positions file; used by ticker-filtered dataset discovery |
 | `config_fingerprint` | `str` | NO | 2 | SHA-256 of the resolved config fields that affect output (provider, tickers, expiration cap, filter settings, scoring weights, Greek/HV constants, freshness threshold, and Market Data mode); two runs with the same fingerprint and positions fingerprint should produce structurally comparable datasets |
 | `positions_fingerprint` | `str` | NO | 2 | SHA-256 of the raw positions file bytes; empty string when no positions file is present; changes when held positions change, making it easy to attribute output differences to position vs. market changes |
@@ -54,6 +55,7 @@ and reference.
 | `run_id` | `str` | NO | 2 | FK to `RunRecord`; links the dataset to the fetch run that produced it |
 | `created_at` | `datetime` | NO | 2 | UTC timestamp when the artifact was written; used by the downstream consumer for freshness assessment |
 | `provider` | `str` | NO | 2 | Data provider that produced this dataset |
+| `script_version` | `str` | NO | 2 | opx-chain package version that wrote the dataset metadata; legacy records without this field read back as `unknown` |
 | `schema_version` | `int` | NO | 1 | Value of `SCHEMA_VERSION` at write time; consumer validates this before reading the artifact to detect schema drift |
 | `row_count` | `int` | NO | 2 | Total rows in the artifact; used for basic sanity validation by the consumer |
 | `format` | `str` | NO | 2 | `csv` (default) / `parquet`; tells the consumer which reader to use |
@@ -80,6 +82,7 @@ public contract — these fields may not be removed or renamed without a
 | `dataset_id` | `str` | NO | `DatasetRecord.dataset_id` |
 | `location` | `str` | NO | `DatasetRecord.location` |
 | `schema_version` | `int` | NO | `DatasetRecord.schema_version` |
+| `script_version` | `str` | NO | `DatasetRecord.script_version` |
 | `row_count` | `int` | NO | `DatasetRecord.row_count` |
 | `format` | `str` | NO | `DatasetRecord.format` |
 | `content_hash` | `str` | NO | `DatasetRecord.content_hash` |
@@ -172,6 +175,8 @@ CREATE TABLE runs (
     finished_at          TEXT,            -- NULL while running
     status               TEXT NOT NULL,
     provider             TEXT NOT NULL,
+    script_version       TEXT NOT NULL DEFAULT 'unknown',
+    tickers              TEXT NOT NULL DEFAULT '[]',
     config_fingerprint   TEXT NOT NULL,
     positions_fingerprint TEXT NOT NULL,
     dataset_id           TEXT,            -- NULL until write_dataset succeeds
@@ -183,6 +188,7 @@ CREATE TABLE datasets (
     run_id          TEXT NOT NULL REFERENCES runs(run_id),
     created_at      TEXT NOT NULL,   -- ISO 8601 UTC
     provider        TEXT NOT NULL,
+    script_version  TEXT NOT NULL DEFAULT 'unknown',
     schema_version  INTEGER NOT NULL,
     row_count       INTEGER NOT NULL,
     format          TEXT NOT NULL,   -- 'csv' | 'parquet'
@@ -241,6 +247,7 @@ as a read-only consumer. These are the fields it depends on from day one:
 | `dataset_id` | `DatasetRecord` / `DatasetHandle` | Stable reference stored in the pipeline's `runs` table to link every pipeline run to the exact chain it consumed |
 | `location` | `DatasetHandle` | Absolute path used to read the chain artifact; must never be constructed independently |
 | `schema_version` | `DatasetHandle` | Checked against `SCHEMA_VERSION` before reading; mismatch is a fatal error — the pipeline refuses to process a drifted schema |
+| `script_version` | `RunRecord`, `DatasetRecord`, `DatasetHandle` | Carries the opx-chain package version that produced the run/dataset so downstream provenance does not depend on grepping `opx_runs.log` |
 | `content_hash` | `DatasetHandle` | Stored in `runs.chain_content_hash`; used for integrity verification and to detect whether a reused chain has been tampered with |
 | `created_at` | `DatasetHandle` | Used for chain freshness assessment against the staleness thresholds in STRATEGY.md DATA AUTHORITY |
 | `row_count` | `DatasetHandle` | Basic sanity check; a zero-row dataset is a fatal error at stage 3 |

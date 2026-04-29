@@ -7,6 +7,10 @@ from datetime import datetime
 
 import pandas as pd
 
+from opx_chain.version import __version__ as DEFAULT_SCRIPT_VERSION
+
+UNKNOWN_SCRIPT_VERSION = "unknown"
+
 
 @dataclass
 # pylint: disable=too-many-instance-attributes
@@ -23,6 +27,7 @@ class RunRecord:
     positions_fingerprint: str
     dataset_id: str | None
     error_summary: str | None
+    script_version: str = DEFAULT_SCRIPT_VERSION
 
 
 @dataclass
@@ -39,6 +44,7 @@ class DatasetRecord:
     format: str  # csv | parquet
     location: str
     content_hash: str
+    script_version: str = DEFAULT_SCRIPT_VERSION
 
 
 @dataclass
@@ -52,6 +58,7 @@ class DatasetHandle:
     format: str
     content_hash: str
     created_at: datetime
+    script_version: str = DEFAULT_SCRIPT_VERSION
 
 
 def record_to_handle(record: DatasetRecord) -> DatasetHandle:
@@ -64,6 +71,7 @@ def record_to_handle(record: DatasetRecord) -> DatasetHandle:
         format=record.format,
         content_hash=record.content_hash,
         created_at=record.created_at,
+        script_version=record.script_version,
     )
 
 
@@ -117,6 +125,7 @@ class RunContext:
     tickers: tuple[str, ...]
     config_fingerprint: str
     positions_fingerprint: str
+    script_version: str = DEFAULT_SCRIPT_VERSION
 
 
 @dataclass
@@ -141,6 +150,7 @@ class DatasetWrite:
     provider: str
     schema_version: int
     format: str = "csv"
+    script_version: str = DEFAULT_SCRIPT_VERSION
 
 
 @dataclass

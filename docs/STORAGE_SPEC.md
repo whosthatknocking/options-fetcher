@@ -234,6 +234,7 @@ class RunRecord:
     finished_at: datetime | None
     status: str  # pending | running | complete | failed | interrupted
     provider: str
+    script_version: str  # opx-chain package version that opened the run
     tickers: tuple[str, ...]     # effective fetch universe for this run
     config_fingerprint: str   # SHA-256 of the resolved config fields that affect output
     positions_fingerprint: str  # SHA-256 of the positions file bytes; empty string if absent
@@ -252,6 +253,8 @@ produce structurally comparable datasets.
 `positions_fingerprint` is the SHA-256 of the raw positions file bytes. It changes
 when any held position changes, making it easy to attribute output differences to
 position changes vs. market changes.
+`script_version` stores the opx-chain package version that created the run. Legacy
+records that predate this field read back as `unknown`.
 
 ### 6.2 Dataset Record
 
@@ -262,6 +265,7 @@ class DatasetRecord:
     run_id: str
     created_at: datetime
     provider: str
+    script_version: str  # opx-chain package version that wrote the dataset
     schema_version: int
     row_count: int
     format: str   # csv | parquet
@@ -272,6 +276,8 @@ class DatasetRecord:
 `content_hash` is computed after the write completes, not before. For large files
 this is acceptable overhead at the end of a run. It enables downstream deduplication
 and artifact integrity checks.
+`script_version` lets downstream tools identify the exact opx-chain package
+version that produced the dataset without relying on the shared run log.
 
 ### 6.3 Ticker Run Record
 

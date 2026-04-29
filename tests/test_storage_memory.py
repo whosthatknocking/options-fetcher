@@ -19,6 +19,7 @@ from opx_chain.storage.models import (
     TickerFetchResult,
     ValidationRecord,
 )
+from opx_chain.version import __version__
 
 
 def _make_context(**kwargs):
@@ -78,6 +79,7 @@ def test_create_run_returns_string_id():
     run_id = backend.create_run(_make_context(tickers=("TSLA", "NVDA")))
     assert isinstance(run_id, str) and run_id
     assert backend.get_run(run_id).tickers == ("TSLA", "NVDA")
+    assert backend.get_run(run_id).script_version == __version__
 
 
 def test_write_dataset_roundtrip():
@@ -97,6 +99,7 @@ def test_write_dataset_roundtrip():
     assert record.format == "csv"
     assert len(record.content_hash) == 64
     assert record.location.startswith("memory://")
+    assert record.script_version == __version__
 
 
 def test_get_dataset_returns_handle():
@@ -114,6 +117,7 @@ def test_get_dataset_returns_handle():
     assert handle.created_at == record.created_at
     assert handle.row_count == record.row_count
     assert handle.format == record.format
+    assert handle.script_version == record.script_version
 
 
 def test_get_dataset_raises_for_unknown_id():

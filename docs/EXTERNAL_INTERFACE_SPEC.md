@@ -271,16 +271,17 @@ class DatasetHandle:
     dataset_id: str       # stable identifier for this dataset
     location: str         # absolute or relative path to the artifact file
     schema_version: int   # matches SCHEMA_VERSION at write time
+    script_version: str   # opx-chain package version that wrote the dataset
     row_count: int        # total rows in the artifact
     format: str           # "csv" | "parquet"
     content_hash: str     # SHA-256 of artifact bytes; use for integrity checks
     created_at: datetime  # UTC timestamp when the dataset was written
 ```
 
-**Change from STORAGE_SPEC §6:** `content_hash` and `created_at` are added to
-`DatasetHandle`. They were previously only on `DatasetRecord`. Downstream consumers
-need both for chain integrity verification and freshness checks without having to
-fetch the full `DatasetRecord`.
+**Change from STORAGE_SPEC §6:** `content_hash`, `created_at`, and
+`script_version` are exposed on `DatasetHandle`. Downstream consumers need these
+for chain integrity verification, freshness checks, and producer-version
+provenance without having to fetch the full `DatasetRecord`.
 
 `location` is an absolute path when the filesystem backend is active. Downstream
 consumers must not construct or infer artifact paths independently — always use the

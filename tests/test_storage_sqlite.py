@@ -24,6 +24,7 @@ from opx_chain.storage.models import (
     TickerFetchResult,
     ValidationRecord,
 )
+from opx_chain.version import __version__
 import opx_chain.storage.sqlite_indexed as sqlite_indexed_mod
 from opx_chain.storage.sqlite_indexed import SqliteIndexedBackend
 
@@ -108,11 +109,12 @@ def test_schema_initialises_on_first_connect(tmp_path: Path):
 def test_schema_migration_updates_version_and_applies_sql(tmp_path: Path, monkeypatch):
     """Existing databases must run migrations when the backend schema version advances."""
     _make_backend(tmp_path)
-    monkeypatch.setattr(sqlite_indexed_mod, "_SCHEMA_VERSION", 3)
+    next_version = sqlite_indexed_mod._SCHEMA_VERSION + 1  # pylint: disable=protected-access
+    monkeypatch.setattr(sqlite_indexed_mod, "_SCHEMA_VERSION", next_version)
     monkeypatch.setattr(
         sqlite_indexed_mod,
         "_SCHEMA_MIGRATIONS",
-        {3: "ALTER TABLE runs ADD COLUMN migration_marker TEXT;"},
+        {next_version: "ALTER TABLE runs ADD COLUMN migration_marker TEXT;"},
     )
 
     _make_backend(tmp_path)
@@ -129,14 +131,15 @@ def test_schema_migration_updates_version_and_applies_sql(tmp_path: Path, monkey
     finally:
         conn.close()
 
-    assert version == "3"
+    assert version == str(next_version)
     assert "migration_marker" in columns
 
 
 def test_schema_migration_fails_when_required_step_is_missing(tmp_path: Path, monkeypatch):
     """A schema-version bump without a migration must fail instead of silently reusing v1."""
     _make_backend(tmp_path)
-    monkeypatch.setattr(sqlite_indexed_mod, "_SCHEMA_VERSION", 3)
+    next_version = sqlite_indexed_mod._SCHEMA_VERSION + 1  # pylint: disable=protected-access
+    monkeypatch.setattr(sqlite_indexed_mod, "_SCHEMA_VERSION", next_version)
     monkeypatch.setattr(sqlite_indexed_mod, "_SCHEMA_MIGRATIONS", {})
 
     with pytest.raises(RuntimeError, match="schema migration missing"):
@@ -156,6 +159,7 @@ def test_create_run_initial_status_is_running(tmp_path: Path):
     assert run.status == "running"
     assert run.finished_at is None
     assert run.tickers == ("TSLA", "NVDA")
+    assert run.script_version == __version__
 
 
 def test_finalize_run_sets_status_complete(tmp_path: Path):
@@ -254,6 +258,7 @@ def test_write_dataset_returns_correct_record(tmp_path: Path):
     assert record.format == "csv"
     assert len(record.content_hash) == 64
     assert Path(record.location).is_absolute()
+    assert record.script_version == __version__
 
 
 def test_content_hash_matches_artifact_bytes(tmp_path: Path):
@@ -277,6 +282,7 @@ def test_get_dataset_returns_handle(tmp_path: Path):
     assert isinstance(handle, DatasetHandle)
     assert handle.dataset_id == record.dataset_id
     assert handle.content_hash == record.content_hash
+    assert handle.script_version == record.script_version
 
 
 def test_get_dataset_raises_for_unknown_id(tmp_path: Path):

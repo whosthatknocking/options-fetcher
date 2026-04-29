@@ -24,6 +24,7 @@ from opx_chain.storage.models import (
     TickerFetchResult,
     ValidationRecord,
 )
+from opx_chain.version import __version__
 
 
 def _make_backend(
@@ -116,6 +117,7 @@ def test_create_run_initial_status_is_running(tmp_path: Path):
     assert run.status == "running"
     assert run.finished_at is None
     assert run.tickers == ("TSLA", "NVDA")
+    assert run.script_version == __version__
 
 
 def test_finalize_run_sets_status_complete(tmp_path: Path):
@@ -213,6 +215,7 @@ def test_write_dataset_returns_correct_record(tmp_path: Path):
     assert record.format == "csv"
     assert len(record.content_hash) == 64
     assert Path(record.location).is_absolute()
+    assert record.script_version == __version__
 
 
 def test_content_hash_matches_artifact_bytes(tmp_path: Path):
@@ -237,6 +240,7 @@ def test_get_dataset_returns_handle(tmp_path: Path):
     assert handle.dataset_id == record.dataset_id
     assert handle.content_hash == record.content_hash
     assert handle.created_at == record.created_at
+    assert handle.script_version == record.script_version
 
 
 def test_get_dataset_raises_for_unknown_id(tmp_path: Path):

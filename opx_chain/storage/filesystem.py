@@ -19,6 +19,7 @@ from opx_chain.storage.models import (
     RunSummary,
     TickerFetchResult,
     TickerRunRecord,
+    UNKNOWN_SCRIPT_VERSION,
     ValidationRecord,
     record_to_handle,
 )
@@ -146,6 +147,7 @@ class FilesystemBackend:
             "format": record.format,
             "location": record.location,
             "content_hash": record.content_hash,
+            "script_version": record.script_version,
         }
         path = self._meta_path(record.dataset_id, record.run_id)
         path.parent.mkdir(parents=True, exist_ok=True)
@@ -163,6 +165,7 @@ class FilesystemBackend:
             format=data["format"],
             location=data["location"],
             content_hash=data["content_hash"],
+            script_version=data.get("script_version", UNKNOWN_SCRIPT_VERSION),
         )
 
     def _meta_created_at_sort_key(self, meta_path: Path) -> datetime:
@@ -204,6 +207,7 @@ class FilesystemBackend:
             "finished_at": None,
             "status": "running",
             "provider": context.provider,
+            "script_version": context.script_version,
             "tickers": list(context.tickers),
             "config_fingerprint": context.config_fingerprint,
             "positions_fingerprint": context.positions_fingerprint,
@@ -259,6 +263,7 @@ class FilesystemBackend:
             format=dataset.format,
             location=str(artifact_path),
             content_hash=content_hash,
+            script_version=dataset.script_version,
         )
         self._write_meta(record)
         data = self._read_run(run_id)
@@ -349,6 +354,7 @@ class FilesystemBackend:
             finished_at=_str_to_dt(data.get("finished_at")),
             status=data["status"],
             provider=data["provider"],
+            script_version=data.get("script_version", UNKNOWN_SCRIPT_VERSION),
             tickers=tuple(data.get("tickers", ())),
             config_fingerprint=data["config_fingerprint"],
             positions_fingerprint=data["positions_fingerprint"],
