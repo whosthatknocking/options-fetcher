@@ -140,7 +140,7 @@ For Market Data, numeric event dates are interpreted on the `America/New_York` m
 - `delta_abs`: Absolute value of delta. Use it when you only care about magnitude, not call-versus-put sign. Lower usually means farther OTM; higher means closer to or deeper ITM.
 - `delta_safety_pct`: Use it as a simple delta-based safety gauge for short premium trades. Higher means lower absolute delta and more distance from an at-the-money or in-the-money risk profile; lower means the trade is carrying more directional exposure.
 - `delta_itm_proxy`: Delta normalized so higher values mean more in-the-money for both calls and puts. Use it for side-agnostic moneyness ranking.
-- `probability_itm`: Black-Scholes probability of finishing in the money, derived from `d2` rather than delta. Use it when you want the model-based ITM probability instead of the delta approximation. Lower generally means less assignment/exercise risk for short premium trades.
+- `probability_itm`: Black-Scholes probability of finishing in the money, derived from `d2` rather than delta when positive implied volatility is available; provider-native values are preserved when supplied. Use it when you want the model-based ITM probability instead of the delta approximation. Lower generally means less assignment/exercise risk for short premium trades.
 - `gamma`: Black-Scholes gamma. Use it to measure how quickly delta changes as the stock moves. Higher means position risk can change faster as spot moves.
 - `vega`: Black-Scholes vega. Use it to measure sensitivity to implied volatility changes. Higher means the option is more sensitive to vol expansion or crush.
 - `vega_per_day`: Vega divided by days to expiration. Use it to compare vol sensitivity across expiries on a per-day basis.
@@ -157,7 +157,7 @@ For Market Data, numeric event dates are interpreted on the `America/New_York` m
 - `has_valid_strike`: True when strike is positive. Use it to reject malformed contracts.
 - `has_valid_quote`: True when bid and ask exist, are non-negative, and bid is not above ask. Use it to filter bad quotes.
 - `has_valid_iv`: True when implied volatility is positive. Use it to identify rows suitable for Greek calculations.
-- `has_valid_greeks`: True when the inputs required for Black-Scholes are valid. Use it to filter out rows with unreliable Greeks.
+- `has_valid_greeks`: True when real positive-IV Black-Scholes inputs are valid or a provider-native Greek/risk value is present. Missing or zero implied volatility does not get substituted. Use it to filter out rows with unreliable Greeks.
 - `bid_le_ask`: True when bid is less than or equal to ask. Use it as a basic market sanity check.
 - `has_nonzero_bid`: True when bid is greater than zero. Use it to find contracts with actual sell-side value.
 - `has_nonzero_ask`: True when ask is greater than zero. Use it to find contracts with an actionable offer.
@@ -289,7 +289,7 @@ Legend:
 | `delta_abs` | Derived: absolute value of delta | Derived: absolute value of delta | Derived: absolute value of delta |
 | `delta_safety_pct` | Derived: `(1 - abs(delta)) * 100` | Derived: `(1 - abs(delta)) * 100` | Derived: `(1 - abs(delta)) * 100` |
 | `delta_itm_proxy` | Derived: side-normalized delta | Derived: side-normalized delta | Derived: side-normalized delta |
-| `probability_itm` | Derived: Black-Scholes `d2` probability | Derived: Black-Scholes `d2` probability unless provider value is present later | Derived: Black-Scholes `d2` probability |
+| `probability_itm` | Derived: Black-Scholes `d2` probability when positive IV is present | Provider value preserved, otherwise derived from Black-Scholes `d2` when positive IV is present | Provider value preserved, otherwise derived from Black-Scholes `d2` when positive IV is present |
 | `gamma` | Derived: Black-Scholes in shared app code | Transformed or Derived: provider `greeks.gamma` preserved, app fills gaps | Direct/Transformed: provider `gamma` preserved, app fills gaps |
 | `vega` | Derived: Black-Scholes in shared app code | Transformed or Derived: provider `greeks.vega` preserved, app fills gaps | Direct/Transformed: provider `vega` preserved, app fills gaps |
 | `vega_per_day` | Derived: vega divided by days to expiry | Derived: vega divided by days to expiry | Derived: vega divided by days to expiry |
@@ -308,7 +308,7 @@ Legend:
 | `has_valid_strike` | Derived: strike positive | Derived: strike positive | Derived: strike positive |
 | `has_valid_quote` | Derived: bid/ask present, non-negative, and ordered | Derived: bid/ask present, non-negative, and ordered | Derived: bid/ask present, non-negative, and ordered |
 | `has_valid_iv` | Derived: implied volatility positive | Derived: implied volatility positive | Derived: implied volatility positive |
-| `has_valid_greeks` | Derived: valid Black-Scholes inputs or provider greek present | Derived: valid Black-Scholes inputs or provider greek present | Derived: valid Black-Scholes inputs or provider greek present |
+| `has_valid_greeks` | Derived: valid positive-IV Black-Scholes inputs or provider Greek present | Derived: valid positive-IV Black-Scholes inputs or provider Greek present | Derived: valid positive-IV Black-Scholes inputs or provider Greek present |
 | `bid_le_ask` | Derived: `bid <= ask` | Derived: `bid <= ask` | Derived: `bid <= ask` |
 | `has_nonzero_bid` | Derived: bid greater than zero | Derived: bid greater than zero | Derived: bid greater than zero |
 | `has_nonzero_ask` | Derived: ask greater than zero | Derived: ask greater than zero | Derived: ask greater than zero |

@@ -46,6 +46,52 @@ def test_compute_greeks_probability_itm_complements_for_matching_call_put():
     assert result["has_valid_greeks"].tolist() == [True, True]
 
 
+def test_compute_greeks_does_not_substitute_missing_implied_volatility():
+    """Missing or zero IV should not produce synthetic Black-Scholes outputs."""
+    frame = pd.DataFrame(
+        [
+            {
+                "strike": 100,
+                "time_to_expiration_years": 0.5,
+                "implied_volatility": None,
+                "option_type": "call",
+            },
+            {
+                "strike": 100,
+                "time_to_expiration_years": 0.5,
+                "implied_volatility": 0.0,
+                "option_type": "put",
+            },
+        ]
+    )
+
+    result = compute_greeks(frame.copy(), underlying_price=110, risk_free_rate=0.045)
+
+    assert result[["delta", "probability_itm", "gamma", "vega", "theta"]].isna().all().all()
+    assert result["has_valid_greeks"].tolist() == [False, False]
+
+
+def test_compute_greeks_marks_provider_greeks_valid_without_iv():
+    """Provider-native Greeks remain valid even when derived Greeks cannot run."""
+    frame = pd.DataFrame(
+        [
+            {
+                "strike": 100,
+                "time_to_expiration_years": 0.5,
+                "implied_volatility": None,
+                "option_type": "call",
+                "delta": 0.25,
+            },
+        ]
+    )
+
+    result = compute_greeks(frame.copy(), underlying_price=110, risk_free_rate=0.045)
+
+    assert result.loc[0, "delta"] == 0.25
+    assert pd.isna(result.loc[0, "probability_itm"])
+    assert bool(result.loc[0, "has_valid_greeks"]) is True
+
+
 def test_compute_greeks_adds_delta_safety_pct_from_delta_abs():
     """Delta safety should be the inverse absolute-delta percentage."""
     frame = pd.DataFrame(

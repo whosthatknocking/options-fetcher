@@ -10,17 +10,38 @@ def _merge_provider_and_derived(existing, derived):
     return existing.where(existing.notna(), derived) if existing is not None else derived
 
 
+def _provider_greek_available(df):
+    """Return rows where a provider supplied at least one risk-model value."""
+    available = pd.Series(False, index=df.index)
+    for field in ("delta", "probability_itm", "gamma", "vega", "theta"):
+        existing = df.get(field)
+        if existing is not None:
+            available |= existing.notna()
+    return available
+
+
 def compute_greeks(  # pylint: disable=too-many-locals
     df,
     underlying_price,
     risk_free_rate,
 ):
     """Compute Black-Scholes Greeks and ITM probabilities for valid rows."""
+    provider_greek_available = _provider_greek_available(df)
     strike = df["strike"].to_numpy(dtype=float)
     time_to_expiration = df["time_to_expiration_years"].to_numpy(dtype=float)
-    sigma = df["implied_volatility"].replace(0, np.nan).fillna(0.3).to_numpy(dtype=float)
+    sigma = (
+        pd.to_numeric(df["implied_volatility"], errors="coerce")
+        .replace(0, np.nan)
+        .to_numpy(dtype=float)
+    )
 
-    valid = (underlying_price > 0) & (strike > 0) & (time_to_expiration > 0) & (sigma > 0)
+    valid = (
+        (underlying_price > 0)
+        & (strike > 0)
+        & (time_to_expiration > 0)
+        & np.isfinite(sigma)
+        & (sigma > 0)
+    )
 
     d1 = np.full(len(df), np.nan)
     d2 = np.full(len(df), np.nan)
@@ -98,6 +119,6 @@ def compute_greeks(  # pylint: disable=too-many-locals
         df.get("delta_itm_proxy"),
         np.where(is_call, df["delta"], df["delta_abs"]),
     )
-    df["has_valid_greeks"] = valid | df["delta"].notna()
+    df["has_valid_greeks"] = pd.Series(valid, index=df.index) | provider_greek_available
 
     return df
