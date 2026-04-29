@@ -147,6 +147,18 @@ Current Market Data request controls:
 - default `0.0`
 - adds client-side spacing between Market Data HTTP requests when needed
 
+Current yfinance request controls:
+
+- optional `[providers.yfinance].request_interval_seconds`
+- default `0.0`
+- adds client-side spacing between Yahoo Finance property/method calls when needed
+- optional `[providers.yfinance].max_retries`
+- default `0`
+- controls retry attempts around transient Yahoo/yfinance call failures
+- optional `[providers.yfinance].backoff_seconds`
+- default `1.0`
+- controls the base exponential-backoff delay between yfinance retries
+
 Current Massive request controls:
 
 - optional `[providers.massive].snapshot_page_limit`

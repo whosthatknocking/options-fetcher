@@ -30,6 +30,9 @@ def test_load_runtime_config_uses_defaults_when_file_is_absent(tmp_path: Path):
     assert config.marketdata_api_token is None
     assert config.marketdata_max_retries == 3
     assert config.marketdata_request_interval_seconds == 0.0
+    assert config.yfinance_request_interval_seconds == 0.0
+    assert config.yfinance_max_retries == 0
+    assert config.yfinance_backoff_seconds == 1.0
     assert config.stale_quote_seconds == 10800
     assert config.enable_validation is True
     assert config.option_score_income_weight == 0.30
@@ -123,6 +126,11 @@ api_token = "market-token"
 mode = "delayed"
 max_retries = 5
 request_interval_seconds = 0.75
+
+[providers.yfinance]
+request_interval_seconds = 0.25
+max_retries = 2
+backoff_seconds = 0.5
 """.strip(),
         encoding="utf-8",
     )
@@ -152,6 +160,9 @@ request_interval_seconds = 0.75
     assert config.marketdata_mode == "delayed"
     assert config.marketdata_max_retries == 5
     assert config.marketdata_request_interval_seconds == 0.75
+    assert config.yfinance_request_interval_seconds == 0.25
+    assert config.yfinance_max_retries == 2
+    assert config.yfinance_backoff_seconds == 0.5
     assert config.massive_snapshot_page_limit == 250
     assert config.massive_request_interval_seconds == 1.5
     assert config.massive_max_retries == 4
@@ -272,6 +283,38 @@ request_interval_seconds = -0.5
     assert config.marketdata_request_interval_seconds == 0.0
     assert any(
         "providers.marketdata.request_interval_seconds" in warning
+        for warning in config.config_warnings
+    )
+
+
+def test_load_runtime_config_defaults_invalid_yfinance_tuning(tmp_path: Path):
+    """Invalid yfinance pacing settings should fall back to defaults."""
+    config_path = tmp_path / "yfinance-invalid.toml"
+    config_path.write_text(
+        """
+[settings]
+data_provider = "yfinance"
+
+[providers.yfinance]
+request_interval_seconds = -0.5
+max_retries = -1
+backoff_seconds = -2
+""".strip(),
+        encoding="utf-8",
+    )
+
+    config = load_runtime_config(config_path)
+
+    assert config.yfinance_request_interval_seconds == 0.0
+    assert config.yfinance_max_retries == 0
+    assert config.yfinance_backoff_seconds == 1.0
+    assert any(
+        "providers.yfinance.request_interval_seconds" in warning
+        for warning in config.config_warnings
+    )
+    assert any("providers.yfinance.max_retries" in warning for warning in config.config_warnings)
+    assert any(
+        "providers.yfinance.backoff_seconds" in warning
         for warning in config.config_warnings
     )
 
@@ -643,6 +686,30 @@ request_interval_seconds = 0.5
     assert "  providers.marketdata.max_retries: 5" in lines
     assert "  providers.marketdata.request_interval_seconds: 0.5" in lines
     assert all("market-token" not in line for line in lines)
+
+
+def test_describe_runtime_config_includes_yfinance_retry_settings(tmp_path: Path):
+    """yfinance provider output should show every retry and pacing setting."""
+    config_path = tmp_path / "config.toml"
+    config_path.write_text(
+        """
+[settings]
+data_provider = "yfinance"
+
+[providers.yfinance]
+request_interval_seconds = 0.25
+max_retries = 2
+backoff_seconds = 0.5
+""".strip(),
+        encoding="utf-8",
+    )
+
+    lines = describe_runtime_config(load_runtime_config(config_path))
+
+    assert "Provider:" in lines
+    assert "  providers.yfinance.request_interval_seconds: 0.25" in lines
+    assert "  providers.yfinance.max_retries: 2" in lines
+    assert "  providers.yfinance.backoff_seconds: 0.5" in lines
 
 
 def test_describe_runtime_config_includes_massive_retry_settings(tmp_path: Path):

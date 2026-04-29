@@ -47,6 +47,9 @@ DEFAULT_MAX_EXPIRATION_WEEKS = 34
 SUPPORTED_MARKETDATA_MODES = frozenset({"live", "cached", "delayed"})
 DEFAULT_MARKETDATA_MAX_RETRIES = 3
 DEFAULT_MARKETDATA_REQUEST_INTERVAL_SECONDS = 0.0
+DEFAULT_YFINANCE_REQUEST_INTERVAL_SECONDS = 0.0
+DEFAULT_YFINANCE_MAX_RETRIES = 0
+DEFAULT_YFINANCE_BACKOFF_SECONDS = 1.0
 DEFAULT_VIEWER_HOST = "127.0.0.1"
 DEFAULT_VIEWER_PORT = 8000
 MAX_MASSIVE_SNAPSHOT_PAGE_LIMIT = 250
@@ -93,6 +96,9 @@ class RuntimeConfig:
     marketdata_mode: str | None
     marketdata_max_retries: int
     marketdata_request_interval_seconds: float
+    yfinance_request_interval_seconds: float
+    yfinance_max_retries: int
+    yfinance_backoff_seconds: float
     massive_snapshot_page_limit: int
     massive_request_interval_seconds: float
     massive_max_retries: int
@@ -299,6 +305,11 @@ def load_runtime_config(config_path: Path | None = None) -> RuntimeConfig:  # py
         field_name="providers.marketdata",
         warnings=warnings,
     )
+    yfinance_settings = _resolve_table(
+        providers.get("yfinance", {}),
+        field_name="providers.yfinance",
+        warnings=warnings,
+    )
 
     today = market_calendar_today()
     data_provider = _resolve_config_value(
@@ -346,6 +357,7 @@ def load_runtime_config(config_path: Path | None = None) -> RuntimeConfig:  # py
             "providers.marketdata.api_token: using default None and falling back to 'yfinance'."
         )
         data_provider = DEFAULT_DATA_PROVIDER
+    yfinance_warnings = warnings if data_provider == "yfinance" else []
 
     config = RuntimeConfig(
         tickers=_resolve_config_value(
@@ -529,6 +541,30 @@ def load_runtime_config(config_path: Path | None = None) -> RuntimeConfig:  # py
             default=DEFAULT_MARKETDATA_REQUEST_INTERVAL_SECONDS,
             coercer=_coerce_float,
             warnings=marketdata_warnings,
+            validator=lambda value: value >= 0,
+        ),
+        yfinance_request_interval_seconds=_resolve_config_value(
+            yfinance_settings.get("request_interval_seconds"),
+            field_name="providers.yfinance.request_interval_seconds",
+            default=DEFAULT_YFINANCE_REQUEST_INTERVAL_SECONDS,
+            coercer=_coerce_float,
+            warnings=yfinance_warnings,
+            validator=lambda value: value >= 0,
+        ),
+        yfinance_max_retries=_resolve_config_value(
+            yfinance_settings.get("max_retries"),
+            field_name="providers.yfinance.max_retries",
+            default=DEFAULT_YFINANCE_MAX_RETRIES,
+            coercer=_coerce_int,
+            warnings=yfinance_warnings,
+            validator=lambda value: value >= 0,
+        ),
+        yfinance_backoff_seconds=_resolve_config_value(
+            yfinance_settings.get("backoff_seconds"),
+            field_name="providers.yfinance.backoff_seconds",
+            default=DEFAULT_YFINANCE_BACKOFF_SECONDS,
+            coercer=_coerce_float,
+            warnings=yfinance_warnings,
             validator=lambda value: value >= 0,
         ),
         massive_snapshot_page_limit=_clamp_massive_snapshot_page_limit(_resolve_config_value(
@@ -759,6 +795,14 @@ def describe_runtime_config(config: RuntimeConfig) -> tuple[str, ...]:
             f"{config.massive_request_interval_seconds}",
             f"  providers.massive.max_retries: {config.massive_max_retries}",
             f"  providers.massive.backoff_seconds: {config.massive_backoff_seconds}",
+        ]
+    elif config.data_provider == "yfinance":
+        lines += [
+            "Provider:",
+            f"  providers.yfinance.request_interval_seconds: "
+            f"{config.yfinance_request_interval_seconds}",
+            f"  providers.yfinance.max_retries: {config.yfinance_max_retries}",
+            f"  providers.yfinance.backoff_seconds: {config.yfinance_backoff_seconds}",
         ]
     if config.storage_enabled:
         lines += [

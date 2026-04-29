@@ -47,6 +47,12 @@ max_runs_retained = 0  # 0 = keep all datasets; positive integer = keep last N
 cache_backend = "none"  # "none" | "filesystem"
 cache_dir = "cache"     # resolved under $XDG_CACHE_HOME/opx-chain/
 
+[providers.yfinance]
+# Optional client-side pacing/retry controls for Yahoo Finance traffic.
+request_interval_seconds = 0.0
+max_retries = 0
+backoff_seconds = 1.0
+
 [providers.massive]
 api_key = "replace-me"
 snapshot_page_limit = 250

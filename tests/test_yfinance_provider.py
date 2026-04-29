@@ -166,3 +166,62 @@ def test_yfinance_provider_load_ticker_events_returns_blanks_on_missing_data(mon
     assert events["next_earnings_date_is_estimated"] is None
     assert events["next_ex_div_date"] is None
     assert pd.isna(events["dividend_amount"])
+
+
+def test_yfinance_provider_respects_request_interval(monkeypatch):
+    """Configured yfinance request spacing should pace provider calls."""
+    monkeypatch.setattr(
+        "opx_chain.providers.yfinance.get_runtime_config",
+        lambda: make_runtime_config(yfinance_request_interval_seconds=1.5),
+    )
+    monkeypatch.setattr("opx_chain.providers.yfinance.yf.Ticker", FakeTicker)
+
+    monotonic_values = iter([100.0, 100.2, 100.2])
+    monkeypatch.setattr(
+        "opx_chain.providers.yfinance.time.monotonic",
+        lambda: next(monotonic_values),
+    )
+    sleep_calls = []
+    monkeypatch.setattr("opx_chain.providers.yfinance.time.sleep", sleep_calls.append)
+
+    provider = YFinanceProvider()
+    provider.list_option_expirations("TSLA")
+    provider.list_option_expirations("TSLA")
+
+    assert sleep_calls == [pytest.approx(1.3)]
+
+
+def test_yfinance_provider_retries_configured_failures(monkeypatch, capsys):
+    """Configured yfinance retries should retry transient Yahoo call failures."""
+    attempts = {"count": 0}
+
+    class FlakyTicker:  # pylint: disable=too-few-public-methods
+        """Ticker stub that fails once before returning options."""
+
+        def __init__(self, ticker):
+            self.ticker = ticker
+
+        @property
+        def options(self):
+            """Raise once, then return the expected expiration list."""
+            attempts["count"] += 1
+            if attempts["count"] == 1:
+                raise RuntimeError("rate limited")
+            return ("2026-04-17",)
+
+    monkeypatch.setattr(
+        "opx_chain.providers.yfinance.get_runtime_config",
+        lambda: make_runtime_config(
+            yfinance_max_retries=1,
+            yfinance_backoff_seconds=0.25,
+        ),
+    )
+    monkeypatch.setattr("opx_chain.providers.yfinance.yf.Ticker", FlakyTicker)
+    sleep_calls = []
+    monkeypatch.setattr("opx_chain.providers.yfinance.time.sleep", sleep_calls.append)
+
+    expirations = YFinanceProvider().list_option_expirations("TSLA")
+
+    assert expirations == ["2026-04-17"]
+    assert sleep_calls == [pytest.approx(0.25)]
+    assert "yfinance api: TSLA expirations retry_in=0.25s" in capsys.readouterr().out

@@ -246,6 +246,12 @@ be positive.
 
 These settings are only used by the matching provider.
 
+#### yfinance Settings
+
+- `providers.yfinance.request_interval_seconds = 0.0`: optional minimum spacing between Yahoo Finance property/method calls. Leave it at `0.0` for current behavior, or raise it when Yahoo starts throttling unauthenticated traffic.
+- `providers.yfinance.max_retries = 0`: retry count for transient yfinance/Yahoo call failures. The default preserves current behavior; raise it when you prefer a slower but more tolerant default-provider path.
+- `providers.yfinance.backoff_seconds = 1.0`: base exponential-backoff delay used between yfinance retries.
+
 #### Massive Settings
 
 - `[providers.massive].api_key`: Massive API key used only when `data_provider = "massive"`.
@@ -297,6 +303,9 @@ XXXXXXXXX,SAMPLE ACCOUNT, -MSFT260918P380,MSFT SEP 18 2026 $380 PUT,,,,,,,,,,,,M
 - Change the `option_score_*_weight` values when you want to tune the shared score without changing code. The weights must stay non-negative and their total must stay positive or the loader falls back to defaults.
 
 ### Provider-Specific Configuration Tasks
+
+- Set `[providers.yfinance].request_interval_seconds` above `0.0` when Yahoo throttles the default provider path or when you want to slow large multi-expiration runs.
+- Raise `[providers.yfinance].max_retries` and adjust `[providers.yfinance].backoff_seconds` when you want transient Yahoo failures to retry instead of failing or returning blank best-effort metadata immediately.
 
 - Add `[providers.massive].api_key` only when you select `massive`.
 - Raise or lower `snapshot_page_limit`, `request_interval_seconds`, `max_retries`, and `backoff_seconds` to match your Massive plan and tolerance for throttling.

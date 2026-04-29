@@ -5,6 +5,7 @@
 from __future__ import annotations
 
 from datetime import date, datetime, timezone
+import time
 from typing import Any
 
 import numpy as np
@@ -105,12 +106,13 @@ def _pick_next_future_date(raw_values: list[Any], today: date) -> date | None:
     return upcoming[0] if upcoming else None
 
 
-def compute_historical_volatility(stock):  # pylint: disable=broad-exception-caught
+def compute_historical_volatility(stock, load_history=None):  # pylint: disable=broad-exception-caught
     """Compute trailing annualized realized volatility from daily closes."""
     config = get_runtime_config()
     lookback_period = f"{max(config.hv_lookback_days * 3, 90)}d"
+    history_loader = load_history or stock.history
     try:
-        history = stock.history(period=lookback_period, interval="1d", auto_adjust=False)
+        history = history_loader(period=lookback_period, interval="1d", auto_adjust=False)
     except Exception:  # pylint: disable=broad-exception-caught
         return np.nan
     if history.empty:
@@ -131,33 +133,73 @@ class YFinanceProvider(DataProvider):
 
     name = "yfinance"
 
+    def __init__(self) -> None:
+        self._last_request_started_at: float | None = None
+
     @property
     def external_logger_names(self) -> tuple[str, ...]:
         """Expose yfinance's logger so runlog can capture vendor errors."""
         return ("yfinance",)
 
-    @staticmethod
-    def _safe_info(stock) -> dict[str, Any]:
+    def _request_interval_seconds(self) -> float:
+        """Return the configured minimum spacing between Yahoo calls."""
+        return get_runtime_config().yfinance_request_interval_seconds
+
+    def _max_retries(self) -> int:
+        """Return the configured Yahoo retry count."""
+        return get_runtime_config().yfinance_max_retries
+
+    def _backoff_seconds(self) -> float:
+        """Return the configured Yahoo retry backoff base."""
+        return get_runtime_config().yfinance_backoff_seconds
+
+    def _sleep_for_request_interval(self) -> None:
+        """Respect the configured minimum spacing between Yahoo calls."""
+        interval_seconds = self._request_interval_seconds()
+        if self._last_request_started_at is not None and interval_seconds > 0:
+            elapsed = time.monotonic() - self._last_request_started_at
+            remaining = interval_seconds - elapsed
+            if remaining > 0:
+                time.sleep(remaining)
+        self._last_request_started_at = time.monotonic()
+
+    def _call_yahoo(self, label: str, callback):
+        """Apply pacing and retry configuration around one yfinance call."""
+        max_retries = self._max_retries()
+        for attempt in range(max_retries + 1):
+            self._sleep_for_request_interval()
+            try:
+                return callback()
+            except Exception as exc:  # pylint: disable=broad-exception-caught
+                if attempt == max_retries:
+                    raise
+                delay = self._backoff_seconds() * (2**attempt)
+                print(
+                    f"yfinance api: {label} retry_in={delay:.2f}s "
+                    f"attempt={attempt + 1}/{max_retries} error={exc}"
+                )
+                time.sleep(delay)
+        return callback()  # pragma: no cover - loop always returns or raises
+
+    def _safe_info(self, ticker: str, stock) -> dict[str, Any]:
         """Return the yfinance info payload or an empty dict on failure."""
         try:
-            info = stock.info
+            info = self._call_yahoo(f"{ticker} info", lambda: stock.info)
         except Exception:  # pylint: disable=broad-exception-caught
             return {}
         return info if isinstance(info, dict) else {}
 
-    @staticmethod
-    def _safe_calendar(stock):
+    def _safe_calendar(self, ticker: str, stock):
         """Return the yfinance calendar payload or None on failure."""
         try:
-            return stock.calendar
+            return self._call_yahoo(f"{ticker} calendar", lambda: stock.calendar)
         except Exception:  # pylint: disable=broad-exception-caught
             return None
 
-    @staticmethod
-    def _safe_dividends(stock) -> pd.Series:
+    def _safe_dividends(self, ticker: str, stock) -> pd.Series:
         """Return the yfinance dividends series or an empty series on failure."""
         try:
-            dividends = stock.dividends
+            dividends = self._call_yahoo(f"{ticker} dividends", lambda: stock.dividends)
         except Exception:  # pylint: disable=broad-exception-caught
             return pd.Series(dtype="float64")
         return dividends if isinstance(dividends, pd.Series) else pd.Series(dtype="float64")
@@ -222,8 +264,8 @@ class YFinanceProvider(DataProvider):
     def load_underlying_snapshot(self, ticker: str) -> dict:  # pylint: disable=broad-exception-caught
         """Load the underlying snapshot once per ticker and reuse it for each expiration."""
         stock = yf.Ticker(ticker)
-        fast_info = getattr(stock, "fast_info", {}) or {}
-        info = self._safe_info(stock)
+        fast_info = self._call_yahoo(ticker, lambda: getattr(stock, "fast_info", {}) or {})
+        info = self._safe_info(ticker, stock)
         self.debug_dump_payload(
             ticker,
             "underlying_snapshot",
@@ -253,15 +295,21 @@ class YFinanceProvider(DataProvider):
             "underlying_price": last_price,
             "underlying_price_time": normalize_timestamp(info.get("regularMarketTime")),
             "underlying_day_change_pct": underlying_day_change_pct,
-            "historical_volatility": compute_historical_volatility(stock),
+            "historical_volatility": compute_historical_volatility(
+                stock,
+                load_history=lambda **kwargs: self._call_yahoo(
+                    f"{ticker} history",
+                    lambda: stock.history(**kwargs),
+                ),
+            ),
         }
 
     def load_ticker_events(self, ticker: str) -> dict:
         """Load best-effort earnings and dividend events from Yahoo metadata."""
         stock = yf.Ticker(ticker)
-        info = self._safe_info(stock)
-        calendar_payload = self._safe_calendar(stock)
-        dividends = self._safe_dividends(stock)
+        info = self._safe_info(ticker, stock)
+        calendar_payload = self._safe_calendar(ticker, stock)
+        dividends = self._safe_dividends(ticker, stock)
         self.debug_dump_payload(
             ticker,
             "ticker_events",
@@ -289,14 +337,17 @@ class YFinanceProvider(DataProvider):
     def list_option_expirations(self, ticker: str) -> list[str]:
         """Return option expiration strings available from yfinance."""
         stock = yf.Ticker(ticker)
-        expirations = list(stock.options)
+        expirations = list(self._call_yahoo(f"{ticker} expirations", lambda: stock.options))
         self.debug_dump_payload(ticker, "expirations", expirations)
         return expirations
 
     def load_option_chain(self, ticker: str, expiration_date: str) -> OptionChainFrames:
         """Load one yfinance option chain and return its raw call/put frames."""
         stock = yf.Ticker(ticker)
-        chain = stock.option_chain(expiration_date)
+        chain = self._call_yahoo(
+            f"{ticker} option_chain {expiration_date}",
+            lambda: stock.option_chain(expiration_date),
+        )
         self.debug_dump_payload(
             ticker,
             f"option_chain_{expiration_date}",
