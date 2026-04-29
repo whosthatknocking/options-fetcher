@@ -418,11 +418,16 @@ def add_screening_and_freshness_flags(df, fetched_at):
     df["spread_score"] = _compute_spread_score(df["bid_ask_spread_pct_of_mid"])
     df["dte_score"] = _compute_dte_score(df["days_to_expiration"])
     df["risk_level"] = _compute_risk_level(df)
-    df["risk_model_inconsistent"] = np.where(
-        df["delta_abs"].notna() & df["probability_itm"].notna(),
-        np.abs(df["delta_abs"] - df["probability_itm"]) > 0.15,
-        np.nan,
+    risk_model_available = df["delta_abs"].notna() & df["probability_itm"].notna()
+    risk_model_inconsistent = pd.Series(pd.NA, index=df.index, dtype="boolean")
+    risk_model_inconsistent.loc[risk_model_available] = (
+        np.abs(
+            df.loc[risk_model_available, "delta_abs"]
+            - df.loc[risk_model_available, "probability_itm"]
+        )
+        > 0.15
     )
+    df["risk_model_inconsistent"] = risk_model_inconsistent
     df["is_wide_market"] = (
         df["bid_ask_spread_pct_of_mid"] > config.max_spread_pct_of_mid
     )

@@ -14,6 +14,7 @@ from opx_chain.metrics import (
     add_quote_quality_metrics,
     add_screening_and_freshness_flags,
 )
+from opx_chain.validate import validate_option_rows
 
 
 def test_compute_greeks_probability_itm_complements_for_matching_call_put():
@@ -611,3 +612,122 @@ def test_add_screening_and_freshness_flags_is_stale_quote_stays_nullable_boolean
     assert result["is_stale_quote"].dtype == object
     assert result.loc[0, "is_stale_quote"] is False
     assert result.loc[1, "is_stale_quote"] is None
+
+
+def test_add_screening_and_freshness_flags_risk_model_uses_nullable_boolean(monkeypatch):
+    """risk_model_inconsistent must not become 0.0/1.0 floats via np.nan coercion."""
+    monkeypatch.setattr("opx_chain.metrics.get_runtime_config", make_score_config)
+    fetched_at = pd.Timestamp("2026-03-20T16:00:00Z")
+    frame = pd.DataFrame(
+        [
+            {
+                "data_source": "stub",
+                "underlying_symbol": "TEST",
+                "contract_symbol": "TEST260501C00100000",
+                "option_type": "call",
+                "expiration_date": "2026-05-01",
+                "option_quote_time": pd.Timestamp("2026-03-20T15:55:00Z"),
+                "underlying_price_time": pd.Timestamp("2026-03-20T15:55:00Z"),
+                "days_to_expiration": 14,
+                "strike_distance_pct": 0.02,
+                "premium_per_day": 0.04,
+                "iv_adjusted_premium_per_day": 0.04,
+                "theta_efficiency": 8.0,
+                "bid": 1.0,
+                "ask": 1.1,
+                "last_trade_price": 1.05,
+                "strike": 100.0,
+                "underlying_price": 102.0,
+                "open_interest": 150,
+                "volume": 20,
+                "implied_volatility": 0.30,
+                "delta_abs": 0.25,
+                "probability_itm": 0.22,
+                "has_valid_quote": True,
+                "has_nonzero_bid": True,
+                "has_nonzero_ask": True,
+                "has_valid_iv": True,
+                "has_valid_greeks": True,
+                "has_crossed_or_locked_market": False,
+                "bid_ask_spread_pct_of_mid": 0.08,
+                "is_in_the_money": False,
+            },
+            {
+                "data_source": "stub",
+                "underlying_symbol": "TEST",
+                "contract_symbol": "TEST260501C00105000",
+                "option_type": "call",
+                "expiration_date": "2026-05-01",
+                "option_quote_time": pd.Timestamp("2026-03-20T15:55:00Z"),
+                "underlying_price_time": pd.Timestamp("2026-03-20T15:55:00Z"),
+                "days_to_expiration": 14,
+                "strike_distance_pct": 0.02,
+                "premium_per_day": 0.04,
+                "iv_adjusted_premium_per_day": 0.04,
+                "theta_efficiency": 8.0,
+                "bid": 1.0,
+                "ask": 1.1,
+                "last_trade_price": 1.05,
+                "strike": 105.0,
+                "underlying_price": 102.0,
+                "open_interest": 150,
+                "volume": 20,
+                "implied_volatility": 0.30,
+                "delta_abs": 0.70,
+                "probability_itm": 0.40,
+                "has_valid_quote": True,
+                "has_nonzero_bid": True,
+                "has_nonzero_ask": True,
+                "has_valid_iv": True,
+                "has_valid_greeks": True,
+                "has_crossed_or_locked_market": False,
+                "bid_ask_spread_pct_of_mid": 0.08,
+                "is_in_the_money": False,
+            },
+            {
+                "data_source": "stub",
+                "underlying_symbol": "TEST",
+                "contract_symbol": "TEST260501C00110000",
+                "option_type": "call",
+                "expiration_date": "2026-05-01",
+                "option_quote_time": pd.Timestamp("2026-03-20T15:55:00Z"),
+                "underlying_price_time": pd.Timestamp("2026-03-20T15:55:00Z"),
+                "days_to_expiration": 14,
+                "strike_distance_pct": 0.02,
+                "premium_per_day": 0.04,
+                "iv_adjusted_premium_per_day": 0.04,
+                "theta_efficiency": 8.0,
+                "bid": 1.0,
+                "ask": 1.1,
+                "last_trade_price": 1.05,
+                "strike": 110.0,
+                "underlying_price": 102.0,
+                "open_interest": 150,
+                "volume": 20,
+                "implied_volatility": 0.30,
+                "delta_abs": pd.NA,
+                "probability_itm": 0.40,
+                "has_valid_quote": True,
+                "has_nonzero_bid": True,
+                "has_nonzero_ask": True,
+                "has_valid_iv": True,
+                "has_valid_greeks": True,
+                "has_crossed_or_locked_market": False,
+                "bid_ask_spread_pct_of_mid": 0.08,
+                "is_in_the_money": False,
+            },
+        ]
+    )
+
+    result = add_screening_and_freshness_flags(frame.copy(), fetched_at=fetched_at)
+
+    assert str(result["risk_model_inconsistent"].dtype) == "boolean"
+    assert bool(result.loc[0, "risk_model_inconsistent"]) is False
+    assert bool(result.loc[1, "risk_model_inconsistent"]) is True
+    assert pd.isna(result.loc[2, "risk_model_inconsistent"])
+
+    findings = validate_option_rows(result)
+    invalid_boolean_fields = {
+        finding.field for finding in findings if finding.code == "invalid_boolean_field"
+    }
+    assert "risk_model_inconsistent" not in invalid_boolean_fields
