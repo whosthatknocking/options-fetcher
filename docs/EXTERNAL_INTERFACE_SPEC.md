@@ -130,6 +130,7 @@ run_fetch(
     max_expiration_weeks=34,
     stale_quote_seconds=86_400,
 )
+run_fetch(dry_run=True)
 ```
 
 `run_fetch()` is the in-process equivalent of invoking `opx-fetch` as a subprocess.
@@ -152,6 +153,10 @@ fetch. When absent, the configured `settings.max_expiration_weeks` is used uncha
 threshold for this run only. Downstream callers use this to align fetch freshness with
 their own run policy without editing opx-chain config. When absent, the configured
 `settings.stale_quote_seconds` is used unchanged.
+
+**`dry_run` (optional `bool`)** — when `True`, validates config loading, positions
+parsing, lock acquisition, and storage reachability without making provider API calls
+or writing run artifacts. This is the in-process equivalent of `opx-fetch --dry-run`.
 
 **Errors:**
 

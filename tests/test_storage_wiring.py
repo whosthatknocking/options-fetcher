@@ -589,6 +589,24 @@ def test_run_fetch_max_expiration_override_can_disable_filter(tmp_path: Path):
     assert active_config.max_expiration is None
 
 
+def test_run_fetch_dry_run_makes_no_api_calls_and_no_writes(tmp_path: Path):
+    """run_fetch(dry_run=True) should match the CLI dry-run zero-call behavior."""
+    from opx_chain import fetcher  # pylint: disable=import-outside-toplevel
+
+    backend = MemoryBackend()
+    config = make_runtime_config(storage_enabled=True)
+    patches = _fetcher_patches(tmp_path, config, backend)
+
+    with ExitStack() as stack:
+        mocks = [stack.enter_context(p) for p in patches]
+        fetcher.run_fetch(dry_run=True)
+
+    mock_fetch = mocks[9]  # fetch_ticker_option_chain
+    mock_fetch.assert_not_called()
+    assert not backend.list_datasets()
+    assert not list(backend._runs.values())  # pylint: disable=protected-access
+
+
 def test_check_positions_falls_back_to_scan_when_disabled(tmp_path: Path):
     """opx-check must fall back to directory scanning when storage is disabled."""
     from opx_chain import check_positions as cp  # pylint: disable=import-outside-toplevel

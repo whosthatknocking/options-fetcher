@@ -485,6 +485,7 @@ def run_fetch(
     tickers: tuple[str, ...] | None = None,
     max_expiration_weeks: int | None = None,
     stale_quote_seconds: int | None = None,
+    dry_run: bool = False,
 ) -> None:
     """Trigger a fresh option-chain fetch and write the result to storage.
 
@@ -496,6 +497,7 @@ def run_fetch(
     tickers: override the ticker list from config for this run only.
     max_expiration_weeks: override the expiration window from config for this run only.
     stale_quote_seconds: override the staleness threshold from config for this run only.
+    dry_run: validate config, positions, and storage without API calls or writes.
 
     Raises RuntimeError if another fetch run is already active.
     Raises RuntimeError if the fetch produces no data.
@@ -514,7 +516,12 @@ def run_fetch(
         raise RuntimeError(f"Another fetcher run is already active: {lock_path}")
     try:
         set_runtime_config_override(config)
-        _do_fetch_with_lock_held(config, positions_path, cli_override=None)
+        _do_fetch_with_lock_held(
+            config,
+            positions_path,
+            cli_override=None,
+            dry_run=dry_run,
+        )
     finally:
         set_runtime_config_override(None)
         release_fetcher_lock(lock_handle, lock_path)
