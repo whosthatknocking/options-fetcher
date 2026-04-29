@@ -272,6 +272,33 @@ def test_format_freshness_summary_lines_recomputes_current_age_from_saved_timest
     assert "newest_age=11d 00h 00m" in rendered
 
 
+def test_format_freshness_summary_lines_handles_missing_timestamp_columns(tmp_path):
+    """Freshness summary should not crash when an output lacks timestamp fields."""
+    out_path = _write_output(tmp_path, "options_engine_output_test.csv", [
+        {
+            "underlying_symbol": "GOOGL",
+            "expiration_date": "2026-06-20",
+            "option_type": "call",
+            "strike": 200.0,
+        },
+    ])
+
+    lines = format_freshness_summary_lines(
+        out_path,
+        now=pd.Timestamp("2026-04-21T13:50:56Z"),
+    )
+    rendered = "\n".join(lines)
+
+    assert (
+        "option_quotes_now: rows_with_timestamp=0  stale_now_rows=0  stale_at_fetch_rows=0"
+        in rendered
+    )
+    assert (
+        "underlying_quotes_now: rows_with_timestamp=0  stale_now_rows=0  "
+        "stale_at_fetch_rows=0" in rendered
+    )
+
+
 def test_main_prints_freshness_summary_when_requested(tmp_path, capsys, monkeypatch):
     """--freshness should print a runtime freshness section alongside position coverage."""
     pos_path = _write_positions(tmp_path, [

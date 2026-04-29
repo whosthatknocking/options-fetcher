@@ -194,9 +194,11 @@ def _summarize_quote_freshness(
     now: pd.Timestamp,
 ) -> dict[str, object]:
     """Summarize current freshness from saved timestamps and stored fetch-time flags."""
-    timestamps = pd.to_datetime(frame.get(timestamp_column), errors="coerce", utc=True)
-    if timestamps is None:
-        timestamps = pd.Series(dtype="datetime64[ns, UTC]")
+    raw_timestamps = frame.get(timestamp_column)
+    if raw_timestamps is None:
+        timestamps = pd.Series(index=frame.index, dtype="datetime64[ns, UTC]")
+    else:
+        timestamps = pd.to_datetime(raw_timestamps, errors="coerce", utc=True)
     valid_mask = timestamps.notna()
     rows_with_timestamp = int(valid_mask.sum())
     if rows_with_timestamp == 0:
