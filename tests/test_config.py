@@ -1,5 +1,7 @@
 """Config-loader and provider-selection tests for Milestone 1."""
 
+import subprocess
+import sys
 import tomllib
 from datetime import date, datetime, timezone
 from pathlib import Path
@@ -13,10 +15,10 @@ from opx_chain.paths import (
 )
 from opx_chain.providers import (
     PROVIDER_FACTORIES,
-    MassiveProvider,
-    YFinanceProvider,
     get_data_provider,
 )
+from opx_chain.providers.massive import MassiveProvider
+from opx_chain.providers.yfinance import YFinanceProvider
 
 
 def test_load_runtime_config_uses_defaults_when_file_is_absent(tmp_path: Path):
@@ -675,3 +677,25 @@ backoff_seconds = 1.5
 def test_provider_registry_exposes_supported_providers():
     """The shared factory registry should enumerate the supported provider set."""
     assert set(PROVIDER_FACTORIES) == {"yfinance", "massive", "marketdata"}
+
+
+def test_provider_package_import_is_lazy():
+    """Importing the provider registry must not import unused vendor provider modules."""
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-c",
+            (
+                "import sys\n"
+                "import opx_chain.providers\n"
+                "print('opx_chain.providers.yfinance' in sys.modules)\n"
+                "print('opx_chain.providers.massive' in sys.modules)\n"
+                "print('opx_chain.providers.marketdata' in sys.modules)\n"
+            ),
+        ],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+
+    assert result.stdout.splitlines() == ["False", "False", "False"]
