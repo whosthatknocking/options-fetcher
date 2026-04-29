@@ -325,7 +325,9 @@ def test_fetch_ticker_option_chain_prints_stage_counts(monkeypatch, capsys):
     assert result.attrs["raw_expiration_count"] == 1
 
 
-def test_fetch_ticker_option_chain_explains_when_filters_remove_everything(monkeypatch, capsys):
+def test_fetch_ticker_option_chain_explains_when_filters_remove_everything(
+    monkeypatch, capsys, caplog
+):
     """Console output should explain empty results after provider data is filtered out."""
     monkeypatch.setattr(fetch, "get_data_provider", StubProvider)
     def config_factory():
@@ -339,13 +341,23 @@ def test_fetch_ticker_option_chain_explains_when_filters_remove_everything(monke
     monkeypatch.setattr(opx_chain.normalize, "get_runtime_config", config_factory)
     monkeypatch.setattr(opx_chain.metrics, "get_runtime_config", config_factory)
 
-    result = fetch.fetch_ticker_option_chain("TEST")
+    caplog.set_level("INFO", logger="opx_chain.run")
+    logger = logging.getLogger("opx_chain.run")
+
+    result = fetch.fetch_ticker_option_chain("TEST", logger=logger)
 
     stdout = capsys.readouterr().out
     assert result.empty
+    assert result.attrs["fetch_status"] == "skipped"
     assert result.attrs["raw_row_count"] == 3
     assert result.attrs["normalized_row_count"] == 3
     assert result.attrs["filtered_row_count"] == 3
+    assert (
+        "ticker=TEST provider=stub status=skipped fetched_at="
+        in caplog.text
+    )
+    assert "reason=all_rows_filtered" in caplog.text
+    assert "ticker=TEST provider=stub status=ok" not in caplog.text
     assert "TEST: chain  2026-04-17  rows=3" in stdout
     assert "TEST: normalize  rows=3" in stdout
     assert (

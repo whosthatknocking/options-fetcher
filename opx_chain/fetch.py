@@ -415,17 +415,38 @@ def fetch_ticker_option_chain(  # pylint: disable=too-many-locals,too-many-branc
                 ),
                 logger=logger,
             )
-        else:
-            _emit_fetch_info(
-                f"{ticker}: filter  rows={len(combined)}  dropped={dropped_rows}",
-                logger=logger,
+            combined = _with_fetch_counts(
+                combined,
+                raw_row_count=raw_contract_count,
+                normalized_row_count=pre_filter_count,
+                filtered_row_count=dropped_rows,
+                raw_expiration_count=raw_expiration_count,
             )
-            exp_count = combined["expiration_date"].nunique() if not combined.empty else 0
-            _emit_fetch_info(
-                f"{ticker}: done  rows={len(combined)}"
-                f"  expirations={exp_count}  raw={raw_contract_count}",
-                logger=logger,
+            if logger:
+                logger.info(
+                    (
+                        "ticker=%s provider=%s status=skipped fetched_at=%s "
+                        "rows=0 expirations=0 raw_provider_rows=%s raw_expirations=%s "
+                        "reason=all_rows_filtered"
+                    ),
+                    ticker,
+                    provider.name,
+                    fetched_at.strftime("%Y-%m-%dT%H:%M:%SZ"),
+                    raw_contract_count,
+                    raw_expiration_count,
             )
+            return _with_fetch_status(combined, "skipped")
+
+        _emit_fetch_info(
+            f"{ticker}: filter  rows={len(combined)}  dropped={dropped_rows}",
+            logger=logger,
+        )
+        exp_count = combined["expiration_date"].nunique() if not combined.empty else 0
+        _emit_fetch_info(
+            f"{ticker}: done  rows={len(combined)}"
+            f"  expirations={exp_count}  raw={raw_contract_count}",
+            logger=logger,
+        )
 
         # Post-filter enrichment on surviving rows.
         combined = add_theta_efficiency_below_p25(combined)
