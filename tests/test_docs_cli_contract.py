@@ -183,3 +183,13 @@ def test_user_guide_shared_settings_use_lowercase_toml_keys():
     assert expected_tickers in shared_settings
     assert "`filters_min_open_interest = 100`" in shared_settings
     assert "`enable_validation = true`" in shared_settings
+
+
+def test_user_guide_documents_valid_max_expiration_disable_value():
+    """The max-expiration disable guidance should be valid TOML."""
+    guide = (ROOT / "docs" / "USER_GUIDE.md").read_text(encoding="utf-8")
+
+    assert "set it to `0` to disable the expiration cap entirely" in guide
+    assert "set it to `0` to disable the max-expiration cutoff entirely" in guide
+    assert "set to `null`" not in guide
+    assert "TOML has no null literal" in guide

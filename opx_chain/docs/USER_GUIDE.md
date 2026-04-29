@@ -215,7 +215,7 @@ These settings apply regardless of which provider is active.
 - `hv_lookback_days = 30`: lookback window for historical volatility.
 - `trading_days_per_year = 252`: annualization factor for volatility.
 - `stale_quote_seconds = 10800`: staleness threshold for option and underlying quotes.
-- `max_expiration_weeks = 34`: caps expirations to roughly the next eight months by default. Set it to any positive week count you want, or omit it (set to `null`) to disable the expiration cap entirely.
+- `max_expiration_weeks = 34`: caps expirations to roughly the next eight months by default. Set it to any positive week count you want, or set it to `0` to disable the expiration cap entirely. Do not use `null`; TOML has no null literal.
 
 #### Shared Viewer Defaults
 
@@ -283,7 +283,7 @@ XXXXXXXXX,SAMPLE ACCOUNT, -MSFT260918P380,MSFT SEP 18 2026 $380 PUT,,,,,,,,,,,,M
 - Use `opx-fetch --disable-filters` or `opx-fetch --enable-filters` when you want a one-off override without changing config.
 - Set `enable_validation = false` when you want to skip shared row/file validation and suppress validation summaries.
 - Turn on `debug_dump_provider_payload = true` when you need to inspect the raw provider payload and confirm whether fields such as `last_quote`, `underlying_asset`, or Yahoo chain columns were present before normalization.
-- Change `max_expiration_weeks` when you want a shorter or longer expiration window, or set it to `null` to disable the max-expiration cutoff entirely.
+- Change `max_expiration_weeks` when you want a shorter or longer expiration window, or set it to `0` to disable the max-expiration cutoff entirely.
 - Change `viewer_host` or `viewer_port` when you want the local viewer to bind to a different interface or port by default.
 - Change the shared analytics or freshness settings only if you want different modeling assumptions.
 - Change the `option_score_*_weight` values when you want to tune the shared score without changing code. The weights must stay non-negative and their total must stay positive or the loader falls back to defaults.
