@@ -54,6 +54,8 @@ request_interval_seconds = 12.0
 
 [providers.marketdata]
 api_token = "replace-me"
-mode = "delayed"
+# Optional: uncomment to force "live", "cached", or "delayed" mode.
+# If omitted, the SDK/account default applies.
+# mode = "delayed"
 max_retries = 3
 request_interval_seconds = 0.0

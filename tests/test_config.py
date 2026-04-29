@@ -1,5 +1,6 @@
 """Config-loader and provider-selection tests for Milestone 1."""
 
+import tomllib
 from datetime import date, datetime, timezone
 from pathlib import Path
 
@@ -54,6 +55,15 @@ def test_example_config_is_valid_toml():
     assert config.config_path == config_path
     assert config.min_bid is None
     assert not any("could not be parsed" in warning for warning in config.config_warnings)
+
+
+def test_example_config_does_not_force_marketdata_mode():
+    """The copyable example should let Market Data use account defaults unless edited."""
+    config_path = Path(__file__).resolve().parents[1] / "config" / "example.toml"
+
+    raw_config = tomllib.loads(config_path.read_text(encoding="utf-8"))
+
+    assert "mode" not in raw_config["providers"]["marketdata"]
 
 
 def test_load_runtime_config_uses_eastern_market_calendar_for_today(tmp_path: Path, monkeypatch):
