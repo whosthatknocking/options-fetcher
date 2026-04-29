@@ -198,43 +198,43 @@ These settings apply regardless of which provider is active.
 
 #### Shared Runtime Defaults
 
-- `TICKERS = ["TSLA", "NVDA", "UBER", "MSFT", "GOOGL", "ORCL", "PLTR"]`: list of underlyings to fetch.
+- `tickers = ["TSLA", "NVDA", "UBER", "MSFT", "GOOGL", "ORCL", "PLTR"]`: list of underlyings to fetch.
 - `data_provider = "yfinance"`: provider implementation used by the fetch pipeline.
 
 #### Shared Filtering Defaults
 
-- `FILTERS_MIN_BID = disabled`: bid minimum screen is disabled by default (previously `0.50`). Set it to a positive value to mark contracts below that premium threshold as `passes_primary_screen=false`; it does not remove those rows from the exported dataset.
-- `FILTERS_MIN_OPEN_INTEREST = 100`: baseline open-interest threshold used by the screening metrics.
-- `FILTERS_MIN_VOLUME = 10`: baseline daily volume threshold used by the screening metrics.
-- `FILTERS_MAX_SPREAD_PCT_OF_MID = 0.25`: excludes contracts with spreads wider than 25% of midpoint.
-- `FILTERS_MAX_STRIKE_DISTANCE_PCT = 0.35`: keeps only strikes within +/-35% of the latest underlying price.
+- `filters_min_bid = disabled`: bid minimum screen is disabled by default (previously `0.50`). Set it to a positive value to mark contracts below that premium threshold as `passes_primary_screen=false`; it does not remove those rows from the exported dataset.
+- `filters_min_open_interest = 100`: baseline open-interest threshold used by the screening metrics.
+- `filters_min_volume = 10`: baseline daily volume threshold used by the screening metrics.
+- `filters_max_spread_pct_of_mid = 0.25`: excludes contracts with spreads wider than 25% of midpoint.
+- `filters_max_strike_distance_pct = 0.35`: keeps only strikes within +/-35% of the latest underlying price.
 
 #### Shared Analytics and Freshness Defaults
 
-- `RISK_FREE_RATE = 0.045`: risk-free rate used in Black-Scholes calculations.
-- `HV_LOOKBACK_DAYS = 30`: lookback window for historical volatility.
-- `TRADING_DAYS_PER_YEAR = 252`: annualization factor for volatility.
-- `STALE_QUOTE_SECONDS = 10800`: staleness threshold for option and underlying quotes.
-- `MAX_EXPIRATION_WEEKS = 34`: caps expirations to roughly the next eight months by default. Set it to any positive week count you want, or omit it (set to `null`) to disable the expiration cap entirely.
+- `risk_free_rate = 0.045`: risk-free rate used in Black-Scholes calculations.
+- `hv_lookback_days = 30`: lookback window for historical volatility.
+- `trading_days_per_year = 252`: annualization factor for volatility.
+- `stale_quote_seconds = 10800`: staleness threshold for option and underlying quotes.
+- `max_expiration_weeks = 34`: caps expirations to roughly the next eight months by default. Set it to any positive week count you want, or omit it (set to `null`) to disable the expiration cap entirely.
 
 #### Shared Viewer Defaults
 
-- `VIEWER_HOST = "127.0.0.1"`: default bind host used by `opx-view`.
-- `VIEWER_PORT = 8000`: default bind port used by `opx-view`.
+- `viewer_host = "127.0.0.1"`: default bind host used by `opx-view`.
+- `viewer_port = 8000`: default bind port used by `opx-view`.
 
 #### Shared Scoring Defaults
 
-- `OPTION_SCORE_INCOME_WEIGHT = 0.30`: weight on premium-per-day in the shared `option_score`.
-- `OPTION_SCORE_LIQUIDITY_WEIGHT = 0.30`: weight on spread, open interest, and volume in the shared `option_score`.
-- `OPTION_SCORE_RISK_WEIGHT = 0.25`: weight on the side-aware delta target in the shared `option_score`.
-- `OPTION_SCORE_EFFICIENCY_WEIGHT = 0.15`: weight on days-to-expiration and strike-distance efficiency in the shared `option_score`.
+- `option_score_income_weight = 0.30`: weight on premium-per-day in the shared `option_score`.
+- `option_score_liquidity_weight = 0.30`: weight on spread, open interest, and volume in the shared `option_score`.
+- `option_score_risk_weight = 0.25`: weight on the side-aware delta target in the shared `option_score`.
+- `option_score_efficiency_weight = 0.15`: weight on days-to-expiration and strike-distance efficiency in the shared `option_score`.
 
 #### Shared Diagnostics Defaults
 
-- `FILTERS_ENABLE = true`: applies the zero-bid, strike-band, and wide-spread row filters after download. Set it to `false` when you want the raw downloaded rows to remain in the exported dataset while still computing metrics and quality flags.
-- `ENABLE_VALIDATION = true`: runs shared row-level validation before post-download filtering and file-level validation before export. Set it to `false` when you want to skip validation findings and validation summary output entirely.
-- `DEBUG_DUMP_PROVIDER_PAYLOAD = false`: when `true`, dump raw provider payloads to JSON before normalization so missing fields can be inspected directly.
-- `DEBUG_DUMP_DIR = "debug"`: directory used for raw provider payload dumps. Relative values are resolved under `$XDG_DATA_HOME/opx-chain/`, so the default becomes `~/.local/share/opx-chain/debug/`. Dump filenames are prefixed with the provider name.
+- `filters_enable = true`: applies the zero-bid, strike-band, and wide-spread row filters after download. Set it to `false` when you want the raw downloaded rows to remain in the exported dataset while still computing metrics and quality flags.
+- `enable_validation = true`: runs shared row-level validation before post-download filtering and file-level validation before export. Set it to `false` when you want to skip validation findings and validation summary output entirely.
+- `debug_dump_provider_payload = false`: when `true`, dump raw provider payloads to JSON before normalization so missing fields can be inspected directly.
+- `debug_dump_dir = "debug"`: directory used for raw provider payload dumps. Relative values are resolved under `$XDG_DATA_HOME/opx-chain/`, so the default becomes `~/.local/share/opx-chain/debug/`. Dump filenames are prefixed with the provider name.
 
 ### Provider Settings
 

@@ -141,3 +141,43 @@ def test_provider_cache_default_path_is_documented_precisely():
 
     assert expected_path in readme
     assert expected_path in development
+
+
+def test_user_guide_shared_settings_use_lowercase_toml_keys():
+    """Shared settings examples should be copyable into TOML config files."""
+    guide = (ROOT / "docs" / "USER_GUIDE.md").read_text(encoding="utf-8")
+    shared_settings = guide.split("### Shared Settings", maxsplit=1)[1]
+    shared_settings = shared_settings.split("### Provider Settings", maxsplit=1)[0]
+    uppercase_keys = (
+        "TICKERS",
+        "FILTERS_MIN_BID",
+        "FILTERS_MIN_OPEN_INTEREST",
+        "FILTERS_MIN_VOLUME",
+        "FILTERS_MAX_SPREAD_PCT_OF_MID",
+        "FILTERS_MAX_STRIKE_DISTANCE_PCT",
+        "RISK_FREE_RATE",
+        "HV_LOOKBACK_DAYS",
+        "TRADING_DAYS_PER_YEAR",
+        "STALE_QUOTE_SECONDS",
+        "MAX_EXPIRATION_WEEKS",
+        "VIEWER_HOST",
+        "VIEWER_PORT",
+        "OPTION_SCORE_INCOME_WEIGHT",
+        "OPTION_SCORE_LIQUIDITY_WEIGHT",
+        "OPTION_SCORE_RISK_WEIGHT",
+        "OPTION_SCORE_EFFICIENCY_WEIGHT",
+        "FILTERS_ENABLE",
+        "ENABLE_VALIDATION",
+        "DEBUG_DUMP_PROVIDER_PAYLOAD",
+        "DEBUG_DUMP_DIR",
+    )
+
+    for key in uppercase_keys:
+        assert f"`{key}" not in shared_settings
+
+    expected_tickers = (
+        '`tickers = ["TSLA", "NVDA", "UBER", "MSFT", "GOOGL", "ORCL", "PLTR"]`'
+    )
+    assert expected_tickers in shared_settings
+    assert "`filters_min_open_interest = 100`" in shared_settings
+    assert "`enable_validation = true`" in shared_settings
