@@ -83,6 +83,7 @@ class FakeMarketDataClient:  # pylint: disable=too-few-public-methods,too-many-i
             "changepct": [0.025],
             "updated": [1710942020],
         }
+        self.request_urls = []
         self.stocks = type("StocksResource", (), {"earnings": self._stocks_earnings})()
 
     def _stocks_earnings(self, _symbol, **_kwargs):
@@ -90,6 +91,7 @@ class FakeMarketDataClient:  # pylint: disable=too-few-public-methods,too-many-i
 
 
     def _make_request(self, _method, url, *_args, **_kwargs):
+        self.request_urls.append(url)
         if "stocks/dividends/" in url:
             return FakeResponse(200, self._dividend_payload)
         if "stocks/quotes/" in url:
@@ -282,6 +284,24 @@ def test_marketdata_provider_passes_configured_mode(monkeypatch):
     provider.list_option_expirations("TSLA")
 
     assert str(fake_client(provider).last_chain_kwargs["mode"].value) == "delayed"  # pylint: disable=no-member
+
+
+def test_marketdata_provider_passes_configured_mode_to_raw_endpoints(monkeypatch):
+    """Raw Market Data quote and dividend endpoints should honor configured mode."""
+    patch_marketdata_client(monkeypatch)
+    monkeypatch.setattr(
+        "opx_chain.providers.marketdata.get_runtime_config",
+        lambda: make_runtime_config(marketdata_mode="cached"),
+    )
+    provider = MarketDataProvider()
+    client = fake_client(provider)
+
+    provider.load_underlying_snapshot("TSLA")
+    provider.load_ticker_events("TSLA")
+
+    request_urls = getattr(client, "request_urls")
+    assert "stocks/quotes/TSLA/?mode=cached" in request_urls
+    assert "stocks/dividends/TSLA/?mode=cached" in request_urls
 
 
 def test_marketdata_provider_retries_rate_limits(monkeypatch):

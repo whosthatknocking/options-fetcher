@@ -141,6 +141,14 @@ class MarketDataProvider(DataProvider):
         """Return the configured minimum spacing between Market Data HTTP requests."""
         return get_runtime_config().marketdata_request_interval_seconds
 
+    def _raw_endpoint_url(self, endpoint: str) -> str:
+        """Return a raw SDK endpoint URL with configured mode applied when needed."""
+        mode = self._mode()
+        if mode is None:
+            return endpoint
+        separator = "&" if "?" in endpoint else "?"
+        return f"{endpoint}{separator}mode={mode.value}"
+
     @lru_cache(maxsize=1)
     def _client(self) -> OpxMarketDataClient:
         """Construct the official Market Data client once per provider instance."""
@@ -350,7 +358,7 @@ class MarketDataProvider(DataProvider):
         try:
             response = self._client()._make_request(  # pylint: disable=protected-access
                 method="GET",
-                url=f"stocks/quotes/{ticker.upper()}/",
+                url=self._raw_endpoint_url(f"stocks/quotes/{ticker.upper()}/"),
             )
             if getattr(response, "status_code", 200) >= 400:
                 return None
@@ -446,7 +454,7 @@ class MarketDataProvider(DataProvider):
         try:
             response = self._client()._make_request(  # pylint: disable=protected-access
                 method="GET",
-                url=f"stocks/dividends/{ticker.upper()}/",
+                url=self._raw_endpoint_url(f"stocks/dividends/{ticker.upper()}/"),
             )
             div_data = self._decode_response_json(response) or {}
             ex_dates = div_data.get("exDate") or []
