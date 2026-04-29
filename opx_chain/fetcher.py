@@ -3,7 +3,6 @@
 import argparse
 from dataclasses import replace
 from datetime import datetime, timedelta, timezone
-import fcntl
 import hashlib
 import json
 import os
@@ -18,6 +17,7 @@ from opx_chain.config import (
 )
 from opx_chain.export import prepare_export_frame, write_options_csv
 from opx_chain.fetch import fetch_ticker_option_chain
+from opx_chain.locks import acquire_nonblocking_file_lock, release_file_lock
 from opx_chain.positions import DEFAULT_POSITIONS_PATH, load_positions
 from opx_chain.runlog import create_run_logger, log_run_started
 from opx_chain.storage.factory import get_data_dir, get_storage_backend
@@ -156,13 +156,11 @@ def _fetcher_lock_path(config) -> Path:
 def acquire_fetcher_lock(lock_path: Path | None = None):
     """Acquire an exclusive non-blocking lock for the fetcher process."""
     resolved_lock_path = lock_path or FETCHER_LOCK_PATH
-    resolved_lock_path.parent.mkdir(parents=True, exist_ok=True)
-    handle = resolved_lock_path.open("w", encoding="utf-8")
-    try:
-        fcntl.flock(handle.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
-    except OSError:
-        handle.close()
+    handle = acquire_nonblocking_file_lock(resolved_lock_path)
+    if handle is None:
         return None
+    handle.seek(0)
+    handle.truncate()
     handle.write(f"{resolved_lock_path}\n")
     handle.flush()
     return handle
@@ -172,7 +170,7 @@ def release_fetcher_lock(lock_handle, lock_path: Path | None = None):
     """Close the lock handle and remove the lock file path after the run ends."""
     resolved_lock_path = lock_path or FETCHER_LOCK_PATH
     try:
-        lock_handle.close()
+        release_file_lock(lock_handle)
     finally:
         try:
             resolved_lock_path.unlink()

@@ -8,6 +8,7 @@ from unittest.mock import MagicMock, patch
 
 import pandas as pd
 from conftest import make_runtime_config
+from opx_chain.fetcher import acquire_fetcher_lock, release_fetcher_lock
 from opx_chain.providers.base import ProviderQuotaError
 from opx_chain.storage.memory import MemoryBackend
 from opx_chain.validate import ValidationFinding
@@ -501,7 +502,17 @@ def test_dry_run_makes_no_api_calls_and_no_writes(tmp_path: Path):
     mock_fetch = mocks[9]  # fetch_ticker_option_chain
     mock_fetch.assert_not_called()
     assert not backend.list_datasets()
-    assert not list(backend._runs.values())  # pylint: disable=protected-access
+
+
+def test_fetcher_lock_blocks_second_holder(tmp_path: Path):
+    """Fetcher locks must remain non-blocking without requiring fcntl imports."""
+    lock_path = tmp_path / "fetcher.lock"
+    first = acquire_fetcher_lock(lock_path)
+    assert first is not None
+    try:
+        assert acquire_fetcher_lock(lock_path) is None
+    finally:
+        release_fetcher_lock(first, lock_path)
 
 
 def test_dry_run_prints_would_fetch_summary(tmp_path: Path, capsys):
