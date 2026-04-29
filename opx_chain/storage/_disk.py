@@ -8,6 +8,7 @@ from pathlib import Path
 
 import pandas as pd
 
+from opx_chain.storage.atomic import atomic_write_bytes
 from opx_chain.storage.serializers import DatasetSerializer
 
 
@@ -33,7 +34,6 @@ def write_artifact_bytes(
     """Write raw artifact bytes to disk. Returns (artifact_id, dest_path, content_hash)."""
     artifact_id = str(uuid.uuid4())
     dest = (debug_dir / artifact_id / filename).resolve()
-    dest.parent.mkdir(parents=True, exist_ok=True)
-    dest.write_bytes(content)
+    atomic_write_bytes(dest, content)
     content_hash = hashlib.sha256(content).hexdigest()
     return artifact_id, dest, content_hash

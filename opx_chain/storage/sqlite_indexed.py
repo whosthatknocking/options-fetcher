@@ -26,6 +26,7 @@ from opx_chain.storage.models import (
     ValidationRecord,
     record_to_handle,
 )
+from opx_chain.storage.atomic import atomic_write_bytes
 from opx_chain.storage._disk import write_artifact_bytes, write_dataset_artifact
 from opx_chain.storage.serializers import get_serializer
 
@@ -357,8 +358,7 @@ class SqliteIndexedBackend:
         """Write artifact bytes to disk and record metadata in SQLite."""
         if artifact.artifact_type == "sidecar":
             dest = self._sidecar_path(run_id, artifact.filename)
-            dest.parent.mkdir(parents=True, exist_ok=True)
-            dest.write_bytes(artifact.content)
+            atomic_write_bytes(dest, artifact.content)
             artifact_id = f"{run_id}:{artifact.filename}"
             content_hash = hashlib.sha256(artifact.content).hexdigest()
         else:

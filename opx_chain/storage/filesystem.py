@@ -23,6 +23,7 @@ from opx_chain.storage.models import (
     ValidationRecord,
     record_to_handle,
 )
+from opx_chain.storage.atomic import atomic_write_bytes, atomic_write_text
 from opx_chain.storage._disk import write_artifact_bytes, write_dataset_artifact
 from opx_chain.storage.serializers import get_serializer
 
@@ -122,8 +123,7 @@ class FilesystemBackend:
 
     def _write_run(self, run_id: str, data: dict) -> None:
         path = self._run_path(run_id)
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(json.dumps(data, indent=2), encoding="utf-8")
+        atomic_write_text(path, json.dumps(data, indent=2))
 
     def _find_meta_path(self, dataset_id: str) -> Path:
         """Scan all run dirs to locate a dataset meta file by dataset_id."""
@@ -150,8 +150,7 @@ class FilesystemBackend:
             "script_version": record.script_version,
         }
         path = self._meta_path(record.dataset_id, record.run_id)
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(json.dumps(data, indent=2), encoding="utf-8")
+        atomic_write_text(path, json.dumps(data, indent=2))
 
     @staticmethod
     def _meta_to_record(data: dict) -> DatasetRecord:
@@ -276,8 +275,7 @@ class FilesystemBackend:
         """Write artifact bytes to disk and return an ArtifactRecord."""
         if artifact.artifact_type == "sidecar":
             dest = self._sidecar_path(run_id, artifact.filename)
-            dest.parent.mkdir(parents=True, exist_ok=True)
-            dest.write_bytes(artifact.content)
+            atomic_write_bytes(dest, artifact.content)
             artifact_id = f"{run_id}:{artifact.filename}"
             content_hash = hashlib.sha256(artifact.content).hexdigest()
         else:

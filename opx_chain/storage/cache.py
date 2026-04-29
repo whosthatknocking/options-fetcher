@@ -10,6 +10,8 @@ import json
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
+from opx_chain.storage.atomic import atomic_write_bytes, atomic_write_text
+
 
 class NullCache:  # pylint: disable=too-few-public-methods
     """No-op cache that never stores anything. Default when cache is disabled."""
@@ -57,10 +59,10 @@ class FilesystemCache:
         self._dir.mkdir(parents=True, exist_ok=True)
         bin_path, meta_path = self._key_paths(key)
         expires_at = datetime.now(tz=timezone.utc) + timedelta(seconds=ttl_seconds)
-        bin_path.write_bytes(value)
-        meta_path.write_text(
+        atomic_write_bytes(bin_path, value)
+        atomic_write_text(
+            meta_path,
             json.dumps({"key": key, "expires_at": expires_at.isoformat()}),
-            encoding="utf-8",
         )
 
     def invalidate(self, key: str) -> None:

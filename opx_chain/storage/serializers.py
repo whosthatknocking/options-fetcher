@@ -7,6 +7,8 @@ from typing import Protocol
 
 import pandas as pd
 
+from opx_chain.storage.atomic import atomic_file_write
+
 
 class DatasetSerializer(Protocol):  # pylint: disable=too-few-public-methods
     """Serialize a DataFrame to a file path. Returns bytes written."""
@@ -24,9 +26,7 @@ class CsvSerializer:  # pylint: disable=too-few-public-methods
     def serialize(self, df: pd.DataFrame, path: str) -> int:
         """Write df to path as CSV. Returns bytes written."""
         dest = Path(path)
-        dest.parent.mkdir(parents=True, exist_ok=True)
-        df.to_csv(dest, index=False)
-        return dest.stat().st_size
+        return atomic_file_write(dest, lambda tmp_path: df.to_csv(tmp_path, index=False))
 
 
 class ParquetSerializer:  # pylint: disable=too-few-public-methods
@@ -40,9 +40,10 @@ class ParquetSerializer:  # pylint: disable=too-few-public-methods
     def serialize(self, df: pd.DataFrame, path: str) -> int:
         """Write df to path as Parquet. Returns bytes written."""
         dest = Path(path)
-        dest.parent.mkdir(parents=True, exist_ok=True)
-        df.to_parquet(dest, index=False, engine="pyarrow")
-        return dest.stat().st_size
+        return atomic_file_write(
+            dest,
+            lambda tmp_path: df.to_parquet(tmp_path, index=False, engine="pyarrow"),
+        )
 
 
 _SERIALIZERS: dict[str, DatasetSerializer] = {
