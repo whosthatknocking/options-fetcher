@@ -244,9 +244,10 @@ class RunRecord:
 `tickers` records the effective fetch universe for this run, including configured
 tickers and stock tickers expanded from the positions file. `config_fingerprint`
 covers the fields that affect fetch output: provider, tickers, expiration
-ceiling, filter settings, and scoring weights. It does not cover log paths or
-debug flags. Two runs with the same fingerprint and the same positions
-fingerprint should produce structurally comparable datasets.
+ceiling, filter settings, scoring weights, Greek/HV constants, quote freshness
+threshold, and Market Data mode. It does not cover log paths or debug flags.
+Two runs with the same fingerprint and the same positions fingerprint should
+produce structurally comparable datasets.
 
 `positions_fingerprint` is the SHA-256 of the raw positions file bytes. It changes
 when any held position changes, making it easy to attribute output differences to

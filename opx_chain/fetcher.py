@@ -116,6 +116,13 @@ def _config_fingerprint(config) -> str:
         "min_volume": config.min_volume,
         "max_spread_pct_of_mid": config.max_spread_pct_of_mid,
         "max_strike_distance_pct": config.max_strike_distance_pct,
+        "risk_free_rate": config.risk_free_rate,
+        "hv_lookback_days": config.hv_lookback_days,
+        "trading_days_per_year": config.trading_days_per_year,
+        "stale_quote_seconds": config.stale_quote_seconds,
+        "marketdata_mode": (
+            config.marketdata_mode if config.data_provider == "marketdata" else None
+        ),
         "option_score_income_weight": config.option_score_income_weight,
         "option_score_liquidity_weight": config.option_score_liquidity_weight,
         "option_score_risk_weight": config.option_score_risk_weight,

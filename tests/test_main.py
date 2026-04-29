@@ -10,6 +10,7 @@ import pandas as pd
 from conftest import make_runtime_config
 import main
 from opx_chain.config import get_runtime_config as get_process_runtime_config
+from opx_chain.fetcher import _config_fingerprint
 from opx_chain.validate import validate_option_rows
 
 
@@ -155,6 +156,24 @@ def test_main_uses_storage_dir_for_side_csv_and_lock(monkeypatch, tmp_path: Path
     assert written["path"].parent == custom_data_dir / "runs"
     assert (custom_data_dir / "runs" / "options_engine_output_latest.csv").exists()
     assert not (custom_data_dir / "fetcher.lock").exists()
+
+
+def test_config_fingerprint_includes_output_affecting_settings():
+    """Fingerprint must change when resolved settings alter persisted output."""
+    base_overrides = {"data_provider": "marketdata", "marketdata_mode": "delayed"}
+    baseline = make_runtime_config(**base_overrides)
+    baseline_fingerprint = _config_fingerprint(baseline)
+
+    for overrides in (
+        {"risk_free_rate": 0.055},
+        {"hv_lookback_days": 45},
+        {"trading_days_per_year": 260},
+        {"stale_quote_seconds": 3600},
+        {"marketdata_mode": "live"},
+    ):
+        changed = make_runtime_config(**{**base_overrides, **overrides})
+
+        assert _config_fingerprint(changed) != baseline_fingerprint
 
 
 def test_main_uses_utc_timestamp_for_side_csv_filename(monkeypatch, tmp_path: Path):

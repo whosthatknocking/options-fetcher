@@ -29,7 +29,7 @@ One record per fetch run. Created by `create_run`, updated by
 | `status` | `str` | NO | 2 | `running` / `complete` / `failed` / `interrupted`; `create_run` sets `running` immediately; `pending` is reserved |
 | `provider` | `str` | NO | 2 | Data provider name (e.g., `marketdata`, `yfinance`); required for dataset provenance |
 | `tickers` | `tuple[str, ...]` | NO | 2 | Effective fetch universe for this run, including configured tickers and stock tickers expanded from the positions file; used by ticker-filtered dataset discovery |
-| `config_fingerprint` | `str` | NO | 2 | SHA-256 of the resolved config fields that affect output (provider, tickers, filter settings, scoring weights); two runs with the same fingerprint and positions fingerprint should produce structurally comparable datasets |
+| `config_fingerprint` | `str` | NO | 2 | SHA-256 of the resolved config fields that affect output (provider, tickers, expiration cap, filter settings, scoring weights, Greek/HV constants, freshness threshold, and Market Data mode); two runs with the same fingerprint and positions fingerprint should produce structurally comparable datasets |
 | `positions_fingerprint` | `str` | NO | 2 | SHA-256 of the raw positions file bytes; empty string when no positions file is present; changes when held positions change, making it easy to attribute output differences to position vs. market changes |
 | `dataset_id` | `str` | YES | 2 | FK to `DatasetRecord`; `None` until `write_dataset` succeeds; a run may complete without a dataset if all tickers fail |
 | `error_summary` | `str` | YES | 2 | Short error description when `status = failed` or `interrupted`; `None` otherwise |
