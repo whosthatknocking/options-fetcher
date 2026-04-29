@@ -42,7 +42,7 @@ Runtime-generated files live under the XDG base directories rather than the repo
 - `[storage].dir` overrides the data directory for fetcher locks, CSV side writes,
   and storage-managed run artifacts when configured.
 - `$XDG_STATE_HOME/opx-chain/` for run logs
-- `$XDG_CACHE_HOME/opx-chain/` for provider cache files when `cache_backend = "filesystem"`
+- `$XDG_CACHE_HOME/opx-chain/cache/` for provider cache files when `cache_backend = "filesystem"`
 
 ## Provider Contract
 

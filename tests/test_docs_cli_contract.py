@@ -131,3 +131,13 @@ def test_canonical_doc_indexes_list_storage_and_metadata_specs():
     for doc_path in required_docs:
         assert f"`{doc_path}`" in source_of_truth
         assert f"`{doc_path}`" in doc_layout
+
+
+def test_provider_cache_default_path_is_documented_precisely():
+    """User-facing docs should point to the actual default filesystem cache path."""
+    expected_path = "$XDG_CACHE_HOME/opx-chain/cache/"
+    readme = (ROOT / "README.md").read_text(encoding="utf-8")
+    development = (ROOT / "docs" / "DEVELOPMENT.md").read_text(encoding="utf-8")
+
+    assert expected_path in readme
+    assert expected_path in development
