@@ -1,5 +1,6 @@
 """Viewer helper tests for field descriptions, cards, and freshness metadata."""
 from importlib import resources
+import os
 from pathlib import Path
 import textwrap
 
@@ -136,6 +137,7 @@ def test_build_freshness_summary_reports_file_and_quote_ages(tmp_path: Path):
     """Freshness summary should report both file age and quote age statistics."""
     csv_path = tmp_path / "sample.csv"
     csv_path.write_text("placeholder", encoding="utf-8")
+    os.utime(csv_path, (1_776_000_000, 1_776_000_000))
     frame = pd.DataFrame(
         {
             "quote_age_seconds": [10, 30, 50],
@@ -150,7 +152,7 @@ def test_build_freshness_summary_reports_file_and_quote_ages(tmp_path: Path):
     assert summary["underlying_quote_age_median_seconds"] == 15.0
     assert summary["underlying_quote_age_max_seconds"] == 25.0
     assert summary["file_age_seconds"] >= 0
-    assert len(summary["file_modified_at"]) == 19
+    assert summary["file_modified_at"] == "2026-04-12T13:20:00Z"
 
 
 def test_normalize_row_value_keeps_days_to_expiration_as_integer():

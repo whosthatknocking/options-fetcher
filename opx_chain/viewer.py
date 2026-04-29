@@ -11,7 +11,7 @@ import re
 import threading
 import time
 import webbrowser
-from datetime import datetime
+from datetime import datetime, timezone
 from http import HTTPStatus
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from importlib import resources
@@ -309,9 +309,9 @@ def build_freshness_summary(frame: pd.DataFrame, csv_path: Path) -> FreshnessSum
 
     summary: FreshnessSummary = {
         "file_age_seconds": max(0.0, now - modified_at),
-        "file_modified_at": datetime.fromtimestamp(modified_at).strftime(
-            "%Y-%m-%d %H:%M:%S"
-        ),
+        "file_modified_at": datetime.fromtimestamp(
+            modified_at, tz=timezone.utc
+        ).strftime("%Y-%m-%dT%H:%M:%SZ"),
         "option_quote_age_median_seconds": None,
         "option_quote_age_max_seconds": None,
         "underlying_quote_age_median_seconds": None,
