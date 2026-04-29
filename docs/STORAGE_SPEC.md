@@ -527,8 +527,11 @@ field from the `dataset_format` config option (`"csv"` default). The
 must match the artifact bytes written by the backend.
 
 `ParquetSerializer` requires the optional `pyarrow` dependency
-(`pip install 'opx-chain[parquet]'`). Reading parquet files uses
-`opx_chain.utils.read_dataset_file(path)`, which dispatches on file extension.
+(`pip install 'opx-chain[parquet]'`). The dependency is checked when parquet
+storage is selected, so `opx-fetch --dry-run` and backend construction fail
+fast before provider calls instead of failing after rows are fetched. Reading
+parquet files uses `opx_chain.utils.read_dataset_file(path)`, which dispatches
+on file extension.
 
 ## 12. Dataset Retention
 
@@ -640,6 +643,7 @@ All seven steps are complete and shipped.
 ### Step 4 — Parquet serializer ✓
 
 - `ParquetSerializer` in `opx_chain/storage/serializers.py`; requires `pyarrow`
+  at serializer selection / backend construction time
 - `dataset_format` config option (`"csv"` default)
 - shared `read_dataset_file(path)` utility in `opx_chain/utils.py` dispatches on extension
 

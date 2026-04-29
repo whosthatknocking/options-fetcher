@@ -34,9 +34,11 @@ class ParquetSerializer:  # pylint: disable=too-few-public-methods
 
     format = "parquet"
 
+    def __init__(self) -> None:
+        ensure_parquet_available()
+
     def serialize(self, df: pd.DataFrame, path: str) -> int:
         """Write df to path as Parquet. Returns bytes written."""
-        ensure_parquet_available()
         dest = Path(path)
         dest.parent.mkdir(parents=True, exist_ok=True)
         df.to_parquet(dest, index=False, engine="pyarrow")
@@ -45,16 +47,16 @@ class ParquetSerializer:  # pylint: disable=too-few-public-methods
 
 _SERIALIZERS: dict[str, DatasetSerializer] = {
     CsvSerializer.format: CsvSerializer(),
-    ParquetSerializer.format: ParquetSerializer(),
 }
 
 
 def get_serializer(fmt: str) -> DatasetSerializer:
     """Return the serializer for the given format name."""
-    try:
+    if fmt == ParquetSerializer.format:
+        return ParquetSerializer()
+    if fmt in _SERIALIZERS:
         return _SERIALIZERS[fmt]
-    except KeyError as exc:
-        raise ValueError(f"Unsupported dataset format: {fmt!r}") from exc
+    raise ValueError(f"Unsupported dataset format: {fmt!r}")
 
 
 def ensure_parquet_available() -> None:

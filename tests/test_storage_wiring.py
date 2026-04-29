@@ -1,6 +1,7 @@
 """Tests for the storage-enabled branches of fetcher.py and check_positions.py."""
 # pylint: disable=duplicate-code
 
+import builtins
 from contextlib import ExitStack
 from pathlib import Path
 from unittest.mock import MagicMock, patch
@@ -605,6 +606,41 @@ def test_run_fetch_dry_run_makes_no_api_calls_and_no_writes(tmp_path: Path):
     mock_fetch.assert_not_called()
     assert not backend.list_datasets()
     assert not list(backend._runs.values())  # pylint: disable=protected-access
+
+
+def test_run_fetch_dry_run_checks_parquet_dependency_before_api_calls(tmp_path: Path):
+    """Dry-run should fail fast when parquet output is configured without pyarrow."""
+    from opx_chain import fetcher  # pylint: disable=import-outside-toplevel
+
+    config = make_runtime_config(
+        storage_enabled=True,
+        storage_dataset_format="parquet",
+        storage_dir=tmp_path,
+    )
+    fetcher_patches = _fetcher_patches(tmp_path, config, MemoryBackend())
+    patches = [
+        patcher
+        for patcher in fetcher_patches
+        if getattr(patcher, "attribute", None) != "get_storage_backend"
+    ]
+    original_import = builtins.__import__
+
+    def fake_import(name, *args, **kwargs):
+        if name == "pyarrow":
+            raise ImportError("missing pyarrow")
+        return original_import(name, *args, **kwargs)
+
+    with ExitStack() as stack:
+        mocks = {
+            getattr(patcher, "attribute", ""): stack.enter_context(patcher)
+            for patcher in patches
+        }
+        with patch("builtins.__import__", side_effect=fake_import):
+            result = fetcher.main(["--dry-run"])
+
+    mock_fetch = mocks["fetch_ticker_option_chain"]
+    assert result == 1
+    mock_fetch.assert_not_called()
 
 
 def test_check_positions_falls_back_to_scan_when_disabled(tmp_path: Path):

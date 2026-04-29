@@ -68,7 +68,7 @@ To verify configuration, positions parsing, and storage reachability without pro
 opx-fetch --dry-run
 ```
 
-Dry runs print the tickers that would be fetched, the resolved positions source, and the storage backend check. They do not create run logs, datasets, sidecars, or provider requests.
+Dry runs print the tickers that would be fetched, the resolved positions source, and the storage backend check. If parquet output is configured, they also verify that `pyarrow` is installed. They do not create run logs, datasets, sidecars, or provider requests.
 
 Check that every option position in the default positions file appears in the latest output CSV:
 

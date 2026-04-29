@@ -62,7 +62,9 @@ See `docs/PROJECT_SPEC.md` §7.3 for the full behaviour specification.
 **`--dry-run` (optional)**
 
 Validates the resolved config, parses the positions file, and checks storage
-backend reachability without provider API calls or output writes. A dry run exits
+backend reachability without provider API calls or output writes. If parquet
+storage is configured, the dry run also verifies that the optional `pyarrow`
+dependency is installed before any provider call can be made. A dry run exits
 `0` when those preflight checks pass. It is safe for operator diagnostics; a
 downstream orchestrator should not treat it as producing a new dataset.
 
