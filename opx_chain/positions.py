@@ -41,6 +41,11 @@ class PositionSet:
         """Return True when the parsed positions set contains no stock or option entries."""
         return not self.stock_tickers and not self.option_keys
 
+    @property
+    def tickers(self) -> frozenset[str]:
+        """Return every ticker represented by stock rows or held option rows."""
+        return self.stock_tickers | frozenset(key.ticker for key in self.option_keys)
+
 
 EMPTY_POSITION_SET = PositionSet(frozenset(), frozenset())
 

@@ -630,3 +630,66 @@ def test_main_can_override_positions_path_via_cli(monkeypatch, capsys, tmp_path:
         message == f"positions path: {positions_path}"
         for message in logger.info_messages
     )
+
+
+def test_main_adds_option_only_position_tickers(monkeypatch, capsys, tmp_path: Path):
+    """Held option tickers should expand the effective fetch list even without stock rows."""
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(main, "FETCHER_LOCK_PATH", tmp_path / "fetcher.lock")
+    monkeypatch.setattr(main, "LOCKS_DIR", tmp_path)
+    monkeypatch.setattr(main, "RUNS_DIR", tmp_path / "output")
+    monkeypatch.setattr(
+        main,
+        "get_runtime_config",
+        lambda: make_runtime_config(tickers=("AAA",)),
+    )
+    monkeypatch.setattr(
+        main,
+        "create_run_logger",
+        lambda: (CapturingLogger(), Path("/tmp/opx-run.log")),
+    )
+    positions_path = tmp_path / "positions.csv"
+    positions_path.write_text(
+        "\n".join([
+            "Account Number,Account Name,Symbol,Description,Type",
+            "1,Sample,-TSLA260320C100,TSLA CALL,Margin",
+        ]),
+        encoding="utf-8",
+    )
+
+    captured = []
+
+    def fetch_and_capture_ticker(
+        ticker,
+        logger=None,
+        validation_findings=None,
+        filtered_row_counts=None,
+        position_set=None,
+    ):
+        del logger
+        del validation_findings
+        del filtered_row_counts
+        del position_set
+        captured.append(ticker)
+        return pd.DataFrame([
+            make_export_row(
+                underlying_symbol=ticker,
+                contract_symbol=f"{ticker}260417C00100000",
+            )
+        ])
+
+    monkeypatch.setattr(main, "fetch_ticker_option_chain", fetch_and_capture_ticker)
+    monkeypatch.setattr(
+        main,
+        "write_options_csv",
+        lambda ticker_frames, output_path: output_path.parent.mkdir(parents=True, exist_ok=True)
+        or output_path.write_text("ok", encoding="utf-8"),
+    )
+
+    exit_code = main.main(["--positions", str(positions_path)])
+
+    stdout = capsys.readouterr().out
+    assert exit_code == 0
+    assert f"Positions ({positions_path}): 0 stocks, 1 options" in stdout
+    assert "Added from positions: TSLA" in stdout
+    assert captured == ["AAA", "TSLA"]

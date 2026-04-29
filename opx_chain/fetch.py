@@ -261,6 +261,7 @@ def fetch_ticker_option_chain(  # pylint: disable=too-many-locals,too-many-branc
         usable_expirations = []
         skipped_for_max_expiration = 0
         skipped_for_past_expiration = 0
+        positions = position_set or EMPTY_POSITION_SET
         for expiration_date in available_expirations:
             if config.max_expiration is not None and expiration_date > config.max_expiration:
                 skipped_for_max_expiration += 1
@@ -268,9 +269,8 @@ def fetch_ticker_option_chain(  # pylint: disable=too-many-locals,too-many-branc
 
             exp_date = datetime.strptime(expiration_date, "%Y-%m-%d").date()
             days_until = (exp_date - config.today).days
-            # Keep today's expiration for portfolio stock tickers (days == 0); drop past.
-            positions = position_set or EMPTY_POSITION_SET
-            min_days = 0 if ticker in positions.stock_tickers else 1
+            # Keep today's expiration for any portfolio exposure to the ticker; drop past.
+            min_days = 0 if ticker in positions.tickers else 1
             if days_until < min_days:
                 skipped_for_past_expiration += 1
                 continue

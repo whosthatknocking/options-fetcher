@@ -249,9 +249,11 @@ held_contracts: frozenset[OptionPositionKey] = positions.option_keys
 `load_positions()` parses the same Fidelity positions CSV format used by
 `opx-fetch`. It returns a `PositionSet` with:
 
-- `stock_tickers`: stock symbols that should expand the effective fetch universe
+- `stock_tickers`: stock symbols parsed from held stock rows
 - `option_keys`: held option contracts as `OptionPositionKey` values with `ticker`,
   `expiration_date`, `option_type`, and `strike`
+- `tickers`: the union of stock symbols and option-underlying symbols; this expands
+  the effective fetch universe and controls same-day expiration retention
 
 Missing, malformed, or unsupported files return an empty `PositionSet` instead of
 raising, matching the fetch pipeline's graceful fallback behavior.

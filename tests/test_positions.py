@@ -92,6 +92,7 @@ def test_load_positions_parses_mixed_stocks_and_options(tmp_path):
     assert len(result.option_keys) == 2
     assert OptionPositionKey("GOOGL", "2026-06-18", "put", 310.0) in result.option_keys
     assert OptionPositionKey("GOOGL", "2026-09-18", "call", 350.0) in result.option_keys
+    assert result.tickers == frozenset({"GOOGL"})
 
 
 def test_load_positions_returns_empty_on_missing_symbol_column(tmp_path):

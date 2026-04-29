@@ -5,7 +5,7 @@ data_provider = "yfinance"
 # Optional portfolio positions input:
 # Place a Fidelity-format export at $XDG_DATA_HOME/opx-chain/positions.csv
 # (defaulting to ~/.local/share/opx-chain/positions.csv) when you want
-# position-aware ticker expansion and post-download filter bypass.
+# position-aware ticker expansion, same-day expiration retention, and post-download filter bypass.
 
 # Shared filtering
 # Omit filters_min_bid to disable this optional screen; TOML has no null literal.

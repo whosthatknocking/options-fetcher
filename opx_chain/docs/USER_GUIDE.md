@@ -259,7 +259,7 @@ These settings are only used by the matching provider.
 
 At the start of every run, `opx-fetch` reads `$XDG_DATA_HOME/opx-chain/positions.csv` (default `~/.local/share/opx-chain/positions.csv`, Fidelity export format) to drive two behaviors:
 
-- **Stock ticker expansion** _(always active)_: all stock tickers found in the file are added to the effective fetch list for the run, even if they are not listed in `settings.tickers`. Today's expiration is also kept for these tickers so that options expiring on the current date are available for position matching.
+- **Position ticker expansion** _(always active)_: all stock tickers and option-underlying tickers found in the file are added to the effective fetch list for the run, even if they are not listed in `settings.tickers`. Today's expiration is also kept for any ticker with stock or option exposure so that options expiring on the current date are available for position matching.
 - **Option filter bypass** _(active only when filters are enabled)_: any option contract that matches a row in the file (by ticker, expiration date, option type, and strike) bypasses all post-download quality filters. These rows are always included in the output regardless of bid, spread, or strike-distance settings. When `filters_enable = false` or `--disable-filters` is used, all rows are already kept unconditionally so the bypass has no effect.
 
 The file is re-read on every run. If the file does not exist or cannot be parsed, the run continues with normal behavior.

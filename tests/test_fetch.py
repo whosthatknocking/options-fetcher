@@ -618,6 +618,30 @@ def test_today_expiration_kept_for_portfolio_stock(monkeypatch):
     assert "TODAY_CALL" in result["contract_symbol"].values
 
 
+def test_today_expiration_kept_for_portfolio_option(monkeypatch):
+    """Expirations on today's date must be kept when the ticker has held options."""
+    monkeypatch.setattr(fetch, "get_data_provider", TodayExpirationProvider)
+    _patch_config_20260320(monkeypatch)
+
+    position_set = PositionSet(
+        stock_tickers=frozenset(),
+        option_keys=frozenset(
+            [
+                OptionPositionKey(
+                    ticker="TEST",
+                    expiration_date="2026-03-20",
+                    option_type="call",
+                    strike=100.0,
+                )
+            ]
+        ),
+    )
+    result = fetch.fetch_ticker_option_chain("TEST", position_set=position_set)
+
+    assert not result.empty
+    assert "TODAY_CALL" in result["contract_symbol"].values
+
+
 def test_position_option_survives_filters(monkeypatch):
     """An option matching a portfolio position must not be dropped even with bid==0."""
     monkeypatch.setattr(fetch, "get_data_provider", StubProvider)

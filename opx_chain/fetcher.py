@@ -287,7 +287,7 @@ def _do_fetch_with_lock_held(  # pylint: disable=too-many-branches,too-many-loca
         logger.info("positions path: %s", resolved_positions_path)
         position_set = load_positions(resolved_positions_path)
         extra_tickers = tuple(
-            t for t in sorted(position_set.stock_tickers) if t not in set(config.tickers)
+            t for t in sorted(position_set.tickers) if t not in set(config.tickers)
         )
         effective_tickers = config.tickers + extra_tickers
         if resolved_positions_path.exists():

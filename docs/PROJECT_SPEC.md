@@ -386,7 +386,8 @@ Current behavior:
 - the default input path is `$XDG_DATA_HOME/opx-chain/positions.csv`
 - `opx-fetch` accepts an optional `--positions <path>` CLI override for one run
 - the file is treated as user-managed input, not generated output
-- stock tickers found in the file are added to the effective fetch list for the run
+- stock tickers and option-underlying tickers found in the file are added to the effective fetch list for the run
+- today's expiration is kept for any ticker with stock or option exposure in the positions file
 - matching option contracts bypass post-download quality filters when filters are enabled
 - if the file is absent or cannot be parsed, the run continues without position-aware behavior
 - the resolved positions path is logged at startup for run auditability
