@@ -14,8 +14,15 @@ from opx_chain.utils import read_dataset_file
 RUNS_DIR = get_data_dir() / "runs"
 
 
-def find_latest_output(runs_dir: Path = RUNS_DIR) -> Path | None:
+def _runtime_runs_dir() -> Path:
+    """Return the active runtime runs directory for fallback CSV scans."""
+    config = get_runtime_config()
+    return Path(config.storage_dir) / "runs" if config.storage_dir else RUNS_DIR
+
+
+def find_latest_output(runs_dir: Path | None = None) -> Path | None:
     """Return the latest output CSV, checking the latest symlink then globbing run dirs."""
+    runs_dir = runs_dir or _runtime_runs_dir()
     latest = runs_dir / "options_engine_output_latest.csv"
     if latest.exists():
         return latest
@@ -422,7 +429,7 @@ def main(argv=None):
         else:
             resolved_output = find_latest_output()
     if resolved_output is None:
-        print(f"No output CSV found in {RUNS_DIR}/")
+        print(f"No output CSV found in {_runtime_runs_dir()}/")
         return 1
 
     print(f"Positions: {positions_path}")

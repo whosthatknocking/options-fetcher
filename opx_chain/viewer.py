@@ -202,11 +202,18 @@ def discover_dataset_paths() -> list[Path]:
             if paths:
                 return paths
 
+    runs_dir = _runtime_runs_dir()
     candidates = [
-        *RUNS_DIR.glob(f"*/output/{CSV_PATTERN}"),
-        *RUNS_DIR.glob(CSV_PATTERN),
+        *runs_dir.glob(f"*/output/{CSV_PATTERN}"),
+        *runs_dir.glob(CSV_PATTERN),
     ]
     return sorted(candidates, key=lambda p: p.stat().st_mtime, reverse=True)
+
+
+def _runtime_runs_dir() -> Path:
+    """Return the active runtime runs directory for fallback CSV discovery."""
+    config = get_runtime_config()
+    return Path(config.storage_dir) / "runs" if config.storage_dir else RUNS_DIR
 
 
 def resolve_csv_path(csv_name: str | None = None) -> Path:

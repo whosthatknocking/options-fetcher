@@ -207,6 +207,30 @@ def test_resolve_csv_path_rejects_undiscovered_dataset_names(tmp_path: Path, mon
             raise AssertionError(f"Expected FileNotFoundError for {invalid_name}")
 
 
+def test_discover_dataset_paths_uses_runtime_storage_dir_fallback(
+    tmp_path: Path,
+    monkeypatch,
+):
+    """Viewer fallback discovery should honor storage.dir from runtime config."""
+    dataset = tmp_path.joinpath(
+        "custom-data",
+        "runs",
+        "run-1",
+        "output",
+        "options_engine_output_20260102_120000.csv",
+    )
+    dataset.parent.mkdir(parents=True)
+    dataset.write_text("underlying_symbol\nAAPL\n", encoding="utf-8")
+    config = type("Config", (), {"storage_dir": tmp_path / "custom-data"})()
+
+    monkeypatch.setattr(viewer, "_DATA_DIR_OVERRIDE", None)
+    monkeypatch.setattr(viewer, "_CSV_MODE", False)
+    monkeypatch.setattr(viewer, "get_storage_backend", lambda: None)
+    monkeypatch.setattr(viewer, "get_runtime_config", lambda: config)
+
+    assert viewer.discover_dataset_paths() == [dataset]
+
+
 def test_build_ticker_summary_marks_estimated_marketdata_earnings_dates():
     """Summary payload should preserve whether the next earnings date is estimated."""
     frame = pd.DataFrame(

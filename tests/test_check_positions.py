@@ -52,6 +52,20 @@ def test_find_latest_output_returns_most_recent(tmp_path):
     assert find_latest_output(tmp_path) == newer
 
 
+def test_find_latest_output_uses_runtime_storage_dir(tmp_path, monkeypatch):
+    """Default fallback scans should honor storage.dir from runtime config."""
+    storage_dir = tmp_path / "custom-data"
+    output_dir = storage_dir / "runs" / "run-1" / "output"
+    output_dir.mkdir(parents=True)
+    dataset = output_dir / "options_engine_output_20260102_120000.csv"
+    dataset.write_text("underlying_symbol\nAAPL\n", encoding="utf-8")
+    config = type("Config", (), {"storage_dir": storage_dir})()
+
+    monkeypatch.setattr("opx_chain.check_positions.get_runtime_config", lambda: config)
+
+    assert find_latest_output() == dataset
+
+
 def test_check_positions_found(tmp_path):
     """A position present in the output CSV appears in the found list."""
     pos_path = _write_positions(tmp_path, [
