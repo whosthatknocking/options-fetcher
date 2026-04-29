@@ -421,6 +421,29 @@ def test_pruning_removes_positions_sidecar_for_pruned_run(tmp_path: Path):
     assert not Path(record.location).exists()
 
 
+def test_pruning_removes_all_sidecars_for_pruned_run(tmp_path: Path):
+    """Pruning must remove every sidecar file, not just positions.csv."""
+    backend = _make_backend(tmp_path, max_runs_retained=1)
+    run_id = backend.create_run(_make_context())
+    positions = backend.write_artifact(run_id, ArtifactWrite(
+        artifact_type="sidecar",
+        content=b"positions",
+        filename="positions.csv",
+    ))
+    manifest = backend.write_artifact(run_id, ArtifactWrite(
+        artifact_type="sidecar",
+        content=b"manifest",
+        filename="manifest.json",
+    ))
+    _write(backend, run_id)
+    next_run_id = backend.create_run(_make_context(provider="marketdata"))
+    _write(backend, next_run_id, provider="marketdata")
+
+    assert not Path(positions.location).exists()
+    assert not Path(manifest.location).exists()
+    assert (tmp_path / "runs" / run_id / "run.json").exists()
+
+
 def test_no_pruning_when_max_runs_retained_zero(tmp_path: Path):
     """When max_runs_retained = 0 (default), no datasets are ever pruned."""
     backend = _make_backend(tmp_path, max_runs_retained=0)

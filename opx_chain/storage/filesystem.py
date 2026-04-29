@@ -91,7 +91,14 @@ class FilesystemBackend:
         return self._runs_dir / run_id / filename
 
     def _delete_sidecar_files(self, run_id: str) -> None:
-        self._sidecar_path(run_id, "positions.csv").unlink(missing_ok=True)
+        run_dir = self._runs_dir / run_id
+        try:
+            entries = list(run_dir.iterdir())
+        except OSError:
+            return
+        for entry in entries:
+            if entry.is_file() and entry.name != "run.json":
+                entry.unlink(missing_ok=True)
 
     def _read_run(self, run_id: str) -> dict:
         path = self._run_path(run_id)
