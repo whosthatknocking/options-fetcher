@@ -109,6 +109,31 @@ def test_validate_option_rows_flags_derived_boolean_fields():
     assert DERIVED_BOOLEAN_FIELDS.issubset(fields)
 
 
+def test_validate_option_rows_does_not_use_iterrows(monkeypatch):
+    """Row validation should be vectorized instead of materializing row Series."""
+
+    def fail_iterrows(_self):
+        raise AssertionError("iterrows should not be used by validate_option_rows")
+
+    monkeypatch.setattr(pd.DataFrame, "iterrows", fail_iterrows)
+    frame = pd.DataFrame(
+        [
+            make_valid_row(contract_symbol="TEST260417C00100000"),
+            make_valid_row(contract_symbol="TEST260417P00100000", bid=2.0, ask=1.0),
+        ],
+        index=[10, 20],
+    )
+
+    findings = validate_option_rows(frame)
+
+    assert any(
+        f.code == "invalid_quote_order"
+        and f.row_index == 20
+        and f.contract_symbol == "TEST260417P00100000"
+        for f in findings
+    )
+
+
 def test_validate_export_frame_flags_missing_columns_and_duplicates():
     """Combined export validation should catch file-level schema and duplicate issues."""
     frame = pd.DataFrame(

@@ -60,21 +60,33 @@ class ValidationFinding:
         return " ".join(bits)
 
 
-def _is_missing(value) -> bool:
-    if value is None:
-        return True
-    if isinstance(value, str):
-        return not value.strip()
-    return bool(pd.isna(value))
-
-
-def _coerce_numeric(value):
-    coerced = pd.to_numeric(value, errors="coerce")
-    return np.nan if pd.isna(coerced) else float(coerced)
-
-
 def _is_boolean_like(value) -> bool:
     return isinstance(value, (bool, np.bool_))
+
+
+def _missing_mask(df: pd.DataFrame, field: str) -> pd.Series:
+    """Return a boolean mask for missing or blank field values."""
+    if field not in df.columns:
+        return pd.Series(True, index=df.index)
+    series = df[field]
+    missing = series.isna()
+    if series.dtype == object or pd.api.types.is_string_dtype(series):
+        missing = missing | series.map(lambda value: isinstance(value, str) and not value.strip())
+    return missing
+
+
+def _numeric_series(df: pd.DataFrame, field: str) -> pd.Series:
+    """Return a numeric series for a field, coercing invalid values to NaN."""
+    if field not in df.columns:
+        return pd.Series(np.nan, index=df.index, dtype=float)
+    return pd.to_numeric(df[field], errors="coerce")
+
+
+def _contract_symbols(df: pd.DataFrame) -> pd.Series:
+    """Return contract symbols aligned to df.index, or None when unavailable."""
+    if "contract_symbol" not in df.columns:
+        return pd.Series(None, index=df.index, dtype=object)
+    return df["contract_symbol"]
 
 
 def _make_finding(  # pylint: disable=too-many-arguments
@@ -90,170 +102,175 @@ def _make_finding(  # pylint: disable=too-many-arguments
     )
 
 
-def validate_option_rows(  # pylint: disable=too-many-branches
-    df: pd.DataFrame,
-) -> list[ValidationFinding]:
+def _append_row_findings(  # pylint: disable=too-many-arguments
+    findings: list[ValidationFinding],
+    mask: pd.Series,
+    contract_symbols: pd.Series,
+    *,
+    severity: str,
+    code: str,
+    message: str,
+    field: str,
+) -> None:
+    """Append one finding for each row selected by mask."""
+    for row_index in mask[mask].index:
+        findings.append(
+            _make_finding(
+                severity,
+                code,
+                message,
+                row_index=row_index,
+                contract_symbol=contract_symbols.loc[row_index],
+                field=field,
+            )
+        )
+
+
+def validate_option_rows(df: pd.DataFrame) -> list[ValidationFinding]:
     """Validate individual option rows before shared post-download filtering."""
     findings: list[ValidationFinding] = []
     if df.empty:
         return findings
 
-    for row_index, row in df.iterrows():
-        contract_symbol = None if "contract_symbol" not in row else row.get("contract_symbol")
+    contract_symbols = _contract_symbols(df)
 
-        for field in REQUIRED_CORE_FIELDS:
-            if field not in df.columns or _is_missing(row.get(field)):
-                findings.append(
-                    _make_finding(
-                        "error",
-                        "missing_required_field",
-                        f"Required field '{field}' is empty.",
-                        row_index=row_index,
-                        contract_symbol=contract_symbol,
-                        field=field,
-                    )
-                )
+    for field in REQUIRED_CORE_FIELDS:
+        _append_row_findings(
+            findings,
+            _missing_mask(df, field),
+            contract_symbols,
+            severity="error",
+            code="missing_required_field",
+            message=f"Required field '{field}' is empty.",
+            field=field,
+        )
 
-        option_type = row.get("option_type")
-        if not _is_missing(option_type) and option_type not in {"call", "put"}:
-            findings.append(
-                _make_finding(
-                    "error",
-                    "invalid_option_type",
-                    "option_type must be 'call' or 'put'.",
-                    row_index=row_index,
-                    contract_symbol=contract_symbol,
-                    field="option_type",
-                )
-            )
+    if "option_type" in df.columns:
+        invalid_option_type = (
+            ~_missing_mask(df, "option_type")
+            & ~df["option_type"].isin({"call", "put"})
+        )
+        _append_row_findings(
+            findings,
+            invalid_option_type,
+            contract_symbols,
+            severity="error",
+            code="invalid_option_type",
+            message="option_type must be 'call' or 'put'.",
+            field="option_type",
+        )
 
-        expiration_date = row.get("expiration_date")
-        if not _is_missing(expiration_date):
-            parsed_expiration = pd.to_datetime(
-                expiration_date,
-                format="%Y-%m-%d",
-                errors="coerce",
-            )
-            if pd.isna(parsed_expiration):
-                findings.append(
-                    _make_finding(
-                        "error",
-                        "invalid_expiration_date",
-                        "expiration_date must parse as YYYY-MM-DD.",
-                        row_index=row_index,
-                        contract_symbol=contract_symbol,
-                        field="expiration_date",
-                    )
-                )
+    if "expiration_date" in df.columns:
+        parsed_expiration = pd.to_datetime(
+            df["expiration_date"],
+            format="%Y-%m-%d",
+            errors="coerce",
+        )
+        invalid_expiration = ~_missing_mask(df, "expiration_date") & parsed_expiration.isna()
+        _append_row_findings(
+            findings,
+            invalid_expiration,
+            contract_symbols,
+            severity="error",
+            code="invalid_expiration_date",
+            message="expiration_date must parse as YYYY-MM-DD.",
+            field="expiration_date",
+        )
 
-        for field in NUMERIC_FIELDS:
-            if field not in df.columns or _is_missing(row.get(field)):
-                continue
-            numeric_value = _coerce_numeric(row.get(field))
-            if pd.isna(numeric_value):
-                findings.append(
-                    _make_finding(
-                        "error",
-                        "invalid_numeric_field",
-                        f"Field '{field}' must be numeric.",
-                        row_index=row_index,
-                        contract_symbol=contract_symbol,
-                        field=field,
-                    )
-                )
+    for field in NUMERIC_FIELDS:
+        if field not in df.columns:
+            continue
+        invalid_numeric = ~_missing_mask(df, field) & _numeric_series(df, field).isna()
+        _append_row_findings(
+            findings,
+            invalid_numeric,
+            contract_symbols,
+            severity="error",
+            code="invalid_numeric_field",
+            message=f"Field '{field}' must be numeric.",
+            field=field,
+        )
 
-        for field in TIMESTAMP_FIELDS:
-            if field not in df.columns or _is_missing(row.get(field)):
-                continue
-            parsed_timestamp = pd.to_datetime(row.get(field), utc=True, errors="coerce")
-            if pd.isna(parsed_timestamp):
-                findings.append(
-                    _make_finding(
-                        "error",
-                        "invalid_timestamp_field",
-                        f"Field '{field}' must be a valid timestamp.",
-                        row_index=row_index,
-                        contract_symbol=contract_symbol,
-                        field=field,
-                    )
-                )
+    for field in TIMESTAMP_FIELDS:
+        if field not in df.columns:
+            continue
+        parsed_timestamp = pd.to_datetime(df[field], utc=True, errors="coerce")
+        invalid_timestamp = ~_missing_mask(df, field) & parsed_timestamp.isna()
+        _append_row_findings(
+            findings,
+            invalid_timestamp,
+            contract_symbols,
+            severity="error",
+            code="invalid_timestamp_field",
+            message=f"Field '{field}' must be a valid timestamp.",
+            field=field,
+        )
 
-        for field in BOOLEAN_FIELDS:
-            if field not in df.columns or _is_missing(row.get(field)):
-                continue
-            if not _is_boolean_like(row.get(field)):
-                findings.append(
-                    _make_finding(
-                        "warning",
-                        "invalid_boolean_field",
-                        f"Field '{field}' should be boolean-like.",
-                        row_index=row_index,
-                        contract_symbol=contract_symbol,
-                        field=field,
-                    )
-                )
+    for field in BOOLEAN_FIELDS:
+        if field not in df.columns:
+            continue
+        invalid_boolean = ~_missing_mask(df, field) & ~df[field].map(_is_boolean_like)
+        _append_row_findings(
+            findings,
+            invalid_boolean,
+            contract_symbols,
+            severity="warning",
+            code="invalid_boolean_field",
+            message=f"Field '{field}' should be boolean-like.",
+            field=field,
+        )
 
-        strike = _coerce_numeric(row.get("strike"))
-        if pd.notna(strike) and strike <= 0:
-            findings.append(
-                _make_finding(
-                    "error",
-                    "invalid_strike",
-                    "strike must be greater than zero.",
-                    row_index=row_index,
-                    contract_symbol=contract_symbol,
-                    field="strike",
-                )
-            )
+    strike = _numeric_series(df, "strike")
+    _append_row_findings(
+        findings,
+        strike.notna() & (strike <= 0),
+        contract_symbols,
+        severity="error",
+        code="invalid_strike",
+        message="strike must be greater than zero.",
+        field="strike",
+    )
 
-        underlying_price = _coerce_numeric(row.get("underlying_price"))
-        if pd.notna(underlying_price) and underlying_price <= 0:
-            findings.append(
-                _make_finding(
-                    "error",
-                    "invalid_underlying_price",
-                    "underlying_price must be greater than zero.",
-                    row_index=row_index,
-                    contract_symbol=contract_symbol,
-                    field="underlying_price",
-                )
-            )
+    underlying_price = _numeric_series(df, "underlying_price")
+    _append_row_findings(
+        findings,
+        underlying_price.notna() & (underlying_price <= 0),
+        contract_symbols,
+        severity="error",
+        code="invalid_underlying_price",
+        message="underlying_price must be greater than zero.",
+        field="underlying_price",
+    )
 
-        bid = _coerce_numeric(row.get("bid"))
-        ask = _coerce_numeric(row.get("ask"))
-        if pd.notna(bid) and bid < 0:
-            findings.append(
-                _make_finding(
-                    "error",
-                    "invalid_bid",
-                    "bid must be non-negative.",
-                    row_index=row_index,
-                    contract_symbol=contract_symbol,
-                    field="bid",
-                )
-            )
-        if pd.notna(ask) and ask < 0:
-            findings.append(
-                _make_finding(
-                    "error",
-                    "invalid_ask",
-                    "ask must be non-negative.",
-                    row_index=row_index,
-                    contract_symbol=contract_symbol,
-                    field="ask",
-                )
-            )
-        if pd.notna(bid) and pd.notna(ask) and bid > ask:
-            findings.append(
-                _make_finding(
-                    "error",
-                    "invalid_quote_order",
-                    "bid must be less than or equal to ask.",
-                    row_index=row_index,
-                    contract_symbol=contract_symbol,
-                    field="bid_ask",
-                )
-            )
+    bid = _numeric_series(df, "bid")
+    ask = _numeric_series(df, "ask")
+    _append_row_findings(
+        findings,
+        bid.notna() & (bid < 0),
+        contract_symbols,
+        severity="error",
+        code="invalid_bid",
+        message="bid must be non-negative.",
+        field="bid",
+    )
+    _append_row_findings(
+        findings,
+        ask.notna() & (ask < 0),
+        contract_symbols,
+        severity="error",
+        code="invalid_ask",
+        message="ask must be non-negative.",
+        field="ask",
+    )
+    _append_row_findings(
+        findings,
+        bid.notna() & ask.notna() & (bid > ask),
+        contract_symbols,
+        severity="error",
+        code="invalid_quote_order",
+        message="bid must be less than or equal to ask.",
+        field="bid_ask",
+    )
 
     return findings
 
