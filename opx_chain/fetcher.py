@@ -169,15 +169,9 @@ def acquire_fetcher_lock(lock_path: Path | None = None):
 
 
 def release_fetcher_lock(lock_handle, lock_path: Path | None = None):
-    """Close the lock handle and remove the lock file path after the run ends."""
-    resolved_lock_path = lock_path or FETCHER_LOCK_PATH
-    try:
-        release_file_lock(lock_handle)
-    finally:
-        try:
-            resolved_lock_path.unlink()
-        except FileNotFoundError:
-            pass
+    """Close the lock handle while keeping the lock file path stable."""
+    del lock_path
+    release_file_lock(lock_handle)
 
 
 class _NullLogger:

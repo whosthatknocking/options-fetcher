@@ -155,7 +155,7 @@ def test_main_uses_storage_dir_for_side_csv_and_lock(monkeypatch, tmp_path: Path
 
     assert written["path"].parent == custom_data_dir / "runs"
     assert (custom_data_dir / "runs" / "options_engine_output_latest.csv").exists()
-    assert not (custom_data_dir / "fetcher.lock").exists()
+    assert (custom_data_dir / "fetcher.lock").exists()
 
 
 def test_config_fingerprint_includes_output_affecting_settings():
@@ -483,7 +483,7 @@ def test_main_returns_failure_when_no_data_is_fetched(monkeypatch, tmp_path: Pat
     )
 
     assert main.main() == 1
-    assert not (tmp_path / "fetcher.lock").exists()
+    assert (tmp_path / "fetcher.lock").exists()
 
 
 def test_main_returns_failure_when_fetcher_lock_is_held(monkeypatch, capsys, tmp_path: Path):
@@ -506,8 +506,8 @@ def test_main_returns_failure_when_fetcher_lock_is_held(monkeypatch, capsys, tmp
     assert "Another fetcher run is already active:" in stdout
 
 
-def test_main_removes_lock_file_after_success(monkeypatch, tmp_path: Path):
-    """Successful runs should remove the fetcher lock file on exit."""
+def test_main_keeps_lock_file_after_success(monkeypatch, tmp_path: Path):
+    """Successful runs should keep the fetcher lock path stable on exit."""
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr(main, "FETCHER_LOCK_PATH", tmp_path / "fetcher.lock")
     monkeypatch.setattr(main, "LOCKS_DIR", tmp_path)
@@ -538,11 +538,11 @@ def test_main_removes_lock_file_after_success(monkeypatch, tmp_path: Path):
     )
 
     assert main.main() == 0
-    assert not (tmp_path / "fetcher.lock").exists()
+    assert (tmp_path / "fetcher.lock").exists()
 
 
 def test_main_handles_ctrl_c_gracefully(monkeypatch, capsys, tmp_path: Path):
-    """Keyboard interrupts should return 130 and still remove the lock file."""
+    """Keyboard interrupts should return 130 and keep the lock path stable."""
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr(main, "FETCHER_LOCK_PATH", tmp_path / "fetcher.lock")
     monkeypatch.setattr(main, "LOCKS_DIR", tmp_path)
@@ -578,7 +578,7 @@ def test_main_handles_ctrl_c_gracefully(monkeypatch, capsys, tmp_path: Path):
     stdout = capsys.readouterr().out
     assert exit_code == 130
     assert "Interrupted." in stdout
-    assert not (tmp_path / "fetcher.lock").exists()
+    assert (tmp_path / "fetcher.lock").exists()
 
 
 def test_main_can_override_positions_path_via_cli(monkeypatch, capsys, tmp_path: Path):

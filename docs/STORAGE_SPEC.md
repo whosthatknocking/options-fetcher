@@ -446,8 +446,9 @@ Rationale:
   I/O occurs
 - `create_run` provides a persistent record of the run lifecycle after the lock
   is acquired
-- on crash recovery, a `running` run record with no corresponding lock file
-  signals an unclean exit; the backend may mark it `interrupted` on next startup
+- `fetcher.lock` is a stable coordination path; active state is the advisory
+  lock, not file existence, so release must not unlink the file under another
+  contender
 
 Run status transitions:
 

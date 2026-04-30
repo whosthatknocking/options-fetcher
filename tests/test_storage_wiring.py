@@ -515,6 +515,10 @@ def test_fetcher_lock_blocks_second_holder(tmp_path: Path):
         assert acquire_fetcher_lock(lock_path) is None
     finally:
         release_fetcher_lock(first, lock_path)
+    assert lock_path.exists()
+    second = acquire_fetcher_lock(lock_path)
+    assert second is not None
+    release_fetcher_lock(second, lock_path)
 
 
 def test_dry_run_prints_would_fetch_summary(tmp_path: Path, capsys):
