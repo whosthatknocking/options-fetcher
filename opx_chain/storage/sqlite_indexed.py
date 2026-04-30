@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 import sqlite3
 from contextlib import contextmanager
 import uuid
@@ -108,6 +109,12 @@ _SCHEMA_MIGRATIONS: dict[int, str] = {
        """,
 }
 
+_ADD_COLUMN_RE = re.compile(
+    r"^ALTER\s+TABLE\s+(?P<table>[A-Za-z_][A-Za-z0-9_]*)\s+"
+    r"ADD\s+COLUMN\s+(?P<column>[A-Za-z_][A-Za-z0-9_]*)\b",
+    re.IGNORECASE,
+)
+
 
 def _now() -> datetime:
     return datetime.now(tz=timezone.utc)
@@ -194,6 +201,25 @@ class SqliteIndexedBackend:
                 f"{row['value']!r}"
             ) from exc
 
+    def _table_columns(self, conn: sqlite3.Connection, table_name: str) -> set[str]:
+        return {
+            row["name"]
+            for row in conn.execute(f"PRAGMA table_info({table_name})").fetchall()
+        }
+
+    def _migration_statements(self, migration: str) -> list[str]:
+        return [statement.strip() for statement in migration.split(";") if statement.strip()]
+
+    def _execute_migration_statement(
+        self,
+        conn: sqlite3.Connection,
+        statement: str,
+    ) -> None:
+        match = _ADD_COLUMN_RE.match(statement)
+        if match and match.group("column") in self._table_columns(conn, match.group("table")):
+            return
+        conn.execute(statement)
+
     def _migrate_schema(
         self,
         conn: sqlite3.Connection,
@@ -207,11 +233,12 @@ class SqliteIndexedBackend:
                     "SQLite storage schema migration missing: "
                     f"{current_version}->{target_version}"
                 )
-            conn.executescript(migration)
-        conn.execute(
-            "UPDATE _schema_meta SET value = ? WHERE key = 'schema_version'",
-            (str(target_version),),
-        )
+            for statement in self._migration_statements(migration):
+                self._execute_migration_statement(conn, statement)
+            conn.execute(
+                "UPDATE _schema_meta SET value = ? WHERE key = 'schema_version'",
+                (str(next_version),),
+            )
 
     def _sidecar_path(self, run_id: str, filename: str) -> Path:
         return self._runs_dir / run_id / filename

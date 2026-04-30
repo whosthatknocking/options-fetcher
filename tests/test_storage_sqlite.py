@@ -135,6 +135,68 @@ def test_schema_migration_updates_version_and_applies_sql(tmp_path: Path, monkey
     assert "migration_marker" in columns
 
 
+def test_schema_migration_recovers_partial_add_column_state(tmp_path: Path):
+    """Idempotent migrations must recover when a previous ALTER partially succeeded."""
+    db_path = tmp_path / "opx-chain.db"
+    conn = sqlite3.connect(db_path)
+    try:
+        conn.executescript(
+            """
+            CREATE TABLE _schema_meta (
+                key   TEXT PRIMARY KEY,
+                value TEXT NOT NULL
+            );
+            INSERT INTO _schema_meta VALUES ('schema_version', '1');
+            CREATE TABLE runs (
+                run_id                TEXT PRIMARY KEY,
+                started_at            TEXT NOT NULL,
+                finished_at           TEXT,
+                status                TEXT NOT NULL,
+                provider              TEXT NOT NULL,
+                tickers               TEXT NOT NULL DEFAULT '[]',
+                script_version        TEXT NOT NULL DEFAULT 'unknown',
+                config_fingerprint    TEXT NOT NULL,
+                positions_fingerprint TEXT NOT NULL,
+                dataset_id            TEXT,
+                error_summary         TEXT
+            );
+            CREATE TABLE datasets (
+                dataset_id      TEXT PRIMARY KEY,
+                run_id          TEXT NOT NULL REFERENCES runs(run_id),
+                created_at      TEXT NOT NULL,
+                provider        TEXT NOT NULL,
+                schema_version  INTEGER NOT NULL,
+                row_count       INTEGER NOT NULL,
+                format          TEXT NOT NULL,
+                location        TEXT NOT NULL,
+                content_hash    TEXT NOT NULL
+            );
+            """
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+    _make_backend(tmp_path)
+
+    conn = sqlite3.connect(db_path)
+    try:
+        version = conn.execute(
+            "SELECT value FROM _schema_meta WHERE key = 'schema_version'"
+        ).fetchone()[0]
+        run_columns = {row[1] for row in conn.execute("PRAGMA table_info(runs)").fetchall()}
+        dataset_columns = {
+            row[1]
+            for row in conn.execute("PRAGMA table_info(datasets)").fetchall()
+        }
+    finally:
+        conn.close()
+
+    assert version == str(sqlite_indexed_mod._SCHEMA_VERSION)  # pylint: disable=protected-access
+    assert {"tickers", "script_version"}.issubset(run_columns)
+    assert "script_version" in dataset_columns
+
+
 def test_schema_migration_fails_when_required_step_is_missing(tmp_path: Path, monkeypatch):
     """A schema-version bump without a migration must fail instead of silently reusing v1."""
     _make_backend(tmp_path)

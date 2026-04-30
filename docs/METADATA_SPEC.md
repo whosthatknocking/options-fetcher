@@ -162,6 +162,12 @@ table. Existing databases with an older version are upgraded by numbered
 migrations before use; a schema-version bump without a migration fails
 startup instead of silently reusing an outdated layout.
 
+Migrations run as individual idempotent statements and advance `_schema_meta`
+after each numbered migration. This lets startup recover from interrupted
+`ALTER TABLE ... ADD COLUMN` migrations: an already-added column is skipped,
+remaining columns are applied, and the version advances only after the whole
+numbered migration succeeds.
+
 ```sql
 CREATE TABLE _schema_meta (
     key   TEXT PRIMARY KEY,
