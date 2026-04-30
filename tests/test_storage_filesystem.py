@@ -680,17 +680,48 @@ def test_get_serializer_raises_for_unknown_format():
 # ---------------------------------------------------------------------------
 
 def test_count_runs_today_counts_same_provider_only(tmp_path: Path):
-    """count_runs_today must count runs for the given provider, not others."""
+    """count_runs_today must count complete runs for the given provider, not others."""
     backend = _make_backend(tmp_path)
-    backend.create_run(_make_context(provider="marketdata"))
-    backend.create_run(_make_context(provider="marketdata"))
-    backend.create_run(_make_context(provider="yfinance"))
+    market_run_1 = backend.create_run(_make_context(provider="marketdata"))
+    market_run_2 = backend.create_run(_make_context(provider="marketdata"))
+    market_running = backend.create_run(_make_context(provider="marketdata"))
+    market_failed = backend.create_run(_make_context(provider="marketdata"))
+    yahoo_run = backend.create_run(_make_context(provider="yfinance"))
+
+    backend.finalize_run(market_run_1, RunSummary(status="complete"))
+    backend.finalize_run(market_run_2, RunSummary(status="complete"))
+    backend.fail_run(market_failed, "failed")
+    backend.finalize_run(yahoo_run, RunSummary(status="complete"))
 
     assert backend.count_runs_today("marketdata") == 2
     assert backend.count_runs_today("yfinance") == 1
+    assert backend.get_run(market_running).status == "running"
 
 
 def test_count_runs_today_returns_zero_when_no_runs(tmp_path: Path):
     """count_runs_today must return 0 when no runs exist for that provider."""
     backend = _make_backend(tmp_path)
     assert backend.count_runs_today("marketdata") == 0
+
+
+def test_interrupt_stale_runs_marks_old_running_sidecars(tmp_path: Path):
+    """Stale running run sidecars should converge to interrupted."""
+    backend = _make_backend(tmp_path)
+    stale_run = backend.create_run(_make_context(provider="marketdata"))
+    fresh_run = backend.create_run(_make_context(provider="marketdata"))
+    stale_path = tmp_path / "runs" / stale_run / "run.json"
+    data = json.loads(stale_path.read_text(encoding="utf-8"))
+    data["started_at"] = (datetime.now(tz=timezone.utc) - timedelta(minutes=5)).isoformat()
+    stale_path.write_text(json.dumps(data), encoding="utf-8")
+
+    count = backend.interrupt_stale_runs(
+        datetime.now(tz=timezone.utc) - timedelta(seconds=30),
+        "process_terminated_uncleanly",
+    )
+
+    assert count == 1
+    stale_record = backend.get_run(stale_run)
+    assert stale_record.status == "interrupted"
+    assert stale_record.finished_at is not None
+    assert stale_record.error_summary == "process_terminated_uncleanly"
+    assert backend.get_run(fresh_run).status == "running"

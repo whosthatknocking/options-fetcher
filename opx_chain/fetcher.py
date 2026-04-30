@@ -36,6 +36,8 @@ from opx_chain.validate import ValidationFinding, emit_validation_report, valida
 RUNS_DIR = get_data_dir() / "runs"
 LOCKS_DIR = get_data_dir()
 FETCHER_LOCK_PATH = LOCKS_DIR / "fetcher.lock"
+STALE_RUNNING_RUN_SECONDS = 30
+UNCLEAN_SHUTDOWN_ERROR = "process_terminated_uncleanly"
 
 
 def parse_args(argv=None):
@@ -150,6 +152,12 @@ def _runs_dir(config) -> Path:
     return get_runs_dir(config.storage_dir, default_runs_dir=RUNS_DIR)
 
 
+def _interrupt_stale_running_runs(storage) -> int:
+    """Mark stale running run records interrupted before opening a new run."""
+    cutoff = datetime.now(tz=timezone.utc) - timedelta(seconds=STALE_RUNNING_RUN_SECONDS)
+    return storage.interrupt_stale_runs(cutoff, UNCLEAN_SHUTDOWN_ERROR)
+
+
 def _fetcher_lock_path(config) -> Path:
     """Return the lock path for the resolved runtime config."""
     return _runtime_data_dir(config) / "fetcher.lock" if config.storage_dir else FETCHER_LOCK_PATH
@@ -257,14 +265,24 @@ def _do_fetch_with_lock_held(  # pylint: disable=too-many-branches,too-many-loca
             print(f"Today: {config.today}  Log: {log_path}")
         if cli_override:
             print(f"CLI override: {cli_override}")
+        recovered_runs = 0
+        if storage is not None and not dry_run:
+            recovered_runs = _interrupt_stale_running_runs(storage)
+            if recovered_runs:
+                logger.warning(
+                    "recovered_stale_running_runs count=%s status=interrupted",
+                    recovered_runs,
+                )
         runs_today = storage.count_runs_today(config.data_provider) if storage else 0
         print("Config:")
         for line in describe_runtime_config(config):
             print(f"  {line}")
+        if recovered_runs:
+            print(f"  Recovered stale running runs: {recovered_runs} marked interrupted")
         if runs_today > 0:
             print(
-                f"  Runs today ({config.data_provider}): {runs_today}"
-                f"  (this will be run {runs_today + 1})"
+                f"  Completed runs today ({config.data_provider}): {runs_today}"
+                f" (this will be run {runs_today + 1})"
             )
         if config.config_warnings:
             print("Config fallbacks:")

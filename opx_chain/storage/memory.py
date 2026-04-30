@@ -187,8 +187,20 @@ class MemoryBackend:
             run.finished_at = datetime.now(tz=timezone.utc)
             run.error_summary = error
 
+    def interrupt_stale_runs(self, cutoff: datetime, error_summary: str) -> int:
+        """Mark running runs older than cutoff as interrupted."""
+        interrupted = 0
+        for run in self._runs.values():
+            if run.status != "running" or run.started_at >= cutoff:
+                continue
+            run.status = "interrupted"
+            run.finished_at = datetime.now(tz=timezone.utc)
+            run.error_summary = error_summary
+            interrupted += 1
+        return interrupted
+
     def count_runs_today(self, provider: str) -> int:
-        """Return the number of runs started today (US/Eastern) for the given provider."""
+        """Return the number of complete runs started today (US/Eastern) for the provider."""
         from opx_chain.config import US_MARKET_TIMEZONE  # pylint: disable=import-outside-toplevel
         now_et = datetime.now(tz=US_MARKET_TIMEZONE)
         midnight_et = now_et.replace(hour=0, minute=0, second=0, microsecond=0)
@@ -196,5 +208,9 @@ class MemoryBackend:
         return sum(
             1
             for run in self._runs.values()
-            if run.provider == provider and run.started_at >= since_utc
+            if (
+                run.provider == provider
+                and run.status == "complete"
+                and run.started_at >= since_utc
+            )
         )

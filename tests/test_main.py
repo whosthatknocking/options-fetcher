@@ -2,7 +2,7 @@
 
 # pylint: disable=duplicate-code
 
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import pandas as pd
@@ -11,6 +11,8 @@ from conftest import make_runtime_config
 import main
 from opx_chain.config import get_runtime_config as get_process_runtime_config
 from opx_chain.fetcher import _config_fingerprint
+from opx_chain.storage.memory import MemoryBackend
+from opx_chain.storage.models import RunContext, RunSummary
 from opx_chain.validate import validate_option_rows
 
 
@@ -63,6 +65,17 @@ def make_export_row(**overrides):
     }
     row.update(overrides)
     return row
+
+
+def make_run_context(**overrides):
+    """Build a storage run context for main-entrypoint tests."""
+    defaults = {
+        "provider": "yfinance",
+        "tickers": ("AAA",),
+        "config_fingerprint": "abc123",
+        "positions_fingerprint": "",
+    }
+    return RunContext(**{**defaults, **overrides})
 
 
 def test_main_prints_rows_written_after_saved(monkeypatch, capsys, tmp_path: Path):
@@ -156,6 +169,56 @@ def test_main_uses_storage_dir_for_side_csv_and_lock(monkeypatch, tmp_path: Path
     assert written["path"].parent == custom_data_dir / "runs"
     assert (custom_data_dir / "runs" / "options_engine_output_latest.csv").exists()
     assert (custom_data_dir / "fetcher.lock").exists()
+
+
+def test_main_recovers_stale_running_runs_before_count(monkeypatch, capsys, tmp_path: Path):
+    """Real fetch startup should mark stale running rows interrupted before count output."""
+    backend = MemoryBackend()
+    stale_run = backend.create_run(make_run_context(provider="yfinance"))
+    completed_run = backend.create_run(make_run_context(provider="yfinance"))
+    backend._runs[stale_run].started_at = (  # pylint: disable=protected-access
+        datetime.now(tz=timezone.utc) - timedelta(minutes=5)
+    )
+    backend.finalize_run(completed_run, RunSummary(status="complete"))
+
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(main, "FETCHER_LOCK_PATH", tmp_path / "fetcher.lock")
+    monkeypatch.setattr(main, "LOCKS_DIR", tmp_path)
+    monkeypatch.setattr(main, "RUNS_DIR", tmp_path / "output")
+    monkeypatch.setattr(
+        main,
+        "get_runtime_config",
+        lambda: make_runtime_config(tickers=("AAA",), storage_enabled=True),
+    )
+    monkeypatch.setattr(main, "get_storage_backend", lambda _config: backend)
+    monkeypatch.setattr(
+        main,
+        "create_run_logger",
+        lambda: (StubLogger(), Path("/tmp/opx-run.log")),
+    )
+    monkeypatch.setattr(
+        main,
+        "fetch_ticker_option_chain",
+        (
+            lambda ticker, logger=None, validation_findings=None,
+            filtered_row_counts=None, position_set=None: pd.DataFrame([make_export_row()])
+        ),
+    )
+    def stub_write_options_csv(ticker_frames, output_path):
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        output_path.write_text("ok", encoding="utf-8")
+        return ticker_frames[0]
+
+    monkeypatch.setattr(main, "write_options_csv", stub_write_options_csv)
+
+    assert main.main() == 0
+
+    stdout = capsys.readouterr().out
+    assert "Recovered stale running runs: 1 marked interrupted" in stdout
+    assert "Completed runs today (yfinance): 1 (this will be run 2)" in stdout
+    stale_record = backend.get_run(stale_run)
+    assert stale_record.status == "interrupted"
+    assert stale_record.error_summary == "process_terminated_uncleanly"
 
 
 def test_config_fingerprint_includes_output_affecting_settings():

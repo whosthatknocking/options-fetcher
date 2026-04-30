@@ -217,6 +217,11 @@ does not exist. Downstream consumers use this to retrieve
 active when the chain was fetched — for cross-checking against the consumer's
 own positions fingerprint.
 
+`status="running"` is transient. If a previous fetch process terminates without
+running cleanup, the next real fetch that acquires the fetcher lock marks stale
+`running` records as `interrupted` before creating a new run. Dry runs do not
+perform this recovery because they are read-only diagnostics.
+
 `run_id` is available on `DatasetRecord.run_id` (returned by `list_datasets`).
 
 ```python

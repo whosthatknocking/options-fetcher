@@ -405,6 +405,7 @@ class StorageBackend(Protocol):
     def get_ticker_results(self, run_id: str) -> list[TickerRunRecord]: ...
     def finalize_run(self, run_id: str, summary: RunSummary) -> None: ...
     def fail_run(self, run_id: str, error: str) -> None: ...
+    def interrupt_stale_runs(self, cutoff: datetime, error_summary: str) -> int: ...
     def count_runs_today(self, provider: str) -> int: ...
 
 
@@ -424,9 +425,11 @@ It is called from the `except` blocks in `fetcher.py` and from the
 
 `get_run` returns the persisted `RunRecord` for downstream inspection.
 `get_ticker_results(run_id)` returns the per-ticker fetch records for a run.
-`count_runs_today(provider)` returns the number of runs started during the
-current US/Eastern calendar day for the given provider and is used by
-`fetcher.py` to print same-day run-count context before a fetch starts.
+`interrupt_stale_runs(cutoff, error_summary)` marks stale `running` rows
+older than `cutoff` as `interrupted`. `count_runs_today(provider)` returns
+the number of complete runs started during the current US/Eastern calendar day
+for the given provider and is used by `fetcher.py` to print same-day successful
+run-count context before a fetch starts.
 
 `list_datasets` accepts optional filters so callers are not forced to load all
 records and filter in application code. Implementations that do not support
@@ -470,6 +473,13 @@ on KeyboardInterrupt:
 
 The `pending` status value is reserved for future use; `create_run` sets
 `status=running` immediately.
+
+At startup for a real fetch, after the fetcher acquires the advisory lock and
+before it opens the new run, it calls `interrupt_stale_runs` with a short cutoff
+window. Any older `running` rows are treated as uncleanly terminated prior
+processes, marked `interrupted`, and surfaced in startup output. Dry runs do not
+mutate storage. Same-day run-count output counts only `complete` runs so stale
+or recovered interrupted records do not inflate the operator-facing sequence.
 
 ## 10. Missing Field Values
 

@@ -42,6 +42,7 @@ class StorageBackend(Protocol):  # pylint: disable=too-few-public-methods
     def get_ticker_results(self, run_id: str) -> list[TickerRunRecord]: ...  # pylint: disable=missing-function-docstring
     def finalize_run(self, run_id: str, summary: RunSummary) -> None: ...  # pylint: disable=missing-function-docstring
     def fail_run(self, run_id: str, error: str) -> None: ...  # pylint: disable=missing-function-docstring
+    def interrupt_stale_runs(self, cutoff: datetime, error_summary: str) -> int: ...  # pylint: disable=missing-function-docstring
     def count_runs_today(self, provider: str) -> int: ...  # pylint: disable=missing-function-docstring
 
 

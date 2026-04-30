@@ -456,6 +456,18 @@ class SqliteIndexedBackend:
             )
             conn.commit()
 
+    def interrupt_stale_runs(self, cutoff: datetime, error_summary: str) -> int:
+        """Mark running runs older than cutoff as interrupted."""
+        with self._open_connection() as conn:
+            cursor = conn.execute(
+                "UPDATE runs "
+                "SET status = 'interrupted', finished_at = ?, error_summary = ? "
+                "WHERE status = 'running' AND started_at < ?",
+                (_dt_to_str(_now()), error_summary, _dt_to_str(cutoff)),
+            )
+            conn.commit()
+        return cursor.rowcount
+
     def get_run(self, run_id: str) -> RunRecord:
         """Return a RunRecord for the given run_id."""
         with self._open_connection() as conn:
@@ -479,14 +491,15 @@ class SqliteIndexedBackend:
         )
 
     def count_runs_today(self, provider: str) -> int:
-        """Return the number of runs started today (US/Eastern) for the given provider."""
+        """Return the number of complete runs started today (US/Eastern) for the provider."""
         from opx_chain.config import US_MARKET_TIMEZONE  # pylint: disable=import-outside-toplevel
         now_et = datetime.now(tz=US_MARKET_TIMEZONE)
         midnight_et = now_et.replace(hour=0, minute=0, second=0, microsecond=0)
         since_utc = _dt_to_str(midnight_et.astimezone(timezone.utc))
         with self._open_connection() as conn:
             row = conn.execute(
-                "SELECT COUNT(*) FROM runs WHERE provider = ? AND started_at >= ?",
+                "SELECT COUNT(*) FROM runs "
+                "WHERE provider = ? AND started_at >= ? AND status = 'complete'",
                 (provider, since_utc),
             ).fetchone()
         return row[0] if row else 0

@@ -377,6 +377,28 @@ class FilesystemBackend:
         data["error_summary"] = error
         self._write_run(run_id, data)
 
+    def interrupt_stale_runs(self, cutoff: datetime, error_summary: str) -> int:
+        """Mark running runs older than cutoff as interrupted."""
+        interrupted = 0
+        if not self._runs_dir.exists():
+            return interrupted
+        for run_path in self._runs_dir.glob("*/run.json"):
+            try:
+                data = json.loads(run_path.read_text(encoding="utf-8"))
+                started_at = _str_to_dt(data.get("started_at"))
+                if data.get("status") != "running" or started_at is None:
+                    continue
+                if _dt_sort_key(started_at) >= _dt_sort_key(cutoff):
+                    continue
+                data["status"] = "interrupted"
+                data["finished_at"] = _dt_to_str(_now())
+                data["error_summary"] = error_summary
+                self._write_run(data["run_id"], data)
+                interrupted += 1
+            except (OSError, KeyError, json.JSONDecodeError, ValueError):
+                continue
+        return interrupted
+
     def get_run(self, run_id: str) -> RunRecord:
         """Return a RunRecord by loading the run sidecar."""
         data = self._read_run(run_id)
@@ -395,7 +417,7 @@ class FilesystemBackend:
         )
 
     def count_runs_today(self, provider: str) -> int:
-        """Return the number of run sidecars started today (US/Eastern) for the given provider."""
+        """Return the number of complete runs started today (US/Eastern) for the provider."""
         from opx_chain.config import US_MARKET_TIMEZONE  # pylint: disable=import-outside-toplevel
         now_et = datetime.now(tz=US_MARKET_TIMEZONE)
         midnight_et = now_et.replace(hour=0, minute=0, second=0, microsecond=0)
@@ -412,7 +434,7 @@ class FilesystemBackend:
                 if not started_at_str:
                     continue
                 started_at = datetime.fromisoformat(started_at_str)
-                if started_at >= since_utc:
+                if data.get("status") == "complete" and started_at >= since_utc:
                     count += 1
             except (OSError, json.JSONDecodeError, ValueError):
                 continue

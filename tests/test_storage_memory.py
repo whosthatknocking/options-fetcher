@@ -2,7 +2,7 @@
 
 import inspect
 import io
-from datetime import timedelta
+from datetime import datetime, timedelta, timezone
 
 import pandas as pd
 import pytest
@@ -457,17 +457,47 @@ def test_list_datasets_until_includes_records_at_boundary():
 # ---------------------------------------------------------------------------
 
 def test_count_runs_today_counts_same_provider_only():
-    """count_runs_today must count runs for the given provider, not others."""
+    """count_runs_today must count complete runs for the given provider, not others."""
     backend = MemoryBackend()
-    backend.create_run(_make_context(provider="marketdata"))
-    backend.create_run(_make_context(provider="marketdata"))
-    backend.create_run(_make_context(provider="yfinance"))
+    market_run_1 = backend.create_run(_make_context(provider="marketdata"))
+    market_run_2 = backend.create_run(_make_context(provider="marketdata"))
+    market_running = backend.create_run(_make_context(provider="marketdata"))
+    market_failed = backend.create_run(_make_context(provider="marketdata"))
+    yahoo_run = backend.create_run(_make_context(provider="yfinance"))
+
+    backend.finalize_run(market_run_1, RunSummary(status="complete"))
+    backend.finalize_run(market_run_2, RunSummary(status="complete"))
+    backend.fail_run(market_failed, "failed")
+    backend.finalize_run(yahoo_run, RunSummary(status="complete"))
 
     assert backend.count_runs_today("marketdata") == 2
     assert backend.count_runs_today("yfinance") == 1
+    assert backend.get_run(market_running).status == "running"
 
 
 def test_count_runs_today_returns_zero_when_no_runs():
     """count_runs_today must return 0 when no runs exist for that provider."""
     backend = MemoryBackend()
     assert backend.count_runs_today("marketdata") == 0
+
+
+def test_interrupt_stale_runs_marks_old_running_records():
+    """Stale running memory records should converge to interrupted."""
+    backend = MemoryBackend()
+    stale_run = backend.create_run(_make_context(provider="marketdata"))
+    fresh_run = backend.create_run(_make_context(provider="marketdata"))
+    backend._runs[stale_run].started_at = (  # pylint: disable=protected-access
+        datetime.now(tz=timezone.utc) - timedelta(minutes=5)
+    )
+
+    count = backend.interrupt_stale_runs(
+        datetime.now(tz=timezone.utc) - timedelta(seconds=30),
+        "process_terminated_uncleanly",
+    )
+
+    assert count == 1
+    stale_record = backend.get_run(stale_run)
+    assert stale_record.status == "interrupted"
+    assert stale_record.finished_at is not None
+    assert stale_record.error_summary == "process_terminated_uncleanly"
+    assert backend.get_run(fresh_run).status == "running"
