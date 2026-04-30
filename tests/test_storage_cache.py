@@ -103,6 +103,19 @@ def test_filesystem_cache_prunes_unreadable_metadata_on_startup(tmp_path: Path):
     assert not meta_path.exists()
 
 
+def test_filesystem_cache_prunes_orphaned_payload_on_startup(tmp_path: Path):
+    """Payload files with no metadata should not accumulate indefinitely."""
+    cache_dir = tmp_path / "cache"
+    cache_dir.mkdir()
+    bin_path, meta_path = _cache_paths(cache_dir, "orphan-key")
+    bin_path.write_bytes(b"orphan")
+
+    FilesystemCache(cache_dir)
+
+    assert not bin_path.exists()
+    assert not meta_path.exists()
+
+
 def test_filesystem_cache_creates_directory(tmp_path: Path):
     """FilesystemCache must create the cache directory on first put."""
     cache_dir = tmp_path / "nested" / "cache"

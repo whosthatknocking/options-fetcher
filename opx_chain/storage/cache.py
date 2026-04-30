@@ -76,6 +76,10 @@ class FilesystemCache:
         if not self._dir.exists():
             return
         now = datetime.now(tz=timezone.utc)
+        meta_bins = {
+            meta_path.with_name(meta_path.name.removesuffix(".meta.json") + ".bin")
+            for meta_path in self._dir.glob("*.meta.json")
+        }
         for meta_path in self._dir.glob("*.meta.json"):
             bin_path = meta_path.with_name(meta_path.name.removesuffix(".meta.json") + ".bin")
             try:
@@ -87,6 +91,9 @@ class FilesystemCache:
                 continue
             if now > expires_at:
                 meta_path.unlink(missing_ok=True)
+                bin_path.unlink(missing_ok=True)
+        for bin_path in self._dir.glob("*.bin"):
+            if bin_path not in meta_bins:
                 bin_path.unlink(missing_ok=True)
 
 
