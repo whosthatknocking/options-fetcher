@@ -112,14 +112,7 @@ COLUMN_ORDER = [
     "data_source",
     "risk_free_rate_used",
 ]
-UNWANTED_EXPORT_COLUMNS = {
-    "currency",
-    "underlying_currency",
-    "fetch_status",
-    "fetch_error",
-    "script_version",
-    "fetched_at",
-}
+UNWANTED_EXPORT_COLUMNS: frozenset[str] = frozenset()
 CANONICAL_EXPORT_COLUMNS = tuple(COLUMN_ORDER)
 INTEGER_EXPORT_COLUMNS = ("days_to_expiration",)
 

@@ -18,6 +18,20 @@ def test_unwanted_export_columns_have_no_orphaned_roll_yield_fields():
     assert not any(column.startswith("roll_") for column in UNWANTED_EXPORT_COLUMNS)
 
 
+def test_unwanted_export_columns_have_no_dead_runtime_metadata_fields():
+    """Runtime attrs and storage metadata should not linger as defensive columns."""
+    dead_runtime_metadata = {
+        "currency",
+        "underlying_currency",
+        "fetch_status",
+        "fetch_error",
+        "script_version",
+        "fetched_at",
+    }
+
+    assert not UNWANTED_EXPORT_COLUMNS.intersection(dead_runtime_metadata)
+
+
 def test_reorder_export_columns_drops_noncanonical_provider_fields():
     """Provider-specific extras should not silently expand the CSV schema."""
     frame = pd.DataFrame(
