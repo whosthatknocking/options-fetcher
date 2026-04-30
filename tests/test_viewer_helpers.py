@@ -5,6 +5,7 @@ from pathlib import Path
 import textwrap
 
 import pandas as pd
+import pytest
 
 from opx_chain import viewer
 
@@ -508,6 +509,30 @@ def test_viewer_main_env_overrides_runtime_config(monkeypatch):
     viewer.main()
 
     assert captured == {"host": "0.0.0.0", "port": 9100}
+
+
+def test_viewer_main_rejects_invalid_env_port(monkeypatch):
+    """Invalid OPX_VIEWER_PORT values should fail with a clear message."""
+    monkeypatch.setattr(
+        "opx_chain.viewer.get_runtime_config",
+        lambda: build_config("127.0.0.1", 8000),
+    )
+    monkeypatch.setenv("OPX_VIEWER_PORT", "abc")
+
+    with pytest.raises(ValueError, match="Invalid OPX_VIEWER_PORT='abc'"):
+        viewer.main()
+
+
+def test_viewer_main_rejects_out_of_range_env_port(monkeypatch):
+    """Out-of-range OPX_VIEWER_PORT values should fail before socket bind."""
+    monkeypatch.setattr(
+        "opx_chain.viewer.get_runtime_config",
+        lambda: build_config("127.0.0.1", 8000),
+    )
+    monkeypatch.setenv("OPX_VIEWER_PORT", "70000")
+
+    with pytest.raises(ValueError, match="Invalid OPX_VIEWER_PORT='70000'"):
+        viewer.main()
 
 
 def test_viewer_main_can_open_browser(monkeypatch):

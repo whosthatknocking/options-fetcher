@@ -984,6 +984,22 @@ def open_viewer_in_browser(host: str, port: int) -> None:
     webbrowser.open(f"http://{host}:{port}", new=2)
 
 
+def _resolve_viewer_port(config_port: int) -> int:
+    """Return a validated viewer port from environment or config."""
+    raw_port = os.environ.get("OPX_VIEWER_PORT", str(config_port))
+    try:
+        port = int(raw_port)
+    except ValueError as exc:
+        raise ValueError(
+            f"Invalid OPX_VIEWER_PORT={raw_port!r}; expected an integer port 1-65535."
+        ) from exc
+    if not 1 <= port <= 65535:
+        raise ValueError(
+            f"Invalid OPX_VIEWER_PORT={raw_port!r}; expected an integer port 1-65535."
+        )
+    return port
+
+
 def main(argv=None) -> None:
     """Start the local viewer using runtime config with optional env overrides."""
     global _DATA_DIR_OVERRIDE, _CSV_MODE  # pylint: disable=global-statement
@@ -995,7 +1011,7 @@ def main(argv=None) -> None:
     _CSV_MODE = args.csv
     config = get_runtime_config()
     host = os.environ.get("OPX_VIEWER_HOST", config.viewer_host)
-    port = int(os.environ.get("OPX_VIEWER_PORT", str(config.viewer_port)))
+    port = _resolve_viewer_port(config.viewer_port)
     if args.open:
         threading.Timer(0.2, open_viewer_in_browser, args=(host, port)).start()
     serve(host=host, port=port)
