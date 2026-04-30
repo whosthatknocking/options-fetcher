@@ -150,6 +150,31 @@ def test_validate_export_frame_flags_missing_columns_and_duplicates():
     assert any(f.code == "duplicate_contract_row" for f in findings)
 
 
+def test_validate_export_frame_does_not_use_iterrows(monkeypatch):
+    """Export validation should avoid materializing duplicate rows."""
+
+    def fail_iterrows(_self):
+        raise AssertionError("iterrows should not be used by validate_export_frame")
+
+    monkeypatch.setattr(pd.DataFrame, "iterrows", fail_iterrows)
+    frame = pd.DataFrame(
+        [
+            make_valid_row(contract_symbol="TEST260417C00100000"),
+            make_valid_row(contract_symbol="TEST260417C00100000"),
+        ],
+        index=[100, 200],
+    )
+
+    findings = validate_export_frame(frame)
+
+    assert any(
+        f.code == "duplicate_contract_row"
+        and f.row_index == 200
+        and f.contract_symbol == "TEST260417C00100000"
+        for f in findings
+    )
+
+
 def test_emit_validation_report_prints_counts(capsys):
     """Validation reporting should print a stable summary even when findings are empty."""
     emit_validation_report([])

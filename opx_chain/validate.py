@@ -310,15 +310,16 @@ def validate_export_frame(df: pd.DataFrame) -> list[ValidationFinding]:
         )
 
     if {"data_source", "contract_symbol"}.issubset(df.columns):
-        duplicates = df[df.duplicated(subset=["data_source", "contract_symbol"], keep=False)]
-        for row_index, row in duplicates.iterrows():
+        duplicate_mask = df.duplicated(subset=["data_source", "contract_symbol"], keep=False)
+        duplicate_symbols = df.loc[duplicate_mask, "contract_symbol"]
+        for row_index, contract_symbol in duplicate_symbols.items():
             findings.append(
                 _make_finding(
                     "error",
                     "duplicate_contract_row",
                     "Duplicate contract_symbol detected within the same data source.",
                     row_index=row_index,
-                    contract_symbol=row.get("contract_symbol"),
+                    contract_symbol=contract_symbol,
                     field="contract_symbol",
                 )
             )
