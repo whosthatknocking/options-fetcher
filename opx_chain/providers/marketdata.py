@@ -33,7 +33,6 @@ from opx_chain.providers.base import (
 from opx_chain.utils import coerce_float, normalize_timestamp
 
 CALLER_USER_AGENT = f"opx-chain/{SCRIPT_VERSION}"
-DEFAULT_RETRY_BACKOFF_SECONDS = 1.0
 
 
 def _parse_event_date(raw_date) -> date | None:
@@ -141,6 +140,10 @@ class MarketDataProvider(DataProvider):
         """Return the configured minimum spacing between Market Data HTTP requests."""
         return get_runtime_config().marketdata_request_interval_seconds
 
+    def _backoff_seconds(self) -> float:
+        """Return the configured Market Data retry backoff base."""
+        return get_runtime_config().marketdata_backoff_seconds
+
     def _raw_endpoint_url(self, endpoint: str) -> str:
         """Return a raw SDK endpoint URL with configured mode applied when needed."""
         mode = self._mode()
@@ -230,8 +233,7 @@ class MarketDataProvider(DataProvider):
             },
         )
 
-    @staticmethod
-    def _retry_delay_seconds(response, attempt: int) -> float:
+    def _retry_delay_seconds(self, response, attempt: int) -> float:
         """Use Retry-After when present, otherwise exponential backoff."""
         headers = getattr(response, "headers", {}) or {}
         retry_after = headers.get("Retry-After")
@@ -240,7 +242,7 @@ class MarketDataProvider(DataProvider):
                 return max(float(retry_after), 0.0)
             except (TypeError, ValueError):
                 pass
-        return DEFAULT_RETRY_BACKOFF_SECONDS * (2 ** attempt)
+        return self._backoff_seconds() * (2 ** attempt)
 
     @staticmethod
     def _classify_endpoint(url: str) -> str:

@@ -266,6 +266,7 @@ These settings are only used by the matching provider.
 - `providers.marketdata.mode`: optional Market Data SDK mode. Valid values are `live`, `cached`, and `delayed`. If omitted, the SDK uses its default behavior for your account and plan. Mode support and effective recency depend on the plan you are paying for; the Free Forever tier remains 24 hours delayed.
 - `providers.marketdata.max_retries = 3`: retry count for Market Data rate-limit responses (`429`). The provider uses exponential backoff and honors `Retry-After` when the upstream response supplies it.
 - `providers.marketdata.request_interval_seconds = 0.0`: optional minimum spacing between Market Data HTTP requests. Leave it at `0.0` unless you want extra pacing for low-credit or low-throughput plans.
+- `providers.marketdata.backoff_seconds = 1.0`: base exponential-backoff delay used between Market Data retries when `Retry-After` is absent.
 
 ### Portfolio Positions (`$XDG_DATA_HOME/opx-chain/positions.csv`)
 
@@ -312,7 +313,7 @@ XXXXXXXXX,SAMPLE ACCOUNT, -MSFT260918P380,MSFT SEP 18 2026 $380 PUT,,,,,,,,,,,,M
 
 - Add `[providers.marketdata].api_token` only when you select `marketdata`.
 - Set `[providers.marketdata].mode` when you want to force the Market Data SDK to use `live`, `cached`, or `delayed` mode instead of the provider default. Keep in mind that account entitlements still control whether fresher data is actually available.
-- Raise or lower `[providers.marketdata].max_retries` when you want a different tolerance for rate-limit retries.
+- Raise or lower `[providers.marketdata].max_retries` and `[providers.marketdata].backoff_seconds` when you want a different tolerance for rate-limit retries.
 - Set `[providers.marketdata].request_interval_seconds` above `0.0` only when you want additional client-side pacing on top of the provider's normal serial request flow.
 
 ## Filtering

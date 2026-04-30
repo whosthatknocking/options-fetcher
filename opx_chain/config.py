@@ -47,6 +47,7 @@ DEFAULT_MAX_EXPIRATION_WEEKS = 34
 SUPPORTED_MARKETDATA_MODES = frozenset({"live", "cached", "delayed"})
 DEFAULT_MARKETDATA_MAX_RETRIES = 3
 DEFAULT_MARKETDATA_REQUEST_INTERVAL_SECONDS = 0.0
+DEFAULT_MARKETDATA_BACKOFF_SECONDS = 1.0
 DEFAULT_YFINANCE_REQUEST_INTERVAL_SECONDS = 0.0
 DEFAULT_YFINANCE_MAX_RETRIES = 0
 DEFAULT_YFINANCE_BACKOFF_SECONDS = 1.0
@@ -96,6 +97,7 @@ class RuntimeConfig:
     marketdata_mode: str | None
     marketdata_max_retries: int
     marketdata_request_interval_seconds: float
+    marketdata_backoff_seconds: float
     yfinance_request_interval_seconds: float
     yfinance_max_retries: int
     yfinance_backoff_seconds: float
@@ -543,6 +545,14 @@ def load_runtime_config(config_path: Path | None = None) -> RuntimeConfig:  # py
             warnings=marketdata_warnings,
             validator=lambda value: value >= 0,
         ),
+        marketdata_backoff_seconds=_resolve_config_value(
+            marketdata_settings.get("backoff_seconds"),
+            field_name="providers.marketdata.backoff_seconds",
+            default=DEFAULT_MARKETDATA_BACKOFF_SECONDS,
+            coercer=_coerce_float,
+            warnings=marketdata_warnings,
+            validator=lambda value: value > 0,
+        ),
         yfinance_request_interval_seconds=_resolve_config_value(
             yfinance_settings.get("request_interval_seconds"),
             field_name="providers.yfinance.request_interval_seconds",
@@ -784,6 +794,7 @@ def describe_runtime_config(config: RuntimeConfig) -> tuple[str, ...]:
             f"  providers.marketdata.max_retries: {config.marketdata_max_retries}",
             f"  providers.marketdata.request_interval_seconds: "
             f"{config.marketdata_request_interval_seconds}",
+            f"  providers.marketdata.backoff_seconds: {config.marketdata_backoff_seconds}",
         ]
     elif config.data_provider == "massive":
         key_label = "set" if config.massive_api_key else "not set"

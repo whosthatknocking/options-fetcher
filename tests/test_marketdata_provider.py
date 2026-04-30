@@ -335,6 +335,39 @@ def test_marketdata_provider_retries_rate_limits(monkeypatch):
     assert sleep_calls == [0.25]
 
 
+def test_marketdata_provider_uses_configured_backoff_without_retry_after(monkeypatch):
+    """429 responses without Retry-After should use the configured backoff base."""
+    patch_marketdata_client(monkeypatch)
+    monkeypatch.setattr(
+        "opx_chain.providers.marketdata.get_runtime_config",
+        lambda: make_runtime_config(
+            marketdata_max_retries=2,
+            marketdata_request_interval_seconds=0.0,
+            marketdata_backoff_seconds=0.5,
+        ),
+    )
+    sleep_calls = []
+    monkeypatch.setattr("opx_chain.providers.marketdata.time.sleep", sleep_calls.append)
+    provider = MarketDataProvider()
+    responses = iter(
+        [
+            FakeResponse(429, {"s": "error"}),
+            FakeResponse(429, {"s": "error"}),
+            FakeResponse(200, {"optionSymbol": ["TSLA260417C00100000"]}),
+        ]
+    )
+
+    def fake_request(_method, _url, *_args, **_kwargs):
+        return next(responses)
+
+    wrapped = provider._wrap_logged_request(fake_request)  # pylint: disable=protected-access
+
+    response = wrapped("GET", "https://api.marketdata.app/v1/options/chain/TSLA/")
+
+    assert response.status_code == 200
+    assert sleep_calls == [0.5, 1.0]
+
+
 def test_marketdata_provider_respects_request_interval(monkeypatch):
     """Configured Market Data pacing should delay back-to-back HTTP requests."""
     patch_marketdata_client(monkeypatch)

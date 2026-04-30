@@ -30,6 +30,7 @@ def test_load_runtime_config_uses_defaults_when_file_is_absent(tmp_path: Path):
     assert config.marketdata_api_token is None
     assert config.marketdata_max_retries == 3
     assert config.marketdata_request_interval_seconds == 0.0
+    assert config.marketdata_backoff_seconds == 1.0
     assert config.yfinance_request_interval_seconds == 0.0
     assert config.yfinance_max_retries == 0
     assert config.yfinance_backoff_seconds == 1.0
@@ -126,6 +127,7 @@ api_token = "market-token"
 mode = "delayed"
 max_retries = 5
 request_interval_seconds = 0.75
+backoff_seconds = 0.25
 
 [providers.yfinance]
 request_interval_seconds = 0.25
@@ -160,6 +162,7 @@ backoff_seconds = 0.5
     assert config.marketdata_mode == "delayed"
     assert config.marketdata_max_retries == 5
     assert config.marketdata_request_interval_seconds == 0.75
+    assert config.marketdata_backoff_seconds == 0.25
     assert config.yfinance_request_interval_seconds == 0.25
     assert config.yfinance_max_retries == 2
     assert config.yfinance_backoff_seconds == 0.5
@@ -246,6 +249,7 @@ request_interval_seconds = -0.5
     assert config.marketdata_mode is None
     assert config.marketdata_max_retries == 3
     assert config.marketdata_request_interval_seconds == 0.0
+    assert config.marketdata_backoff_seconds == 1.0
     assert config.massive_snapshot_page_limit == 250
     assert not any("providers.massive" in warning for warning in config.config_warnings)
     assert not any("providers.marketdata" in warning for warning in config.config_warnings)
@@ -283,6 +287,24 @@ request_interval_seconds = -0.5
     assert config.marketdata_request_interval_seconds == 0.0
     assert any(
         "providers.marketdata.request_interval_seconds" in warning
+        for warning in config.config_warnings
+    )
+
+    negative_backoff = tmp_path / "marketdata-backoff.toml"
+    negative_backoff.write_text(
+        """
+[settings]
+data_provider = "marketdata"
+
+[providers.marketdata]
+backoff_seconds = -0.5
+""".strip(),
+        encoding="utf-8",
+    )
+    config = load_runtime_config(negative_backoff)
+    assert config.marketdata_backoff_seconds == 1.0
+    assert any(
+        "providers.marketdata.backoff_seconds" in warning
         for warning in config.config_warnings
     )
 
@@ -674,6 +696,7 @@ api_token = "market-token"
 mode = "cached"
 max_retries = 5
 request_interval_seconds = 0.5
+backoff_seconds = 0.75
 """.strip(),
         encoding="utf-8",
     )
@@ -685,6 +708,7 @@ request_interval_seconds = 0.5
     assert "  providers.marketdata.mode: cached" in lines
     assert "  providers.marketdata.max_retries: 5" in lines
     assert "  providers.marketdata.request_interval_seconds: 0.5" in lines
+    assert "  providers.marketdata.backoff_seconds: 0.75" in lines
     assert all("market-token" not in line for line in lines)
 
 

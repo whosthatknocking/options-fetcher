@@ -67,3 +67,4 @@ api_token = "replace-me"
 # mode = "delayed"
 max_retries = 3
 request_interval_seconds = 0.0
+backoff_seconds = 1.0

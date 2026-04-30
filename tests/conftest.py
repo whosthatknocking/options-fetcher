@@ -58,6 +58,7 @@ def make_runtime_config(**overrides):
         "marketdata_mode": None,
         "marketdata_max_retries": 3,
         "marketdata_request_interval_seconds": 0.0,
+        "marketdata_backoff_seconds": 1.0,
         "yfinance_request_interval_seconds": 0.0,
         "yfinance_max_retries": 0,
         "yfinance_backoff_seconds": 1.0,
