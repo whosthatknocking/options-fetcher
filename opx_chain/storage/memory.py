@@ -7,7 +7,7 @@ import io
 import uuid
 from datetime import datetime, timezone
 
-from opx_chain.storage.serializers import ensure_parquet_available, get_serializer
+from opx_chain.storage.serializers import ensure_parquet_available
 from opx_chain.storage.models import (
     ArtifactRecord,
     ArtifactWrite,
@@ -80,7 +80,6 @@ class MemoryBackend:
     def write_dataset(self, run_id: str, dataset: DatasetWrite) -> DatasetRecord:
         """Serialize the DataFrame in memory and record the dataset."""
         dataset_id = str(uuid.uuid4())
-        get_serializer(dataset.format)
         if dataset.format == "csv":
             text_buf = io.StringIO()
             dataset.data.to_csv(text_buf, index=False)

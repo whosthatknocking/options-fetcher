@@ -1,5 +1,6 @@
 """Tests for MemoryBackend: protocol satisfaction and write roundtrips."""
 
+import inspect
 import io
 from datetime import timedelta
 
@@ -314,6 +315,30 @@ def test_write_dataset_parquet_stores_matching_bytes():
     assert record.location.endswith(".parquet")
     assert list(result.columns) == list(df.columns)
     assert len(result) == len(df)
+
+
+def test_write_dataset_has_no_dead_serializer_lookup():
+    """MemoryBackend should not call get_serializer and discard the result."""
+    source = inspect.getsource(MemoryBackend.write_dataset)
+
+    assert "get_serializer(" not in source
+
+
+def test_write_dataset_rejects_unknown_format():
+    """MemoryBackend should reject unsupported dataset formats directly."""
+    backend = MemoryBackend()
+    run_id = backend.create_run(_make_context())
+
+    with pytest.raises(ValueError, match="Unsupported dataset format"):
+        backend.write_dataset(
+            run_id,
+            DatasetWrite(
+                data=_make_dataframe(),
+                provider="yfinance",
+                schema_version=SCHEMA_VERSION,
+                format="avro",
+            ),
+        )
 
 
 def test_content_hash_is_deterministic():
