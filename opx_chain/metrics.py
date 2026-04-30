@@ -18,6 +18,19 @@ def classify_days_to_expiration_bucket(days_to_expiration):
     return "Week_4"
 
 
+def _compute_days_bucket(days_to_expiration):
+    """Vectorized version of classify_days_to_expiration_bucket."""
+    return np.select(
+        [
+            days_to_expiration <= 10,
+            days_to_expiration <= 18,
+            days_to_expiration <= 26,
+        ],
+        ["Week_1", "Week_2", "Week_3"],
+        default="Week_4",
+    )
+
+
 def _clip_zero_to_one(values):
     """Clamp numeric arrays to the inclusive [0, 1] score range."""
     return np.clip(values, 0.0, 1.0)
@@ -411,7 +424,7 @@ def add_screening_and_freshness_flags(df, fetched_at):
         df["quote_age_seconds"] > config.stale_quote_seconds,
         None,
     )
-    df["days_bucket"] = df["days_to_expiration"].apply(classify_days_to_expiration_bucket)
+    df["days_bucket"] = _compute_days_bucket(df["days_to_expiration"])
     df["near_expiry_near_money_flag"] = (
         (df["days_to_expiration"] <= 14) & (df["strike_distance_pct"] <= 0.03)
     )

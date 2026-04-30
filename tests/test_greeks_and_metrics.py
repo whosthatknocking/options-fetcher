@@ -363,6 +363,41 @@ def test_add_screening_and_freshness_flags_uses_prompt_spread_and_dte_tiers(monk
     assert result.loc[1, "risk_level"] == "HIGH"
 
 
+def test_add_screening_and_freshness_flags_vectorizes_days_bucket(monkeypatch):
+    """DTE buckets should not call the scalar classifier once per row."""
+    monkeypatch.setattr("opx_chain.metrics.get_runtime_config", make_score_config)
+    monkeypatch.setattr(
+        "opx_chain.metrics.classify_days_to_expiration_bucket",
+        lambda _value: pytest.fail("scalar DTE classifier should not be called"),
+    )
+    fetched_at = pd.Timestamp("2026-03-20T16:00:00Z")
+    base = {
+        **make_scored_row(),
+        "option_quote_time": pd.Timestamp("2026-03-20T15:55:00Z"),
+        "has_valid_quote": True,
+        "has_nonzero_bid": True,
+        "has_nonzero_ask": True,
+        "has_valid_iv": True,
+        "has_valid_greeks": True,
+        "has_crossed_or_locked_market": False,
+    }
+    frame = pd.DataFrame([
+        {**base, "days_to_expiration": dte}
+        for dte in (10, 11, 18, 19, 26, 27)
+    ])
+
+    result = add_screening_and_freshness_flags(frame.copy(), fetched_at=fetched_at)
+
+    assert result["days_bucket"].tolist() == [
+        "Week_1",
+        "Week_2",
+        "Week_2",
+        "Week_3",
+        "Week_3",
+        "Week_4",
+    ]
+
+
 def test_add_option_score_returns_bounded_value(monkeypatch):
     """Option score should stay within 0-100 and reward stronger inputs."""
     monkeypatch.setattr("opx_chain.metrics.get_runtime_config", make_score_config)
