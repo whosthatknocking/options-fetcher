@@ -464,6 +464,7 @@ Run status transitions:
 ```
 acquire lock → create_run (status=running)
   → per-ticker work
+  → write_artifact for run sidecars required before dataset publication
   → write_dataset
   → finalize_run (status=complete)
   → release lock
@@ -476,6 +477,13 @@ on KeyboardInterrupt:
   → finalize_run (status=interrupted, error_summary="interrupted")
   → release lock
 ```
+
+`write_dataset` is the storage publication point for downstream consumers:
+`list_datasets` only exposes datasets after this call succeeds. Run sidecars
+that are part of the successful fetch artifact set, such as the positions
+snapshot and run-log reference, are written before `write_dataset`. If those
+artifact writes fail, `fail_run` records the failure and no dataset is published
+for that run.
 
 The `pending` status value is reserved for future use; `create_run` sets
 `status=running` immediately.

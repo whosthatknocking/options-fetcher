@@ -426,12 +426,6 @@ def _do_fetch_with_lock_held(  # pylint: disable=too-many-branches,too-many-loca
 
         dataset_record = None
         if storage is not None and run_id is not None:
-            dataset_record = storage.write_dataset(run_id, DatasetWrite(
-                data=export_df,
-                provider=config.data_provider,
-                schema_version=SCHEMA_VERSION,
-                format=config.storage_dataset_format,
-            ))
             if resolved_positions_path.exists():
                 storage.write_artifact(run_id, ArtifactWrite(
                     artifact_type="sidecar",
@@ -444,6 +438,12 @@ def _do_fetch_with_lock_held(  # pylint: disable=too-many-branches,too-many-loca
                     content=_run_log_reference(run_id, log_path),
                     filename="run_log_reference.json",
                 ))
+            dataset_record = storage.write_dataset(run_id, DatasetWrite(
+                data=export_df,
+                provider=config.data_provider,
+                schema_version=SCHEMA_VERSION,
+                format=config.storage_dataset_format,
+            ))
             storage.finalize_run(run_id, RunSummary(status="complete"))
 
         print()

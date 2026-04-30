@@ -327,6 +327,43 @@ def test_fetcher_quota_error_fails_run_without_writing_dataset(tmp_path: Path):
     assert "request limit" in (runs[0].error_summary or "")
 
 
+def test_fetcher_artifact_failure_fails_without_writing_dataset(tmp_path: Path):
+    """Storage artifact failures must not publish a dataset for a failed run."""
+    from opx_chain import fetcher  # pylint: disable=import-outside-toplevel
+
+    class ArtifactFailingBackend(MemoryBackend):
+        """Memory backend that fails before the dataset commit point."""
+
+        def __init__(self):
+            super().__init__()
+            self.write_dataset_called = False
+
+        def write_artifact(self, run_id, artifact):
+            raise OSError(f"cannot write {artifact.filename}")
+
+        def write_dataset(self, run_id, dataset):
+            self.write_dataset_called = True
+            return super().write_dataset(run_id, dataset)
+
+    backend = ArtifactFailingBackend()
+    config = make_runtime_config(storage_enabled=True)
+    positions_file = tmp_path / "positions.csv"
+    positions_file.write_text("Symbol\nTSLA\n", encoding="utf-8")
+    patches = _fetcher_patches(tmp_path, config, backend)
+
+    with patches[0], patches[1], patches[2], patches[3], patches[4], \
+         patches[5], patches[6], patches[7], patches[8], patches[9], \
+         patches[10], patches[11]:
+        result = fetcher.main(["--positions", str(positions_file)])
+
+    assert result == 1
+    assert not backend.write_dataset_called
+    assert not backend.list_datasets()
+    runs = list(backend._runs.values())  # pylint: disable=protected-access
+    assert len(runs) == 1
+    assert runs[0].status == "failed"
+
+
 def test_fetcher_skips_storage_when_disabled(tmp_path: Path):
     """When storage is disabled, write_dataset must never be called."""
     from opx_chain import fetcher  # pylint: disable=import-outside-toplevel
