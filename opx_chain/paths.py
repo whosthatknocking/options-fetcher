@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+from os import PathLike
 from pathlib import Path
 
 
@@ -23,6 +24,19 @@ def get_config_dir() -> Path:
 def get_data_dir() -> Path:
     """Return the app data directory."""
     return _xdg_base_dir("XDG_DATA_HOME", Path.home() / ".local" / "share") / APP_NAME
+
+
+def get_runs_dir(
+    storage_dir: str | PathLike[str] | None = None,
+    *,
+    default_runs_dir: str | PathLike[str] | None = None,
+) -> Path:
+    """Return the runtime runs directory for a storage base override."""
+    if storage_dir:
+        return Path(storage_dir).expanduser() / "runs"
+    if default_runs_dir:
+        return Path(default_runs_dir).expanduser()
+    return get_data_dir() / "runs"
 
 
 def get_state_dir() -> Path:

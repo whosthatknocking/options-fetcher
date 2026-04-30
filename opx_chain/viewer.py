@@ -23,6 +23,7 @@ import pandas as pd
 from pandas.api.types import is_bool_dtype, is_numeric_dtype
 from opx_chain.config import get_runtime_config
 from opx_chain.export import UNWANTED_EXPORT_COLUMNS
+from opx_chain.paths import get_runs_dir
 from opx_chain.positions import DEFAULT_POSITIONS_PATH
 from opx_chain.storage.factory import get_data_dir, get_storage_backend
 from opx_chain.utils import read_dataset_file
@@ -213,7 +214,7 @@ def discover_dataset_paths() -> list[Path]:
 def _runtime_runs_dir() -> Path:
     """Return the active runtime runs directory for fallback CSV discovery."""
     config = get_runtime_config()
-    return Path(config.storage_dir) / "runs" if config.storage_dir else RUNS_DIR
+    return get_runs_dir(config.storage_dir, default_runs_dir=RUNS_DIR)
 
 
 def resolve_csv_path(csv_name: str | None = None) -> Path:

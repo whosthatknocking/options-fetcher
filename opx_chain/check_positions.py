@@ -6,6 +6,7 @@ from numbers import Real
 import pandas as pd
 
 from opx_chain.config import get_runtime_config
+from opx_chain.paths import get_runs_dir
 from opx_chain.positions import DEFAULT_POSITIONS_PATH, STRIKE_MATCH_TOLERANCE, load_positions
 from opx_chain.storage.factory import get_data_dir, get_storage_backend
 from opx_chain.storage.models import DatasetRecord
@@ -17,7 +18,7 @@ RUNS_DIR = get_data_dir() / "runs"
 def _runtime_runs_dir() -> Path:
     """Return the active runtime runs directory for fallback CSV scans."""
     config = get_runtime_config()
-    return Path(config.storage_dir) / "runs" if config.storage_dir else RUNS_DIR
+    return get_runs_dir(config.storage_dir, default_runs_dir=RUNS_DIR)
 
 
 def find_latest_output(runs_dir: Path | None = None) -> Path | None:

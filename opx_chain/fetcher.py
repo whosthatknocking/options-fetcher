@@ -18,6 +18,7 @@ from opx_chain.config import (
 from opx_chain.export import prepare_export_frame, write_options_csv
 from opx_chain.fetch import fetch_ticker_option_chain
 from opx_chain.locks import acquire_nonblocking_file_lock, release_file_lock
+from opx_chain.paths import get_runs_dir
 from opx_chain.positions import DEFAULT_POSITIONS_PATH, load_positions
 from opx_chain.runlog import create_run_logger, log_run_started
 from opx_chain.storage.atomic import atomic_file_write
@@ -146,7 +147,7 @@ def _runtime_data_dir(config) -> Path:
 
 def _runs_dir(config) -> Path:
     """Return the directory for CSV side writes and latest pointers."""
-    return _runtime_data_dir(config) / "runs" if config.storage_dir else RUNS_DIR
+    return get_runs_dir(config.storage_dir, default_runs_dir=RUNS_DIR)
 
 
 def _fetcher_lock_path(config) -> Path:
