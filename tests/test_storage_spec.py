@@ -44,7 +44,10 @@ def test_storage_spec_documents_current_opx_check_lookup():
     spec = (ROOT / "docs" / "STORAGE_SPEC.md").read_text(encoding="utf-8")
 
     assert "`opx-check` uses `list_datasets(limit=100)`" in spec
-    assert "newest readable CSV record" in spec
+    assert "newest existing CSV artifact" in spec
+    assert "falls back to the newest existing readable dataset artifact" in spec
+    assert "including parquet" in spec
+    assert "until the reader supports non-CSV datasets" not in spec
     assert "`opx-check` uses `list_datasets(limit=1)`" not in spec
 
 
