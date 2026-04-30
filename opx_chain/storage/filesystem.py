@@ -83,6 +83,9 @@ class FilesystemBackend:
     def _run_path(self, run_id: str) -> Path:
         return self._runs_dir / run_id / "run.json"
 
+    def _dataset_index_path(self) -> Path:
+        return self._runs_dir / "datasets.index.json"
+
     def _meta_path(self, dataset_id: str, run_id: str) -> Path:
         return self._run_output_dir(run_id) / f"{dataset_id}.meta.json"
 
@@ -169,7 +172,12 @@ class FilesystemBackend:
         return matches[0]
 
     def _write_meta(self, record: DatasetRecord) -> None:
-        data = {
+        path = self._meta_path(record.dataset_id, record.run_id)
+        atomic_write_text(path, json.dumps(self._record_to_meta(record), indent=2))
+
+    @staticmethod
+    def _record_to_meta(record: DatasetRecord) -> dict:
+        return {
             "dataset_id": record.dataset_id,
             "run_id": record.run_id,
             "created_at": _dt_to_str(record.created_at),
@@ -181,8 +189,6 @@ class FilesystemBackend:
             "content_hash": record.content_hash,
             "script_version": record.script_version,
         }
-        path = self._meta_path(record.dataset_id, record.run_id)
-        atomic_write_text(path, json.dumps(data, indent=2))
 
     @staticmethod
     def _meta_to_record(data: dict) -> DatasetRecord:
@@ -198,6 +204,64 @@ class FilesystemBackend:
             content_hash=data["content_hash"],
             script_version=data.get("script_version", UNKNOWN_SCRIPT_VERSION),
         )
+
+    def _scan_dataset_records(self) -> list[DatasetRecord]:
+        records = []
+        for meta_path in self._runs_dir.glob("*/output/*.meta.json"):
+            try:
+                records.append(
+                    self._meta_to_record(json.loads(meta_path.read_text(encoding="utf-8")))
+                )
+            except (OSError, KeyError, json.JSONDecodeError, ValueError):
+                continue
+        records.sort(key=lambda record: _dt_sort_key(record.created_at), reverse=True)
+        return records
+
+    def _write_dataset_index(self, records: list[DatasetRecord]) -> None:
+        self._runs_dir.mkdir(parents=True, exist_ok=True)
+        data = [self._record_to_meta(record) for record in records]
+        atomic_write_text(self._dataset_index_path(), json.dumps(data, indent=2))
+
+    def _load_dataset_index(self) -> list[DatasetRecord] | None:
+        index_path = self._dataset_index_path()
+        if not index_path.exists():
+            return None
+        try:
+            data = json.loads(index_path.read_text(encoding="utf-8"))
+            records = [self._meta_to_record(item) for item in data]
+        except (OSError, TypeError, KeyError, ValueError, json.JSONDecodeError):
+            return None
+        records = [
+            record
+            for record in records
+            if self._meta_path(record.dataset_id, record.run_id).exists()
+        ]
+        records.sort(key=lambda record: _dt_sort_key(record.created_at), reverse=True)
+        return records
+
+    def _dataset_records(self) -> list[DatasetRecord]:
+        records = self._load_dataset_index()
+        if records is not None:
+            return records
+        records = self._scan_dataset_records()
+        try:
+            self._write_dataset_index(records)
+        except OSError:
+            pass
+        return records
+
+    def _append_dataset_index(self, record: DatasetRecord) -> None:
+        records = [
+            item
+            for item in self._dataset_records()
+            if item.dataset_id != record.dataset_id
+        ]
+        records.append(record)
+        records.sort(key=lambda item: _dt_sort_key(item.created_at), reverse=True)
+        try:
+            self._write_dataset_index(records)
+        except OSError:
+            pass
 
     def _meta_created_at_sort_key(self, meta_path: Path) -> datetime:
         try:
@@ -224,6 +288,10 @@ class FilesystemBackend:
             except (OSError, KeyError, json.JSONDecodeError):
                 pass
             meta_path.unlink(missing_ok=True)
+        try:
+            self._write_dataset_index(self._scan_dataset_records())
+        except OSError:
+            pass
 
     # ------------------------------------------------------------------
     # StorageBackend protocol
@@ -300,6 +368,7 @@ class FilesystemBackend:
         data = self._read_run(run_id)
         data["dataset_id"] = dataset_id
         self._write_run(run_id, data)
+        self._append_dataset_index(record)
         self._prune_datasets()
         return record
 
@@ -336,23 +405,20 @@ class FilesystemBackend:
         if not self._runs_dir.exists():
             return []
         results = []
-        for meta_path in self._runs_dir.glob("*/output/*.meta.json"):
-            try:
-                record = self._meta_to_record(
-                    json.loads(meta_path.read_text(encoding="utf-8"))
-                )
-            except (OSError, KeyError, json.JSONDecodeError, ValueError):
-                continue
+        for record in self._dataset_records():
             if provider is not None and record.provider != provider:
                 continue
             if since is not None and record.created_at < since:
-                continue
+                break
+            if since is None and len(results) >= limit:
+                break
             if until is not None and record.created_at > until:
                 continue
             if ticker is not None and not self._run_has_ticker(record.run_id, ticker):
                 continue
             results.append(record)
-        results.sort(key=lambda record: _dt_sort_key(record.created_at), reverse=True)
+            if len(results) >= limit:
+                break
         return results[:limit]
 
     def get_dataset(self, dataset_id: str) -> DatasetHandle:

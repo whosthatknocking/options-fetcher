@@ -297,6 +297,28 @@ def test_list_datasets_limit(tmp_path: Path):
     assert len(backend.list_datasets(limit=2)) == 2
 
 
+def test_list_datasets_uses_index_without_reparsing_meta_files(tmp_path: Path, monkeypatch):
+    """The filesystem backend should not parse every meta file for a limited listing."""
+    backend = _make_backend(tmp_path)
+    run_id = backend.create_run(_make_context())
+    for _ in range(5):
+        _write(backend, run_id)
+
+    meta_reads = 0
+    original_read_text = Path.read_text
+
+    def tracking_read_text(self, *args, **kwargs):
+        nonlocal meta_reads
+        if self.name.endswith(".meta.json"):
+            meta_reads += 1
+        return original_read_text(self, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "read_text", tracking_read_text)
+
+    assert len(backend.list_datasets(limit=1)) == 1
+    assert meta_reads == 0
+
+
 def test_list_datasets_filter_provider(tmp_path: Path):
     """list_datasets must filter by provider when the argument is given."""
     backend = _make_backend(tmp_path)

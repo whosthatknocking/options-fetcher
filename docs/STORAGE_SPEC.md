@@ -439,6 +439,11 @@ from day one. The ticker filter is evaluated against the run's effective
 `RunRecord.tickers` list; legacy records without persisted run tickers may fall
 back to per-ticker result rows.
 
+The filesystem backend maintains a derived `datasets.index.json` file under the
+runs directory so common latest-dataset reads such as `list_datasets(limit=1)` do
+not need to parse every `*.meta.json` sidecar. If the index is missing or
+unreadable, the backend rebuilds it from the canonical per-dataset metadata.
+
 ## 9. Concurrency and Run Lifecycle
 
 The current fetcher lock (`fetcher.lock`) prevents concurrent runs. Under
