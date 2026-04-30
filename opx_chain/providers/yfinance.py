@@ -13,7 +13,13 @@ import pandas as pd
 import yfinance as yf
 
 from opx_chain.config import US_MARKET_TIMEZONE, get_runtime_config
-from opx_chain.providers.base import DataProvider, OptionChainFrames, normalize_provider_frame
+from opx_chain.providers.base import (
+    DataProvider,
+    OptionChainFrames,
+    ProviderQuotaError,
+    is_provider_quota_error,
+    normalize_provider_frame,
+)
 from opx_chain.utils import coerce_float, normalize_timestamp
 
 
@@ -172,6 +178,10 @@ class YFinanceProvider(DataProvider):
                 return callback()
             except Exception as exc:  # pylint: disable=broad-exception-caught
                 if attempt == max_retries:
+                    if is_provider_quota_error(exc):
+                        raise ProviderQuotaError(
+                            f"Yahoo Finance {label} failed due to quota/rate limit: {exc}"
+                        ) from exc
                     raise
                 delay = self._backoff_seconds() * (2**attempt)
                 print(

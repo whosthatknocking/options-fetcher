@@ -24,6 +24,31 @@ class ProviderQuotaError(RuntimeError):
     """Raised when the provider rejects the request due to a quota or rate limit."""
 
 
+def is_provider_quota_error(exc: Exception) -> bool:
+    """Return True when a provider exception represents quota/rate-limit exhaustion."""
+    status_code = (
+        getattr(exc, "status_code", None)
+        or getattr(exc, "status", None)
+        or getattr(getattr(exc, "response", None), "status_code", None)
+        or getattr(getattr(exc, "response", None), "status", None)
+    )
+    if str(status_code) == "429":
+        return True
+    message = str(exc).lower()
+    return any(
+        token in message
+        for token in (
+            "429",
+            "rate limit",
+            "rate-limit",
+            "rate limited",
+            "request limit",
+            "too many requests",
+            "quota",
+        )
+    )
+
+
 @dataclass(frozen=True)
 class OptionChainFrames:
     """Vendor option-chain payload split into calls and puts."""

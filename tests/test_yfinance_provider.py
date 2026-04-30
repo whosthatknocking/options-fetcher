@@ -8,6 +8,7 @@ import pandas as pd
 import pytest
 
 from conftest import make_runtime_config
+from opx_chain.providers.base import ProviderQuotaError
 from opx_chain.providers.yfinance import YFinanceProvider
 
 
@@ -225,6 +226,34 @@ def test_yfinance_provider_retries_configured_failures(monkeypatch, capsys):
     assert expirations == ["2026-04-17"]
     assert sleep_calls == [pytest.approx(0.25)]
     assert "yfinance api: TSLA expirations retry_in=0.25s" in capsys.readouterr().out
+
+
+def test_yfinance_provider_raises_quota_error_after_rate_limit_retries(monkeypatch):
+    """Exhausted Yahoo rate limits should abort as ProviderQuotaError."""
+
+    class LimitedTicker:  # pylint: disable=too-few-public-methods
+        """Ticker stub that always raises a rate-limit error."""
+
+        @property
+        def options(self):
+            """Simulate a terminal Yahoo rate limit."""
+            raise RuntimeError("429 too many requests")
+
+    monkeypatch.setattr(
+        "opx_chain.providers.yfinance.get_runtime_config",
+        lambda: make_runtime_config(
+            yfinance_max_retries=1,
+            yfinance_backoff_seconds=0.25,
+        ),
+    )
+    monkeypatch.setattr("opx_chain.providers.yfinance.yf.Ticker", lambda _ticker: LimitedTicker())
+    sleep_calls = []
+    monkeypatch.setattr("opx_chain.providers.yfinance.time.sleep", sleep_calls.append)
+
+    with pytest.raises(ProviderQuotaError, match="Yahoo Finance TSLA expirations failed"):
+        YFinanceProvider().list_option_expirations("TSLA")
+
+    assert sleep_calls == [pytest.approx(0.25)]
 
 
 def test_yfinance_fast_info_retry_log_names_action(monkeypatch, capsys):

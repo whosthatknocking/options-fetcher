@@ -24,6 +24,8 @@ from opx_chain.providers.base import (
     DataProvider,
     OptionChainFrames,
     ProviderAuthenticationError,
+    ProviderQuotaError,
+    is_provider_quota_error,
     normalize_provider_frame,
 )
 from opx_chain.utils import coerce_float, normalize_timestamp
@@ -238,6 +240,10 @@ class MassiveProvider(DataProvider):
                         raise ProviderAuthenticationError(
                             "Massive authentication failed. Check [providers.massive] api_key "
                             f"in {get_default_config_path()}."
+                        ) from exc
+                    if is_provider_quota_error(exc) and attempt == max_retries:
+                        raise ProviderQuotaError(
+                            f"Massive snapshot request failed due to quota/rate limit: {exc}"
                         ) from exc
                     if attempt == max_retries:
                         raise

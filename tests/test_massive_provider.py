@@ -12,7 +12,7 @@ from conftest import make_runtime_config
 from opx_chain import fetch
 from opx_chain.greeks import compute_greeks
 from opx_chain.config import reset_runtime_config, set_runtime_config_override
-from opx_chain.providers.base import ProviderAuthenticationError
+from opx_chain.providers.base import ProviderAuthenticationError, ProviderQuotaError
 from opx_chain.providers.massive import (
     CALLER_USER_AGENT, DEFAULT_SNAPSHOT_PAGE_LIMIT, MassiveProvider,
 )
@@ -432,6 +432,30 @@ def test_massive_provider_retries_rate_limits(monkeypatch):
     assert attempts["count"] == 3
     assert seen_params == [{"limit": DEFAULT_SNAPSHOT_PAGE_LIMIT}] * 3
     assert sleeps == [0.25, 0.5]
+
+
+def test_massive_provider_raises_quota_error_after_rate_limit_retries(monkeypatch):
+    """Exhausted Massive rate limits should abort as ProviderQuotaError."""
+    provider = MassiveProvider()
+    set_runtime_config_override(
+        make_runtime_config(massive_max_retries=1, massive_backoff_seconds=0.25)
+    )
+    sleeps = []
+
+    class FakeClient:  # pylint: disable=too-few-public-methods
+        """Minimal official-client stand-in that always rate-limits."""
+
+        def list_snapshot_options_chain(self, _ticker, params=None):  # pylint: disable=unused-argument
+            """Simulate a terminal provider rate limit."""
+            raise RuntimeError("429 too many requests")
+
+    monkeypatch.setattr(provider, "_client", FakeClient)
+    monkeypatch.setattr("opx_chain.providers.massive.time.sleep", sleeps.append)
+
+    with pytest.raises(ProviderQuotaError, match="Massive snapshot request failed"):
+        provider._fetch_snapshot_results("TSLA")  # pylint: disable=protected-access
+
+    assert sleeps == [0.25]
 
 
 def test_massive_prepare_ticker_fetch_clears_snapshot_cache(monkeypatch):
