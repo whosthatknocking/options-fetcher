@@ -450,6 +450,7 @@ The documentation is split by audience.
 
 Current structure:
 
+- `AGENTS.md`: project-specific AI-agent guidance and source-of-truth ordering
 - `README.md`: short landing page
 - `docs/USER_GUIDE.md`: user-facing setup, running, config, and behavior
 - `docs/FIELD_REFERENCE.md`: canonical field descriptions and provider mapping matrix

@@ -19,15 +19,16 @@ This file gives project-specific guidance to AI agents working in this repositor
 
 When behavior, naming, or scope is unclear, use these files in this order:
 
-1. `docs/PROJECT_SPEC.md`
-2. `docs/USER_GUIDE.md`
-3. `docs/FIELD_REFERENCE.md`
-4. `docs/STORAGE_SPEC.md`
-5. `docs/METADATA_SPEC.md`
-6. `docs/EXTERNAL_INTERFACE_SPEC.md`
-7. `docs/DEVELOPMENT.md`
-8. `README.md`
-9. `docs/DESIGN_SPEC.md` for UI direction
+1. `AGENTS.md`
+2. `docs/PROJECT_SPEC.md`
+3. `docs/USER_GUIDE.md`
+4. `docs/FIELD_REFERENCE.md`
+5. `docs/STORAGE_SPEC.md`
+6. `docs/METADATA_SPEC.md`
+7. `docs/EXTERNAL_INTERFACE_SPEC.md`
+8. `docs/DEVELOPMENT.md`
+9. `README.md`
+10. `docs/DESIGN_SPEC.md` for UI direction
 
 Keep those files aligned with the implementation. If you change canonical fields, provider behavior, config keys, CLI behavior, viewer behavior, or validation semantics, update the docs in the same task.
 
