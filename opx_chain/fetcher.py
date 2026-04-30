@@ -514,6 +514,19 @@ def run_fetch(
         config = _with_max_expiration_weeks(config, max_expiration_weeks)
     if stale_quote_seconds is not None:
         config = replace(config, stale_quote_seconds=stale_quote_seconds)
+    if dry_run:
+        try:
+            set_runtime_config_override(config)
+            _do_fetch_with_lock_held(
+                config,
+                positions_path,
+                cli_override=None,
+                dry_run=True,
+            )
+        finally:
+            set_runtime_config_override(None)
+        return
+
     lock_path = _fetcher_lock_path(config)
     lock_handle = acquire_fetcher_lock(lock_path)
     if lock_handle is None:
@@ -531,10 +544,32 @@ def run_fetch(
         release_fetcher_lock(lock_handle, lock_path)
 
 
+def _run_dry_run(config, positions_path: Path | None, cli_override) -> int:
+    """Run dry-run validation without acquiring the cross-process fetcher lock."""
+    try:
+        set_runtime_config_override(config)
+        _do_fetch_with_lock_held(
+            config,
+            positions_path,
+            cli_override=cli_override,
+            dry_run=True,
+        )
+        return 0
+    except KeyboardInterrupt:
+        return 130
+    except Exception:  # pylint: disable=broad-exception-caught
+        return 1
+    finally:
+        set_runtime_config_override(None)
+
+
 def main(argv=None):
     """Fetch configured tickers and write the consolidated CSV output."""
     args = parse_args(argv)
     config, cli_override = apply_cli_overrides(get_runtime_config(), args)
+    if args.dry_run:
+        return _run_dry_run(config, args.positions, cli_override)
+
     lock_path = _fetcher_lock_path(config)
     lock_handle = acquire_fetcher_lock(lock_path)
     if lock_handle is None:

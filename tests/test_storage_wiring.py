@@ -499,6 +499,8 @@ def test_dry_run_makes_no_api_calls_and_no_writes(tmp_path: Path):
         result = fetcher.main(["--dry-run"])
 
     assert result == 0
+    mocks[3].assert_not_called()  # acquire_fetcher_lock
+    mocks[4].assert_not_called()  # release_fetcher_lock
     mock_fetch = mocks[9]  # fetch_ticker_option_chain
     mock_fetch.assert_not_called()
     assert not backend.list_datasets()
@@ -636,6 +638,8 @@ def test_run_fetch_dry_run_makes_no_api_calls_and_no_writes(tmp_path: Path):
         mocks = [stack.enter_context(p) for p in patches]
         fetcher.run_fetch(dry_run=True)
 
+    mocks[3].assert_not_called()  # acquire_fetcher_lock
+    mocks[4].assert_not_called()  # release_fetcher_lock
     mock_fetch = mocks[9]  # fetch_ticker_option_chain
     mock_fetch.assert_not_called()
     assert not backend.list_datasets()
