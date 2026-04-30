@@ -225,3 +225,38 @@ def test_yfinance_provider_retries_configured_failures(monkeypatch, capsys):
     assert expirations == ["2026-04-17"]
     assert sleep_calls == [pytest.approx(0.25)]
     assert "yfinance api: TSLA expirations retry_in=0.25s" in capsys.readouterr().out
+
+
+def test_yfinance_fast_info_retry_log_names_action(monkeypatch, capsys):
+    """Fast-info retries should include the action in the operator log label."""
+    attempts = {"count": 0}
+
+    class FlakyFastInfoTicker(FakeTicker):  # pylint: disable=too-few-public-methods
+        """Ticker stub that fails the first fast_info lookup."""
+
+        @property
+        def fast_info(self):
+            """Raise once, then return the underlying snapshot payload."""
+            attempts["count"] += 1
+            if attempts["count"] == 1:
+                raise RuntimeError("fast info unavailable")
+            return {"lastPrice": 101.5, "previousClose": 100.0}
+
+        @fast_info.setter
+        def fast_info(self, _value):
+            """Accept FakeTicker initialization assignment."""
+
+    monkeypatch.setattr(
+        "opx_chain.providers.yfinance.get_runtime_config",
+        lambda: make_runtime_config(
+            yfinance_max_retries=1,
+            yfinance_backoff_seconds=0.25,
+        ),
+    )
+    monkeypatch.setattr("opx_chain.providers.yfinance.yf.Ticker", FlakyFastInfoTicker)
+    monkeypatch.setattr("opx_chain.providers.yfinance.time.sleep", lambda _seconds: None)
+
+    snapshot = YFinanceProvider().load_underlying_snapshot("TSLA")
+
+    assert snapshot["underlying_price"] == pytest.approx(101.5)
+    assert "yfinance api: TSLA fast_info retry_in=0.25s" in capsys.readouterr().out

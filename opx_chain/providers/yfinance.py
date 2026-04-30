@@ -264,7 +264,10 @@ class YFinanceProvider(DataProvider):
     def load_underlying_snapshot(self, ticker: str) -> dict:  # pylint: disable=broad-exception-caught
         """Load the underlying snapshot once per ticker and reuse it for each expiration."""
         stock = yf.Ticker(ticker)
-        fast_info = self._call_yahoo(ticker, lambda: getattr(stock, "fast_info", {}) or {})
+        fast_info = self._call_yahoo(
+            f"{ticker} fast_info",
+            lambda: getattr(stock, "fast_info", {}) or {},
+        )
         info = self._safe_info(ticker, stock)
         self.debug_dump_payload(
             ticker,
