@@ -2,18 +2,21 @@
 
 from __future__ import annotations
 
+from io import BytesIO
 from pathlib import Path
 from typing import Protocol
 
 import pandas as pd
 
-from opx_chain.storage.atomic import atomic_file_write
+from opx_chain.storage.atomic import atomic_write_bytes
 
 
 class DatasetSerializer(Protocol):  # pylint: disable=too-few-public-methods
     """Serialize a DataFrame to a file path. Returns bytes written."""
 
     format: str  # "csv" | "parquet"
+
+    def serialize_bytes(self, df: pd.DataFrame) -> bytes: ...  # pylint: disable=missing-function-docstring
 
     def serialize(self, df: pd.DataFrame, path: str) -> int: ...  # pylint: disable=missing-function-docstring
 
@@ -23,10 +26,15 @@ class CsvSerializer:  # pylint: disable=too-few-public-methods
 
     format = "csv"
 
+    def serialize_bytes(self, df: pd.DataFrame) -> bytes:
+        """Return df serialized as CSV bytes."""
+        return df.to_csv(index=False).encode("utf-8")
+
     def serialize(self, df: pd.DataFrame, path: str) -> int:
         """Write df to path as CSV. Returns bytes written."""
-        dest = Path(path)
-        return atomic_file_write(dest, lambda tmp_path: df.to_csv(tmp_path, index=False))
+        content = self.serialize_bytes(df)
+        atomic_write_bytes(Path(path), content)
+        return len(content)
 
 
 class ParquetSerializer:  # pylint: disable=too-few-public-methods
@@ -37,13 +45,17 @@ class ParquetSerializer:  # pylint: disable=too-few-public-methods
     def __init__(self) -> None:
         ensure_parquet_available()
 
+    def serialize_bytes(self, df: pd.DataFrame) -> bytes:
+        """Return df serialized as Parquet bytes."""
+        buffer = BytesIO()
+        df.to_parquet(buffer, index=False, engine="pyarrow")
+        return buffer.getvalue()
+
     def serialize(self, df: pd.DataFrame, path: str) -> int:
         """Write df to path as Parquet. Returns bytes written."""
-        dest = Path(path)
-        return atomic_file_write(
-            dest,
-            lambda tmp_path: df.to_parquet(tmp_path, index=False, engine="pyarrow"),
-        )
+        content = self.serialize_bytes(df)
+        atomic_write_bytes(Path(path), content)
+        return len(content)
 
 
 _SERIALIZERS: dict[str, DatasetSerializer] = {

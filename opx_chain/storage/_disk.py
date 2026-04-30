@@ -21,8 +21,9 @@ def write_dataset_artifact(
     """Write a DataFrame artifact to disk. Returns (dataset_id, artifact_path, content_hash)."""
     dataset_id = str(uuid.uuid4())
     artifact_path = (output_dir / f"{dataset_id}.{dataset_format}").resolve()
-    serializer.serialize(data, str(artifact_path))
-    content_hash = hashlib.sha256(artifact_path.read_bytes()).hexdigest()
+    content = serializer.serialize_bytes(data)
+    atomic_write_bytes(artifact_path, content)
+    content_hash = hashlib.sha256(content).hexdigest()
     return dataset_id, artifact_path, content_hash
 
 

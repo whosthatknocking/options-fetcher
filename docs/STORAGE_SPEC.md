@@ -523,8 +523,10 @@ The serialization format is separate from the storage location. A
 ```python
 class DatasetSerializer(Protocol):
     format: str  # "csv" | "parquet"
+    def serialize_bytes(self, df: pd.DataFrame) -> bytes: ...
     def serialize(self, df: pd.DataFrame, path: str) -> int: ...
-    # returns bytes written; raises on failure
+    # serialize_bytes returns the artifact bytes for hash-before-write paths.
+    # serialize writes to a path and returns bytes written; both raise on failure.
 ```
 
 Both `CsvSerializer` and `ParquetSerializer` are implemented in

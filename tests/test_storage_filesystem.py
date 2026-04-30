@@ -229,6 +229,21 @@ def test_content_hash_matches_artifact_bytes(tmp_path: Path):
     assert record.content_hash == actual_hash
 
 
+def test_write_dataset_hashes_serialized_bytes_without_readback(monkeypatch, tmp_path: Path):
+    """Dataset writes should not re-read the artifact file just to compute its hash."""
+    backend = _make_backend(tmp_path)
+    run_id = backend.create_run(_make_context())
+
+    def fail_read_bytes(self: Path) -> bytes:  # pylint: disable=unused-argument
+        raise AssertionError("dataset artifact was read back from disk")
+
+    monkeypatch.setattr(Path, "read_bytes", fail_read_bytes)
+
+    record = _write(backend, run_id)
+
+    assert len(record.content_hash) == 64
+
+
 def test_get_dataset_returns_handle(tmp_path: Path):
     """get_dataset must return a DatasetHandle matching the written record."""
     backend = _make_backend(tmp_path)
