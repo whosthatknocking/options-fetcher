@@ -216,14 +216,23 @@ class SqliteIndexedBackend:
     def _sidecar_path(self, run_id: str, filename: str) -> Path:
         return self._runs_dir / run_id / filename
 
-    def _delete_sidecar_artifacts(self, conn: sqlite3.Connection, run_id: str) -> None:
+    def _delete_artifact_file(self, location: str) -> None:
+        path = Path(location)
+        path.unlink(missing_ok=True)
+        try:
+            if path.parent.parent.resolve() == self._debug_dir.resolve():
+                path.parent.rmdir()
+        except OSError:
+            pass
+
+    def _delete_run_artifacts(self, conn: sqlite3.Connection, run_id: str) -> None:
         rows = conn.execute(
             "SELECT artifact_id, location FROM artifacts "
-            "WHERE run_id = ? AND artifact_type = 'sidecar'",
+            "WHERE run_id = ?",
             (run_id,),
         ).fetchall()
         for row in rows:
-            Path(row["location"]).unlink(missing_ok=True)
+            self._delete_artifact_file(row["location"])
             conn.execute("DELETE FROM artifacts WHERE artifact_id = ?", (row["artifact_id"],))
 
     def _prune_datasets(self, conn: sqlite3.Connection) -> None:
@@ -237,7 +246,7 @@ class SqliteIndexedBackend:
             artifact = Path(row["location"])
             if artifact.exists():
                 artifact.unlink(missing_ok=True)
-            self._delete_sidecar_artifacts(conn, row["run_id"])
+            self._delete_run_artifacts(conn, row["run_id"])
             conn.execute("DELETE FROM datasets WHERE dataset_id = ?", (row["dataset_id"],))
 
     # ------------------------------------------------------------------

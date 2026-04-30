@@ -99,6 +99,45 @@ class FilesystemBackend:
             if entry.is_file() and entry.name != "run.json":
                 entry.unlink(missing_ok=True)
 
+    def _delete_artifact_path(self, location: str) -> None:
+        path = Path(location)
+        path.unlink(missing_ok=True)
+        try:
+            if path.parent.parent.resolve() == self._debug_dir.resolve():
+                path.parent.rmdir()
+        except OSError:
+            pass
+
+    def _record_artifact(self, record: ArtifactRecord) -> None:
+        data = self._read_run(record.run_id)
+        artifacts = [
+            item
+            for item in data.get("artifacts", [])
+            if item.get("artifact_id") != record.artifact_id
+        ]
+        artifacts.append(
+            {
+                "artifact_id": record.artifact_id,
+                "artifact_type": record.artifact_type,
+                "location": record.location,
+                "content_hash": record.content_hash,
+            }
+        )
+        data["artifacts"] = artifacts
+        self._write_run(record.run_id, data)
+
+    def _delete_run_artifacts(self, run_id: str) -> None:
+        try:
+            data = self._read_run(run_id)
+        except (OSError, json.JSONDecodeError):
+            data = {}
+        for artifact in data.get("artifacts", []):
+            location = artifact.get("location")
+            if location:
+                self._delete_artifact_path(location)
+        # Preserve cleanup for sidecars written before artifact metadata existed.
+        self._delete_sidecar_files(run_id)
+
     def _read_run(self, run_id: str) -> dict:
         path = self._run_path(run_id)
         with path.open() as fh:
@@ -181,7 +220,7 @@ class FilesystemBackend:
                 artifact = meta_path.parent / Path(data["location"]).name
                 if artifact.exists():
                     artifact.unlink()
-                self._delete_sidecar_files(meta_path.parent.parent.name)
+                self._delete_run_artifacts(meta_path.parent.parent.name)
             except (OSError, KeyError, json.JSONDecodeError):
                 pass
             meta_path.unlink(missing_ok=True)
@@ -275,13 +314,15 @@ class FilesystemBackend:
             artifact_id, dest, content_hash = write_artifact_bytes(
                 artifact.content, self._debug_dir, artifact.filename
             )
-        return ArtifactRecord(
+        record = ArtifactRecord(
             artifact_id=artifact_id,
             run_id=run_id,
             artifact_type=artifact.artifact_type,
             location=str(dest.resolve()),
             content_hash=content_hash,
         )
+        self._record_artifact(record)
+        return record
 
     def list_datasets(  # pylint: disable=too-many-arguments,too-many-positional-arguments
         self,

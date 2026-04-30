@@ -459,6 +459,35 @@ def test_pruning_removes_positions_sidecar_for_pruned_run(tmp_path: Path):
     assert not Path(record.location).exists()
 
 
+def test_pruning_removes_run_log_artifact_for_pruned_run(tmp_path: Path):
+    """Pruning must remove debug-dir run-log artifact rows and files."""
+    backend = _make_backend(tmp_path, max_runs_retained=1)
+    run_id = backend.create_run(_make_context())
+    record = backend.write_artifact(run_id, ArtifactWrite(
+        artifact_type="run_log",
+        content=b'{"path": "/tmp/opx_runs.log"}',
+        filename="run_log_reference.json",
+    ))
+    artifact_path = Path(record.location)
+    artifact_dir = artifact_path.parent
+    _write(backend, run_id)
+    next_run_id = backend.create_run(_make_context(provider="marketdata"))
+    _write(backend, next_run_id, provider="marketdata")
+
+    conn = sqlite3.connect(tmp_path / "opx-chain.db")
+    try:
+        remaining = conn.execute(
+            "SELECT COUNT(*) FROM artifacts WHERE artifact_id = ?",
+            (record.artifact_id,),
+        ).fetchone()[0]
+    finally:
+        conn.close()
+
+    assert remaining == 0
+    assert not artifact_path.exists()
+    assert not artifact_dir.exists()
+
+
 def test_no_pruning_when_max_runs_retained_zero(tmp_path: Path):
     """When max_runs_retained = 0 (default), no datasets are ever pruned."""
     backend = _make_backend(tmp_path, max_runs_retained=0)

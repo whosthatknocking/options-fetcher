@@ -560,8 +560,8 @@ Behavior:
 - a positive value causes `write_dataset` to prune the oldest datasets beyond
   the limit after each successful write
 - pruning removes both the dataset artifact file and the metadata record
-- pruning also removes storage-managed sidecar artifacts associated with the
-  pruned run
+- pruning also removes storage-managed sidecar and run-log artifacts associated
+  with the pruned run
 - run records are retained independently of dataset pruning; they are small
 - malformed or negative values fall back to `0` (no pruning) with a warning
 

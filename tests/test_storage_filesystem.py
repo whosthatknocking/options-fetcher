@@ -457,6 +457,26 @@ def test_pruning_removes_all_sidecars_for_pruned_run(tmp_path: Path):
     assert (tmp_path / "runs" / run_id / "run.json").exists()
 
 
+def test_pruning_removes_run_log_artifact_for_pruned_run(tmp_path: Path):
+    """Pruning must remove debug-dir run-log artifacts owned by a pruned run."""
+    backend = _make_backend(tmp_path, max_runs_retained=1)
+    run_id = backend.create_run(_make_context())
+    record = backend.write_artifact(run_id, ArtifactWrite(
+        artifact_type="run_log",
+        content=b'{"path": "/tmp/opx_runs.log"}',
+        filename="run_log_reference.json",
+    ))
+    artifact_path = Path(record.location)
+    artifact_dir = artifact_path.parent
+    _write(backend, run_id)
+    next_run_id = backend.create_run(_make_context(provider="marketdata"))
+    _write(backend, next_run_id, provider="marketdata")
+
+    assert not artifact_path.exists()
+    assert not artifact_dir.exists()
+    assert (tmp_path / "runs" / run_id / "run.json").exists()
+
+
 def test_no_pruning_when_max_runs_retained_zero(tmp_path: Path):
     """When max_runs_retained = 0 (default), no datasets are ever pruned."""
     backend = _make_backend(tmp_path, max_runs_retained=0)
