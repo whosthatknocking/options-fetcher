@@ -116,6 +116,24 @@ def test_filesystem_cache_prunes_orphaned_payload_on_startup(tmp_path: Path):
     assert not meta_path.exists()
 
 
+def test_filesystem_cache_prunes_each_directory_once_per_process(tmp_path: Path, monkeypatch):
+    """Repeated cache construction must not rescan the same directory per ticker."""
+    prune_calls = []
+    original_prune = FilesystemCache.prune_expired
+
+    def tracking_prune(self):
+        prune_calls.append("called")
+        original_prune(self)
+
+    monkeypatch.setattr(FilesystemCache, "prune_expired", tracking_prune)
+
+    FilesystemCache(tmp_path / "cache-a")
+    FilesystemCache(tmp_path / "cache-a")
+    FilesystemCache(tmp_path / "cache-b")
+
+    assert prune_calls == ["called", "called"]
+
+
 def test_filesystem_cache_creates_directory(tmp_path: Path):
     """FilesystemCache must create the cache directory on first put."""
     cache_dir = tmp_path / "nested" / "cache"

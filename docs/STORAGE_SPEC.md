@@ -416,8 +416,9 @@ class ProviderCache(Protocol):
 ```
 
 `FilesystemCache` deletes expired entries when they are read and prunes expired
-or unreadable metadata when the cache object is created. This keeps TTL
-semantics from becoming append-only disk growth across normal fetch runs.
+or unreadable metadata once per cache directory per process. This keeps TTL
+semantics from becoming append-only disk growth across normal fetch runs without
+rescanning the same provider-cache directory for every ticker.
 
 `fail_run` is separate from `finalize_run` to make the error path explicit.
 It is called from the `except` blocks in `fetcher.py` and from the

@@ -9,6 +9,8 @@ import hashlib
 import json
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
+from threading import Lock
+from typing import ClassVar
 
 from opx_chain.storage.atomic import atomic_write_bytes, atomic_write_text
 
@@ -30,9 +32,21 @@ class NullCache:  # pylint: disable=too-few-public-methods
 class FilesystemCache:
     """Disk-backed cache with per-entry TTL."""
 
+    _pruned_dirs: ClassVar[set[Path]] = set()
+    _prune_lock: ClassVar[Lock] = Lock()
+
     def __init__(self, cache_dir: Path) -> None:
         self._dir = Path(cache_dir)
-        self.prune_expired()
+        self._prune_expired_once()
+
+    def _prune_expired_once(self) -> None:
+        """Run startup pruning once per cache directory in this process."""
+        cache_dir = self._dir.expanduser().resolve()
+        with self._prune_lock:
+            if cache_dir in self._pruned_dirs:
+                return
+            self.prune_expired()
+            self._pruned_dirs.add(cache_dir)
 
     def _key_paths(self, key: str) -> tuple[Path, Path]:
         digest = hashlib.sha256(key.encode()).hexdigest()
