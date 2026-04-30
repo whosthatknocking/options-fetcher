@@ -13,6 +13,7 @@ import pandas as pd
 
 from opx_chain.config import get_runtime_config
 from opx_chain.normalize import normalize_vendor_option_frame
+from opx_chain.storage.atomic import atomic_write_text
 
 
 class ProviderAuthenticationError(RuntimeError):
@@ -92,7 +93,11 @@ class DataProvider(ABC):
             "fetched_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
             "payload": _to_json_ready(payload),
         }
-        dump_path.write_text(json.dumps(debug_payload, indent=2, sort_keys=True), encoding="utf-8")
+        atomic_write_text(
+            dump_path,
+            json.dumps(debug_payload, indent=2, sort_keys=True),
+            encoding="utf-8",
+        )
         print(f"{self.name} debug: dumped {label} payload to {dump_path}")
         return dump_path
 
