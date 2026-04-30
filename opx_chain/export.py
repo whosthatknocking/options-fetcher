@@ -6,6 +6,7 @@ import pandas as pd
 
 from opx_chain import SCHEMA_VERSION  # noqa: F401 pylint: disable=unused-import
 from opx_chain.schema import QUALITY_FLAG_FIELDS
+from opx_chain.storage.atomic import atomic_file_write
 
 
 COLUMN_ORDER = [
@@ -168,5 +169,5 @@ def write_options_csv(ticker_frames, output_path):
     output_path = Path(output_path)
     output_path.parent.mkdir(parents=True, exist_ok=True)
     df = prepare_export_frame(ticker_frames)
-    df.to_csv(output_path, index=False)
+    atomic_file_write(output_path, lambda tmp_path: df.to_csv(tmp_path, index=False))
     return df

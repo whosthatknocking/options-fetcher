@@ -3,6 +3,7 @@
 from pathlib import Path
 
 import pandas as pd
+import pytest
 
 from opx_chain.export import (
     CANONICAL_EXPORT_COLUMNS,
@@ -85,3 +86,33 @@ def test_write_options_csv_persists_only_canonical_columns(tmp_path: Path):
     assert pd.isna(exported.loc[0, "change"])
     assert pd.isna(exported.loc[0, "percent_change"])
     assert pd.isna(exported.loc[0, "next_earnings_date_is_estimated"])
+
+
+def test_write_options_csv_preserves_existing_file_when_write_fails(
+    monkeypatch,
+    tmp_path: Path,
+):
+    """CSV side writes should use atomic replacement semantics."""
+    output_path = tmp_path / "export.csv"
+    output_path.write_text("old-content", encoding="utf-8")
+    frame = pd.DataFrame(
+        [
+            {
+                "underlying_symbol": "TSLA",
+                "contract_symbol": "TSLA260417C00100000",
+                "data_source": "stub",
+                "risk_free_rate_used": 0.045,
+            }
+        ]
+    )
+
+    def failing_to_csv(self, *_args, **_kwargs):  # pylint: disable=unused-argument
+        raise RuntimeError("write failed")
+
+    monkeypatch.setattr(pd.DataFrame, "to_csv", failing_to_csv)
+
+    with pytest.raises(RuntimeError, match="write failed"):
+        write_options_csv([frame], output_path)
+
+    assert output_path.read_text(encoding="utf-8") == "old-content"
+    assert not list(tmp_path.glob(".export.csv.*.tmp"))

@@ -20,6 +20,7 @@ from opx_chain.fetch import fetch_ticker_option_chain
 from opx_chain.locks import acquire_nonblocking_file_lock, release_file_lock
 from opx_chain.positions import DEFAULT_POSITIONS_PATH, load_positions
 from opx_chain.runlog import create_run_logger, log_run_started
+from opx_chain.storage.atomic import atomic_file_write
 from opx_chain.storage.factory import get_data_dir, get_storage_backend
 from opx_chain.storage.models import (
     ArtifactWrite,
@@ -405,7 +406,7 @@ def _do_fetch_with_lock_held(  # pylint: disable=too-many-branches,too-many-loca
             export_df = write_options_csv([combined], output_path=output_path)
             file_size_bytes = output_path.stat().st_size
             latest_path = runs_dir / "options_engine_output_latest.csv"
-            shutil.copy2(output_path, latest_path)
+            atomic_file_write(latest_path, lambda tmp_path: shutil.copy2(output_path, tmp_path))
         else:
             export_df = prepare_export_frame([combined])
             file_size_bytes = 0
