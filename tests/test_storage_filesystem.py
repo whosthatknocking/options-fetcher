@@ -2,6 +2,7 @@
 # pylint: disable=duplicate-code
 
 import hashlib
+import inspect
 import json
 import os
 from datetime import datetime, timedelta, timezone
@@ -241,6 +242,13 @@ def test_get_dataset_returns_handle(tmp_path: Path):
     assert handle.content_hash == record.content_hash
     assert handle.created_at == record.created_at
     assert handle.script_version == record.script_version
+
+
+def test_filesystem_backend_has_no_dead_read_meta_helper():
+    """FilesystemBackend should not carry unused metadata-read helpers."""
+    source = inspect.getsource(FilesystemBackend)
+
+    assert "def _read_meta" not in source
 
 
 def test_get_dataset_raises_for_unknown_id(tmp_path: Path):

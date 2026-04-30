@@ -132,10 +132,6 @@ class FilesystemBackend:
             raise KeyError(f"dataset not found: {dataset_id}")
         return matches[0]
 
-    def _read_meta(self, dataset_id: str, run_id: str) -> dict:
-        with self._meta_path(dataset_id, run_id).open() as fh:
-            return json.load(fh)
-
     def _write_meta(self, record: DatasetRecord) -> None:
         data = {
             "dataset_id": record.dataset_id,
