@@ -8,6 +8,7 @@ import pandas as pd
 import pytest
 
 from opx_chain import viewer
+from opx_chain.export import CANONICAL_EXPORT_COLUMNS
 
 
 def build_config(viewer_host: str, viewer_port: int):
@@ -26,6 +27,14 @@ def test_extract_field_descriptions_reads_current_field_reference_entries():
     assert "underlying_symbol" in descriptions
     assert "delta_safety_pct" in descriptions
     assert "Use it to group rows by underlying." in descriptions["underlying_symbol"]
+
+
+def test_extract_field_descriptions_returns_only_canonical_columns():
+    """Provider mapping legends should not leak into viewer field descriptions."""
+    descriptions = viewer.extract_field_descriptions()
+
+    assert set(descriptions) <= set(CANONICAL_EXPORT_COLUMNS)
+    assert {"Blank", "Derived", "Direct", "Transformed"}.isdisjoint(descriptions)
 
 
 def test_viewer_packaged_docs_match_canonical_docs():

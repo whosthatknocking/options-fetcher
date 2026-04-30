@@ -22,7 +22,7 @@ from urllib.parse import parse_qs, urlparse
 import pandas as pd
 from pandas.api.types import is_bool_dtype, is_numeric_dtype
 from opx_chain.config import get_runtime_config
-from opx_chain.export import UNWANTED_EXPORT_COLUMNS
+from opx_chain.export import CANONICAL_EXPORT_COLUMNS, UNWANTED_EXPORT_COLUMNS
 from opx_chain.paths import get_runs_dir
 from opx_chain.positions import DEFAULT_POSITIONS_PATH
 from opx_chain.storage.factory import get_data_dir, get_storage_backend
@@ -260,10 +260,11 @@ def load_viewer_markdown(filename: str, source_path: Path) -> str:
 def extract_field_descriptions() -> dict[str, str]:
     """Parse user-guide bullet entries into per-field viewer descriptions."""
     descriptions: dict[str, str] = {}
+    canonical_columns = set(CANONICAL_EXPORT_COLUMNS)
     pattern = re.compile(r"^- `([^`]+)`: (.+)$")
     for line in load_field_reference_markdown().splitlines():
         match = pattern.match(line.strip())
-        if match:
+        if match and match.group(1) in canonical_columns:
             descriptions[match.group(1)] = match.group(2)
     return descriptions
 
