@@ -186,6 +186,32 @@ def test_json_cache_logs_unserializable_values(tmp_path, caplog):
     assert "cache put skipped for key=snapshot:stub:BAD" in caplog.text
 
 
+def test_chain_cache_logs_write_failures(caplog):
+    """Option-chain cache write failures should be visible to operators."""
+    class FailingCache:  # pylint: disable=too-few-public-methods
+        """Cache stub that fails writes."""
+
+        def put(self, _key, _value, _ttl):
+            """Raise to exercise cache error logging."""
+            raise OSError("disk full")
+
+    chain = OptionChainFrames(
+        calls=pd.DataFrame([{"contractSymbol": "TSLACALL"}]),
+        puts=pd.DataFrame([{"contractSymbol": "TSLAPUT"}]),
+    )
+
+    with caplog.at_level(logging.WARNING):
+        fetch._cache_put_chain(  # pylint: disable=protected-access
+            FailingCache(),
+            "chain:stub:TSLA:2026-04-17",
+            chain,
+            ttl=300,
+        )
+
+    assert "cache put skipped for key=chain:stub:TSLA:2026-04-17" in caplog.text
+    assert "disk full" in caplog.text
+
+
 def test_fetch_ticker_option_chain_logs_raw_provider_row_counts(monkeypatch, caplog):
     """Log raw provider counts before app-side filtering changes the row set."""
     monkeypatch.setattr(fetch, "get_data_provider", StubProvider)

@@ -129,12 +129,16 @@ def _cache_get_chain(cache, key: str) -> OptionChainFrames | None:
         return None
 
 
-def _cache_put_chain(cache, key: str, value: OptionChainFrames, ttl: int) -> None:
+def _cache_put_chain(cache, key: str, value: OptionChainFrames, ttl: int, logger=None) -> None:
     """Pickle an OptionChainFrames and store in cache."""
     try:
         cache.put(key, pickle.dumps(value), ttl)
-    except Exception:  # pylint: disable=broad-exception-caught
-        pass
+    except Exception as exc:  # pylint: disable=broad-exception-caught
+        message = f"cache put skipped for key={key}: {exc}"
+        if logger:
+            logger.warning(message)
+        else:
+            _LOGGER.warning(message)
 
 
 def _provider_cache_scope(provider_name: str, config) -> str:
@@ -310,7 +314,7 @@ def fetch_ticker_option_chain(  # pylint: disable=too-many-locals,too-many-branc
             chain = _cache_get_chain(cache, chain_key)
             if chain is None:
                 chain = provider.load_option_chain(ticker, expiration_date)
-                _cache_put_chain(cache, chain_key, chain, config.provider_chain_ttl)
+                _cache_put_chain(cache, chain_key, chain, config.provider_chain_ttl, logger=logger)
             expiration_raw_count = len(chain.calls) + len(chain.puts)
             raw_contract_count += expiration_raw_count
             raw_expiration_count += 1
