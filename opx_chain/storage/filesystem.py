@@ -86,9 +86,6 @@ class FilesystemBackend:
     def _meta_path(self, dataset_id: str, run_id: str) -> Path:
         return self._run_output_dir(run_id) / f"{dataset_id}.meta.json"
 
-    def _artifact_path(self, artifact_id: str, filename: str) -> Path:
-        return self._debug_dir / artifact_id / filename
-
     def _sidecar_path(self, run_id: str, filename: str) -> Path:
         return self._runs_dir / run_id / filename
 

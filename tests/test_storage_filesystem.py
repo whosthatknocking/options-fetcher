@@ -244,11 +244,12 @@ def test_get_dataset_returns_handle(tmp_path: Path):
     assert handle.script_version == record.script_version
 
 
-def test_filesystem_backend_has_no_dead_read_meta_helper():
-    """FilesystemBackend should not carry unused metadata-read helpers."""
+def test_filesystem_backend_has_no_dead_private_helpers():
+    """FilesystemBackend should not carry unused private path/read helpers."""
     source = inspect.getsource(FilesystemBackend)
 
     assert "def _read_meta" not in source
+    assert "def _artifact_path" not in source
 
 
 def test_get_dataset_raises_for_unknown_id(tmp_path: Path):
