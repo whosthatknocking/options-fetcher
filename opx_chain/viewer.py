@@ -851,14 +851,15 @@ def load_positions_payload(path: Path | None = None) -> TablePayload:
 def make_file_listing() -> list[dict[str, Any]]:
     """Return available dataset files with size and modified timestamps."""
     files = discover_dataset_paths()
-    return [
-        {
+    listings = []
+    for path in files:
+        stat_result = path.stat()
+        listings.append({
             "name": path.name,
-            "size_bytes": path.stat().st_size,
-            "modified_at": path.stat().st_mtime,
-        }
-        for path in files
-    ]
+            "size_bytes": stat_result.st_size,
+            "modified_at": stat_result.st_mtime,
+        })
+    return listings
 
 
 class ViewerRequestHandler(SimpleHTTPRequestHandler):

@@ -232,6 +232,32 @@ def test_discover_dataset_paths_uses_runtime_storage_dir_fallback(
     assert viewer.discover_dataset_paths() == [dataset]
 
 
+def test_make_file_listing_stats_each_file_once(tmp_path: Path, monkeypatch):
+    """File listings should reuse a single stat result for size and modified time."""
+    dataset = tmp_path / "options_engine_output_20260102_120000.csv"
+    dataset.write_text("underlying_symbol\nAAPL\n", encoding="utf-8")
+    expected_stat = dataset.stat()
+    stat_count = 0
+    original_stat = Path.stat
+
+    def counting_stat(path: Path):
+        nonlocal stat_count
+        stat_count += 1
+        return original_stat(path)
+
+    monkeypatch.setattr(viewer, "discover_dataset_paths", lambda: [dataset])
+    monkeypatch.setattr(Path, "stat", counting_stat)
+
+    listing = viewer.make_file_listing()
+
+    assert listing == [{
+        "name": dataset.name,
+        "size_bytes": expected_stat.st_size,
+        "modified_at": expected_stat.st_mtime,
+    }]
+    assert stat_count == 1
+
+
 def test_build_ticker_summary_marks_estimated_marketdata_earnings_dates():
     """Summary payload should preserve whether the next earnings date is estimated."""
     frame = pd.DataFrame(
