@@ -16,6 +16,7 @@ from opx_chain.storage.models import (
     RunSummary,
     TickerFetchResult,
     ValidationRecord,
+    TickerRunRecord,
 )
 
 
@@ -38,6 +39,7 @@ class StorageBackend(Protocol):  # pylint: disable=too-few-public-methods
     ) -> list[DatasetRecord]: ...
     def get_dataset(self, dataset_id: str) -> DatasetHandle: ...  # pylint: disable=missing-function-docstring
     def get_run(self, run_id: str) -> RunRecord: ...  # pylint: disable=missing-function-docstring
+    def get_ticker_results(self, run_id: str) -> list[TickerRunRecord]: ...  # pylint: disable=missing-function-docstring
     def finalize_run(self, run_id: str, summary: RunSummary) -> None: ...  # pylint: disable=missing-function-docstring
     def fail_run(self, run_id: str, error: str) -> None: ...  # pylint: disable=missing-function-docstring
     def count_runs_today(self, provider: str) -> int: ...  # pylint: disable=missing-function-docstring

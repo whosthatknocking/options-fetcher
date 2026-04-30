@@ -216,10 +216,26 @@ def test_record_ticker_result_stored():
     )
     backend.record_ticker_result(run_id, result)
 
-    stored = backend._ticker_results[run_id]  # pylint: disable=protected-access
+    stored = backend.get_ticker_results(run_id)
     assert len(stored) == 1
     assert stored[0].ticker == "TSLA"
     assert stored[0].kept_row_count == 40
+
+
+def test_get_ticker_results_returns_empty_list_for_run_without_results():
+    """get_ticker_results should return an empty list when a run has no ticker rows."""
+    backend = MemoryBackend()
+    run_id = backend.create_run(_make_context())
+
+    assert not backend.get_ticker_results(run_id)
+
+
+def test_get_ticker_results_raises_for_unknown_run():
+    """get_ticker_results should match get_run semantics for unknown run IDs."""
+    backend = MemoryBackend()
+
+    with pytest.raises(KeyError, match="run not found"):
+        backend.get_ticker_results("missing-run")
 
 
 def test_record_validation_stored():
