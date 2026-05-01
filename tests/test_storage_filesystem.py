@@ -319,6 +319,19 @@ def test_list_datasets_uses_index_without_reparsing_meta_files(tmp_path: Path, m
     assert meta_reads == 0
 
 
+def test_dataset_index_is_written_compactly(tmp_path: Path):
+    """The machine-read dataset index should not pay pretty-print storage overhead."""
+    backend = _make_backend(tmp_path)
+    run_id = backend.create_run(_make_context())
+    record = _write(backend, run_id)
+
+    index_text = (tmp_path / "runs" / "datasets.index.json").read_text(encoding="utf-8")
+
+    assert json.loads(index_text)[0]["dataset_id"] == record.dataset_id
+    assert "\n" not in index_text
+    assert ": " not in index_text
+
+
 def test_list_datasets_filter_provider(tmp_path: Path):
     """list_datasets must filter by provider when the argument is given."""
     backend = _make_backend(tmp_path)

@@ -220,7 +220,7 @@ class FilesystemBackend:
     def _write_dataset_index(self, records: list[DatasetRecord]) -> None:
         self._runs_dir.mkdir(parents=True, exist_ok=True)
         data = [self._record_to_meta(record) for record in records]
-        atomic_write_text(self._dataset_index_path(), json.dumps(data, indent=2))
+        atomic_write_text(self._dataset_index_path(), json.dumps(data, separators=(",", ":")))
 
     def _load_dataset_index(self) -> list[DatasetRecord] | None:
         index_path = self._dataset_index_path()
