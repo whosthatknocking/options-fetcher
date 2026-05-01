@@ -115,7 +115,6 @@ def isolate_xdg_dirs(tmp_path: Path, monkeypatch):
     if fetcher_mod is not None:
         monkeypatch.setattr(fetcher_mod, "DEFAULT_POSITIONS_PATH", paths["positions_path"])
         monkeypatch.setattr(fetcher_mod, "RUNS_DIR", paths["app_data_dir"] / "runs")
-        monkeypatch.setattr(fetcher_mod, "LOCKS_DIR", paths["app_data_dir"])
         monkeypatch.setattr(
             fetcher_mod,
             "FETCHER_LOCK_PATH",

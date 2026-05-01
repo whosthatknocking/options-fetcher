@@ -33,9 +33,9 @@ from opx_chain.storage.models import (
 )
 from opx_chain.validate import ValidationFinding, emit_validation_report, validate_export_frame
 
-RUNS_DIR = get_data_dir() / "runs"
-LOCKS_DIR = get_data_dir()
-FETCHER_LOCK_PATH = LOCKS_DIR / "fetcher.lock"
+_DATA_DIR = get_data_dir()
+RUNS_DIR = _DATA_DIR / "runs"
+FETCHER_LOCK_PATH = _DATA_DIR / "fetcher.lock"
 STALE_RUNNING_RUN_SECONDS = 30
 UNCLEAN_SHUTDOWN_ERROR = "process_terminated_uncleanly"
 

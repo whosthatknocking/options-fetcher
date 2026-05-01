@@ -2,7 +2,7 @@
 # pylint: disable=duplicate-code
 
 import builtins
-from contextlib import ExitStack
+from contextlib import ExitStack, nullcontext
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -41,7 +41,7 @@ def _fetcher_patches(tmp_path: Path, config, backend, ticker_df=None, validation
 
     return [
         patch.object(fetcher, "RUNS_DIR", tmp_path / "output"),
-        patch.object(fetcher, "LOCKS_DIR", tmp_path / "logs"),
+        nullcontext(tmp_path / "logs"),
         patch.object(fetcher, "FETCHER_LOCK_PATH", tmp_path / "logs" / "fetcher.lock"),
         patch.object(fetcher, "acquire_fetcher_lock", return_value=MagicMock()),
         patch.object(fetcher, "release_fetcher_lock"),

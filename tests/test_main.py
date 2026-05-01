@@ -82,7 +82,6 @@ def test_main_prints_rows_written_after_saved(monkeypatch, capsys, tmp_path: Pat
     """Show the saved path first, then row count and file size details."""
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr(main, "FETCHER_LOCK_PATH", tmp_path / "fetcher.lock")
-    monkeypatch.setattr(main, "LOCKS_DIR", tmp_path)
     monkeypatch.setattr(main, "RUNS_DIR", tmp_path / "output")
     monkeypatch.setattr(
         main,
@@ -183,7 +182,6 @@ def test_main_recovers_stale_running_runs_before_count(monkeypatch, capsys, tmp_
 
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr(main, "FETCHER_LOCK_PATH", tmp_path / "fetcher.lock")
-    monkeypatch.setattr(main, "LOCKS_DIR", tmp_path)
     monkeypatch.setattr(main, "RUNS_DIR", tmp_path / "output")
     monkeypatch.setattr(
         main,
@@ -254,7 +252,6 @@ def test_main_uses_utc_timestamp_for_side_csv_filename(monkeypatch, tmp_path: Pa
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr(main, "datetime", FixedDateTime)
     monkeypatch.setattr(main, "FETCHER_LOCK_PATH", tmp_path / "fetcher.lock")
-    monkeypatch.setattr(main, "LOCKS_DIR", tmp_path)
     monkeypatch.setattr(main, "RUNS_DIR", tmp_path / "output")
     monkeypatch.setattr(
         main,
@@ -298,7 +295,6 @@ def test_main_prints_config_fallbacks(monkeypatch, capsys, tmp_path: Path):
     )
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr(main, "FETCHER_LOCK_PATH", tmp_path / "fetcher.lock")
-    monkeypatch.setattr(main, "LOCKS_DIR", tmp_path)
     monkeypatch.setattr(main, "RUNS_DIR", tmp_path / "output")
     monkeypatch.setattr(main, "get_runtime_config", lambda: config)
     monkeypatch.setattr(
@@ -328,7 +324,6 @@ def test_main_can_disable_filters_via_cli(monkeypatch, capsys, tmp_path: Path):
     captured = {}
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr(main, "FETCHER_LOCK_PATH", tmp_path / "fetcher.lock")
-    monkeypatch.setattr(main, "LOCKS_DIR", tmp_path)
     monkeypatch.setattr(main, "RUNS_DIR", tmp_path / "output")
     monkeypatch.setattr(
         main,
@@ -378,7 +373,6 @@ def test_main_can_enable_filters_via_cli(monkeypatch, capsys, tmp_path: Path):
     captured = {}
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr(main, "FETCHER_LOCK_PATH", tmp_path / "fetcher.lock")
-    monkeypatch.setattr(main, "LOCKS_DIR", tmp_path)
     monkeypatch.setattr(main, "RUNS_DIR", tmp_path / "output")
     monkeypatch.setattr(
         main,
@@ -427,7 +421,6 @@ def test_main_prints_validation_summary_before_export(monkeypatch, capsys, tmp_p
     """Runs should emit a validation summary even when the export still succeeds."""
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr(main, "FETCHER_LOCK_PATH", tmp_path / "fetcher.lock")
-    monkeypatch.setattr(main, "LOCKS_DIR", tmp_path)
     monkeypatch.setattr(main, "RUNS_DIR", tmp_path / "output")
     monkeypatch.setattr(
         main,
@@ -486,7 +479,6 @@ def test_main_can_disable_validation_summary(monkeypatch, capsys, tmp_path: Path
     """Disabling validation should suppress the validation report output."""
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr(main, "FETCHER_LOCK_PATH", tmp_path / "fetcher.lock")
-    monkeypatch.setattr(main, "LOCKS_DIR", tmp_path)
     monkeypatch.setattr(main, "RUNS_DIR", tmp_path / "output")
     monkeypatch.setattr(
         main,
@@ -524,7 +516,6 @@ def test_main_returns_failure_when_no_data_is_fetched(monkeypatch, tmp_path: Pat
     """An empty run should return a non-zero exit status."""
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr(main, "FETCHER_LOCK_PATH", tmp_path / "fetcher.lock")
-    monkeypatch.setattr(main, "LOCKS_DIR", tmp_path)
     monkeypatch.setattr(main, "RUNS_DIR", tmp_path / "output")
     monkeypatch.setattr(
         main,
@@ -553,7 +544,6 @@ def test_main_returns_failure_when_fetcher_lock_is_held(monkeypatch, capsys, tmp
     """A second fetcher run should fail fast while the lock is held."""
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr(main, "FETCHER_LOCK_PATH", tmp_path / "fetcher.lock")
-    monkeypatch.setattr(main, "LOCKS_DIR", tmp_path)
     monkeypatch.setattr(main, "RUNS_DIR", tmp_path / "output")
 
     held_lock = main.acquire_fetcher_lock()
@@ -573,7 +563,6 @@ def test_main_keeps_lock_file_after_success(monkeypatch, tmp_path: Path):
     """Successful runs should keep the fetcher lock path stable on exit."""
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr(main, "FETCHER_LOCK_PATH", tmp_path / "fetcher.lock")
-    monkeypatch.setattr(main, "LOCKS_DIR", tmp_path)
     monkeypatch.setattr(main, "RUNS_DIR", tmp_path / "output")
     monkeypatch.setattr(
         main,
@@ -608,7 +597,6 @@ def test_main_handles_ctrl_c_gracefully(monkeypatch, capsys, tmp_path: Path):
     """Keyboard interrupts should return 130 and keep the lock path stable."""
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr(main, "FETCHER_LOCK_PATH", tmp_path / "fetcher.lock")
-    monkeypatch.setattr(main, "LOCKS_DIR", tmp_path)
     monkeypatch.setattr(main, "RUNS_DIR", tmp_path / "output")
     monkeypatch.setattr(
         main,
@@ -648,7 +636,6 @@ def test_main_can_override_positions_path_via_cli(monkeypatch, capsys, tmp_path:
     """The --positions flag should load a non-default positions file for one run."""
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr(main, "FETCHER_LOCK_PATH", tmp_path / "fetcher.lock")
-    monkeypatch.setattr(main, "LOCKS_DIR", tmp_path)
     monkeypatch.setattr(main, "RUNS_DIR", tmp_path / "output")
     monkeypatch.setattr(
         main,
@@ -718,7 +705,6 @@ def test_main_adds_option_only_position_tickers(monkeypatch, capsys, tmp_path: P
     """Held option tickers should expand the effective fetch list even without stock rows."""
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr(main, "FETCHER_LOCK_PATH", tmp_path / "fetcher.lock")
-    monkeypatch.setattr(main, "LOCKS_DIR", tmp_path)
     monkeypatch.setattr(main, "RUNS_DIR", tmp_path / "output")
     monkeypatch.setattr(
         main,
