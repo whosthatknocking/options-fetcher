@@ -7,6 +7,7 @@ import hashlib
 import json
 import re
 import sqlite3
+import threading
 from contextlib import contextmanager
 import uuid
 from datetime import datetime, timezone
@@ -144,6 +145,8 @@ class SqliteIndexedBackend:
         self._runs_dir = Path(runs_dir)
         self._debug_dir = Path(debug_dir)
         self._max_runs_retained = max_runs_retained
+        self._connection: sqlite3.Connection | None = None
+        self._connection_lock = threading.RLock()
         get_serializer(dataset_format)
         self._db_path.parent.mkdir(parents=True, exist_ok=True)
         self._init_schema()
@@ -153,20 +156,42 @@ class SqliteIndexedBackend:
     # ------------------------------------------------------------------
 
     def _connect(self) -> sqlite3.Connection:
-        conn = sqlite3.connect(str(self._db_path))
+        conn = sqlite3.connect(str(self._db_path), check_same_thread=False)
         conn.row_factory = sqlite3.Row
         conn.execute("PRAGMA foreign_keys = ON")
         conn.execute("PRAGMA journal_mode = WAL")
         return conn
 
+    def _connection_for_use(self) -> sqlite3.Connection:
+        """Return the pooled connection, creating it on first use."""
+        if self._connection is None:
+            self._connection = self._connect()
+        return self._connection
+
     @contextmanager
     def _open_connection(self):
-        """Yield a SQLite connection and always close it on exit."""
-        conn = self._connect()
+        """Yield the pooled SQLite connection under the backend lock."""
+        with self._connection_lock:
+            conn = self._connection_for_use()
+            try:
+                yield conn
+            except Exception:
+                conn.rollback()
+                raise
+
+    def close(self) -> None:
+        """Close the pooled SQLite connection, if one has been opened."""
+        with self._connection_lock:
+            if self._connection is None:
+                return
+            self._connection.close()
+            self._connection = None
+
+    def __del__(self) -> None:
         try:
-            yield conn
-        finally:
-            conn.close()
+            self.close()
+        except Exception:  # pragma: no cover  # pylint: disable=broad-exception-caught
+            pass
 
     def _init_schema(self) -> None:
         with self._open_connection() as conn:

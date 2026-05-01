@@ -123,6 +123,10 @@ Behavior:
 - `get_storage_backend()` memoizes backend instances within the process, keyed
   by backend type, storage dir, debug dir, retention limit, and dataset format,
   so repeated viewer requests do not rebuild SQLite schema state on every call
+- `SqliteIndexedBackend` keeps one SQLite connection per backend instance,
+  guarded by a re-entrant lock and opened with `check_same_thread = false`,
+  so method calls amortize connection and PRAGMA setup while preserving
+  serialized access inside the process
 - `backend` is only read when `enable = true`; it is ignored otherwise
 - `also_write_csv = false` suppresses the timestamped CSV; only the
   storage-managed artifact (e.g. `~/.local/share/opx-chain/runs/<run-id>/output/<uuid>.parquet`)

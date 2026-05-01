@@ -208,6 +208,47 @@ def test_schema_migration_fails_when_required_step_is_missing(tmp_path: Path, mo
         _make_backend(tmp_path)
 
 
+def test_sqlite_backend_reuses_connection_per_instance(tmp_path: Path, monkeypatch):
+    """A backend instance should amortize SQLite connect/PRAGMA setup work."""
+    connect_calls = []
+    original_connect = sqlite_indexed_mod.sqlite3.connect
+
+    def counting_connect(*args, **kwargs):
+        connect_calls.append((args, kwargs))
+        return original_connect(*args, **kwargs)
+
+    monkeypatch.setattr(sqlite_indexed_mod.sqlite3, "connect", counting_connect)
+    backend = _make_backend(tmp_path)
+
+    run_id = backend.create_run(_make_context())
+    _record_ticker(backend, run_id, "TSLA")
+    record = _write(backend, run_id)
+    backend.get_run(run_id)
+    backend.get_ticker_results(run_id)
+    backend.list_datasets()
+    backend.get_dataset(record.dataset_id)
+
+    assert len(connect_calls) == 1
+    assert connect_calls[0][1]["check_same_thread"] is False
+
+
+def test_sqlite_backend_close_reopens_connection(tmp_path: Path, monkeypatch):
+    """Closing the pooled connection should make the next operation reconnect."""
+    connect_calls = []
+    original_connect = sqlite_indexed_mod.sqlite3.connect
+
+    def counting_connect(*args, **kwargs):
+        connect_calls.append((args, kwargs))
+        return original_connect(*args, **kwargs)
+
+    monkeypatch.setattr(sqlite_indexed_mod.sqlite3, "connect", counting_connect)
+    backend = _make_backend(tmp_path)
+    backend.close()
+    backend.create_run(_make_context())
+
+    assert len(connect_calls) == 2
+
+
 # ---------------------------------------------------------------------------
 # Run lifecycle
 # ---------------------------------------------------------------------------
