@@ -142,13 +142,13 @@ Current Market Data request controls:
 - if omitted, the SDK default behavior is used
 - optional `[providers.marketdata].max_retries`
 - default `3`
-- used for `429` retry handling with exponential backoff
+- used for transient Market Data HTTP retry handling with exponential backoff
 - optional `[providers.marketdata].request_interval_seconds`
 - default `0.0`
 - adds client-side spacing between Market Data HTTP requests when needed
 - optional `[providers.marketdata].backoff_seconds`
 - default `1.0`
-- controls the base exponential-backoff delay for Market Data `429` retries when `Retry-After` is absent
+- controls the base exponential-backoff delay for Market Data transient retries when `Retry-After` is absent
 
 Current yfinance request controls:
 
@@ -279,7 +279,7 @@ Implemented Market Data behavior:
 - uses the official SDK client rather than ad hoc raw HTTP calls
 - suppresses the SDK startup rate-limit probe so provider initialization does not spend an extra API call
 - supports optional SDK request mode selection through `[providers.marketdata].mode`
-- retries `429` rate-limit responses with configurable exponential backoff and honors `Retry-After` when present
+- retries `429`, `408`, `5xx`, and transient request exceptions with configurable exponential backoff, and honors `Retry-After` when present
 - optional client-side request spacing is available through `[providers.marketdata].request_interval_seconds`
 - request caller header identifies the app as `opx-chain/<version>`
 - fetch progress prints per-request API status and row-count progress

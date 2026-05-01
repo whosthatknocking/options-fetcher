@@ -368,6 +368,69 @@ def test_marketdata_provider_uses_configured_backoff_without_retry_after(monkeyp
     assert sleep_calls == [0.5, 1.0]
 
 
+def test_marketdata_provider_retries_transient_server_errors(monkeypatch):
+    """Transient 5xx responses should use the same retry budget as rate limits."""
+    patch_marketdata_client(monkeypatch)
+    monkeypatch.setattr(
+        "opx_chain.providers.marketdata.get_runtime_config",
+        lambda: make_runtime_config(
+            marketdata_max_retries=2,
+            marketdata_request_interval_seconds=0.0,
+            marketdata_backoff_seconds=0.25,
+        ),
+    )
+    sleep_calls = []
+    monkeypatch.setattr("opx_chain.providers.marketdata.time.sleep", sleep_calls.append)
+    provider = MarketDataProvider()
+    responses = iter(
+        [
+            FakeResponse(503, {"s": "error"}),
+            FakeResponse(200, {"optionSymbol": ["TSLA260417C00100000"]}),
+        ]
+    )
+
+    def fake_request(_method, _url, *_args, **_kwargs):
+        return next(responses)
+
+    wrapped = provider._wrap_logged_request(fake_request)  # pylint: disable=protected-access
+
+    response = wrapped("GET", "https://api.marketdata.app/v1/options/chain/TSLA/")
+
+    assert response.status_code == 200
+    assert sleep_calls == [0.25]
+
+
+def test_marketdata_provider_retries_network_exceptions(monkeypatch):
+    """Transient request exceptions should retry before surfacing failures."""
+    patch_marketdata_client(monkeypatch)
+    monkeypatch.setattr(
+        "opx_chain.providers.marketdata.get_runtime_config",
+        lambda: make_runtime_config(
+            marketdata_max_retries=2,
+            marketdata_request_interval_seconds=0.0,
+            marketdata_backoff_seconds=0.25,
+        ),
+    )
+    sleep_calls = []
+    monkeypatch.setattr("opx_chain.providers.marketdata.time.sleep", sleep_calls.append)
+    provider = MarketDataProvider()
+    attempts = []
+
+    def fake_request(_method, _url, *_args, **_kwargs):
+        attempts.append(1)
+        if len(attempts) == 1:
+            raise TimeoutError("temporary network failure")
+        return FakeResponse(200, {"optionSymbol": ["TSLA260417C00100000"]})
+
+    wrapped = provider._wrap_logged_request(fake_request)  # pylint: disable=protected-access
+
+    response = wrapped("GET", "https://api.marketdata.app/v1/options/chain/TSLA/")
+
+    assert response.status_code == 200
+    assert sleep_calls == [0.25]
+    assert len(attempts) == 2
+
+
 def test_marketdata_provider_respects_request_interval(monkeypatch):
     """Configured Market Data pacing should delay back-to-back HTTP requests."""
     patch_marketdata_client(monkeypatch)

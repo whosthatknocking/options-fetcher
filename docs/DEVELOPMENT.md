@@ -91,7 +91,7 @@ This installs all market-data client libraries used by the project, including th
 For Massive / Polygon access, this project assumes you have an options-capable Massive account. The default `request_interval_seconds = 12.0` is intentionally conservative for delayed-plan usage, and you should adjust it together with `max_retries` and `backoff_seconds` in `$XDG_CONFIG_HOME/opx-chain/config.toml` (default `~/.config/opx-chain/config.toml`) to match the actual rate limits and throughput your Massive options plan allows.
 
 For Market Data access, this project assumes you have a Market Data account and API token configured under `[providers.marketdata].api_token`.
-The Market Data provider now retries `429` rate-limit responses with exponential backoff, honors `Retry-After` when present, and exposes optional client-side pacing through `[providers.marketdata].request_interval_seconds`.
+The Market Data provider now retries transient failures (`429`, `408`, `5xx`, and request exceptions) with exponential backoff, honors `Retry-After` when present, and exposes optional client-side pacing through `[providers.marketdata].request_interval_seconds`.
 
 ## External Dependencies
 
@@ -137,7 +137,7 @@ The runtime depends on a small set of external libraries and upstream market-dat
     - the provider uses a single `options.chain(symbol, expiration="all", output_format=OutputFormat.INTERNAL, mode=...)` call per ticker
     - the SDK supports `mode`, which the app exposes through `[providers.marketdata].mode`
     - Market Data's Free Forever tier is 24 hours delayed for stocks and options, so tests and user docs should not describe that plan as near-real-time
-    - the app adds its own `429` retry/backoff handling and optional request spacing instead of assuming a fixed SDK-side rate-limit policy
+    - the app adds its own transient retry/backoff handling and optional request spacing instead of assuming a fixed SDK-side rate-limit policy
     - the provider intentionally disables the SDK startup rate-limit probe to avoid spending an extra API call during initialization
 
 ## Provider Integration Notes

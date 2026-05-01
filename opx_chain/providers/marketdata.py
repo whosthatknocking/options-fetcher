@@ -133,7 +133,7 @@ class MarketDataProvider(DataProvider):
         return None if mode is None else Mode(mode)
 
     def _max_retries(self) -> int:
-        """Return the configured Market Data retry count for 429 responses."""
+        """Return the configured Market Data retry count for transient responses."""
         return get_runtime_config().marketdata_max_retries
 
     def _request_interval_seconds(self) -> float:
@@ -167,13 +167,28 @@ class MarketDataProvider(DataProvider):
         return client
 
     def _wrap_logged_request(self, wrapped_request):
-        """Apply pacing, retry 429s, and log each Market Data HTTP response."""
+        """Apply pacing, retry transient failures, and log Market Data responses."""
 
         def logged_request(method, url, *args, **kwargs):
             endpoint_label = self._classify_endpoint(url)
             for attempt in range(self._max_retries() + 1):
                 self._sleep_for_request_interval()
-                response = wrapped_request(method, url, *args, **kwargs)
+                try:
+                    response = wrapped_request(method, url, *args, **kwargs)
+                except (ProviderAuthenticationError, ProviderQuotaError):
+                    raise
+                except Exception as exc:  # pylint: disable=broad-exception-caught
+                    if attempt == self._max_retries():
+                        raise
+                    retry_delay = self._backoff_seconds() * (2**attempt)
+                    print(
+                        f"marketdata api: {endpoint_label} transient_retry_in="
+                        f"{retry_delay:.2f}s attempt={attempt + 1}/{self._max_retries()} "
+                        f"error={exc}"
+                    )
+                    time.sleep(retry_delay)
+                    continue
+
                 decoded = self._decode_response_json(response)
                 self._debug_call_sequence += 1
                 results_count = _count_payload_rows(decoded)
@@ -184,19 +199,31 @@ class MarketDataProvider(DataProvider):
                         f"results_count={results_count}"
                     )
                 )
-                if response.status_code != 429 or attempt == self._max_retries():
+                if not self._is_retryable_response(response) or attempt == self._max_retries():
                     return response
 
                 retry_delay = self._retry_delay_seconds(response, attempt)
+                retry_label = (
+                    "rate_limit_retry_in="
+                    if response.status_code == 429
+                    else "transient_retry_in="
+                )
                 print(
-                    f"marketdata api: {endpoint_label} rate_limit_retry_in="
-                    f"{retry_delay:.2f}s attempt={attempt + 1}/{self._max_retries()}"
+                    f"marketdata api: {endpoint_label} {retry_label}"
+                    f"{retry_delay:.2f}s attempt={attempt + 1}/{self._max_retries()} "
+                    f"status={response.status_code}"
                 )
                 time.sleep(retry_delay)
 
             return response
 
         return logged_request
+
+    @staticmethod
+    def _is_retryable_response(response) -> bool:
+        """Return True for transient HTTP statuses worth retrying."""
+        status_code = getattr(response, "status_code", 0)
+        return status_code in {408, 429} or status_code >= 500
 
     def _sleep_for_request_interval(self) -> None:
         """Respect the configured minimum spacing between HTTP requests."""
