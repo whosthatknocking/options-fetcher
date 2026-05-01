@@ -242,8 +242,20 @@ def _value_or_default(value, default):
     return default if value is None else value
 
 
-def _append_default_warning(warnings: list[str], field_name: str, default) -> None:
-    warnings.append(f"{field_name}: using default {default!r}.")
+def _append_default_warning(
+    warnings: list[str],
+    field_name: str,
+    default,
+    *,
+    rejected_value=None,
+    reason: str | None = None,
+) -> None:
+    detail = ""
+    if rejected_value is not None:
+        detail = f" rejected value {rejected_value!r}"
+    if reason:
+        detail = f"{detail} ({reason})"
+    warnings.append(f"{field_name}:{detail}; using default {default!r}.")
 
 
 def _resolve_config_value(  # pylint: disable=too-many-arguments
@@ -254,14 +266,27 @@ def _resolve_config_value(  # pylint: disable=too-many-arguments
     coercer,
     warnings,
     validator=None,
+    constraint: str | None = None,
 ):
     try:
         value = _value_or_default(coercer(raw_value, field_name=field_name), default)
-    except ConfigError:
-        _append_default_warning(warnings, field_name, default)
+    except ConfigError as exc:
+        _append_default_warning(
+            warnings,
+            field_name,
+            default,
+            rejected_value=raw_value,
+            reason=str(exc),
+        )
         return default
     if validator is not None and not validator(value):
-        _append_default_warning(warnings, field_name, default)
+        _append_default_warning(
+            warnings,
+            field_name,
+            default,
+            rejected_value=value,
+            reason=constraint or "failed validation",
+        )
         return default
     return value
 
@@ -278,7 +303,13 @@ def _resolve_table(value, *, field_name, warnings):
 def _clamp_massive_snapshot_page_limit(value: int, warnings: list[str]) -> int:
     """Clamp Massive snapshot page size to the endpoint's documented maximum."""
     if value <= 0:
-        _append_default_warning(warnings, "providers.massive.snapshot_page_limit", 250)
+        _append_default_warning(
+            warnings,
+            "providers.massive.snapshot_page_limit",
+            DEFAULT_MASSIVE_SNAPSHOT_PAGE_LIMIT,
+            rejected_value=value,
+            reason="must be > 0",
+        )
         return DEFAULT_MASSIVE_SNAPSHOT_PAGE_LIMIT
     if value > MAX_MASSIVE_SNAPSHOT_PAGE_LIMIT:
         warnings.append(
@@ -321,6 +352,7 @@ def load_runtime_config(config_path: Path | None = None) -> RuntimeConfig:  # py
         coercer=_coerce_str,
         warnings=warnings,
         validator=lambda value: value in SUPPORTED_PROVIDERS,
+        constraint=f"must be one of {sorted(SUPPORTED_PROVIDERS)!r}",
     )
     massive_warnings = warnings if data_provider == "massive" else []
     marketdata_warnings = warnings if data_provider == "marketdata" else []
@@ -348,6 +380,7 @@ def load_runtime_config(config_path: Path | None = None) -> RuntimeConfig:  # py
         coercer=_coerce_str,
         warnings=marketdata_warnings,
         validator=lambda value: value is None or value in SUPPORTED_MARKETDATA_MODES,
+        constraint=f"must be one of {sorted(SUPPORTED_MARKETDATA_MODES)!r}",
     )
     if data_provider == "massive" and not massive_api_key:
         warnings.append(
@@ -376,6 +409,7 @@ def load_runtime_config(config_path: Path | None = None) -> RuntimeConfig:  # py
             coercer=_coerce_float,
             warnings=warnings,
             validator=lambda value: value is None or value > 0,
+            constraint="must be positive or null",
         ),
         min_open_interest=_resolve_config_value(
             settings.get("filters_min_open_interest"),
@@ -384,6 +418,7 @@ def load_runtime_config(config_path: Path | None = None) -> RuntimeConfig:  # py
             coercer=_coerce_int,
             warnings=warnings,
             validator=lambda value: value >= 0,
+            constraint="must be >= 0",
         ),
         min_volume=_resolve_config_value(
             settings.get("filters_min_volume"),
@@ -392,6 +427,7 @@ def load_runtime_config(config_path: Path | None = None) -> RuntimeConfig:  # py
             coercer=_coerce_int,
             warnings=warnings,
             validator=lambda value: value >= 0,
+            constraint="must be >= 0",
         ),
         max_spread_pct_of_mid=_resolve_config_value(
             settings.get("filters_max_spread_pct_of_mid"),
@@ -400,6 +436,7 @@ def load_runtime_config(config_path: Path | None = None) -> RuntimeConfig:  # py
             coercer=_coerce_float,
             warnings=warnings,
             validator=lambda value: value > 0,
+            constraint="must be > 0",
         ),
         risk_free_rate=_resolve_config_value(
             settings.get("risk_free_rate"),
@@ -408,6 +445,7 @@ def load_runtime_config(config_path: Path | None = None) -> RuntimeConfig:  # py
             coercer=_coerce_float,
             warnings=warnings,
             validator=lambda value: value >= 0,
+            constraint="must be >= 0",
         ),
         hv_lookback_days=_resolve_config_value(
             settings.get("hv_lookback_days"),
@@ -416,6 +454,7 @@ def load_runtime_config(config_path: Path | None = None) -> RuntimeConfig:  # py
             coercer=_coerce_int,
             warnings=warnings,
             validator=lambda value: value > 0,
+            constraint="must be > 0",
         ),
         trading_days_per_year=_resolve_config_value(
             settings.get("trading_days_per_year"),
@@ -424,6 +463,7 @@ def load_runtime_config(config_path: Path | None = None) -> RuntimeConfig:  # py
             coercer=_coerce_int,
             warnings=warnings,
             validator=lambda v: v > 0,
+            constraint="must be > 0",
         ),
         option_score_income_weight=_resolve_config_value(
             settings.get("option_score_income_weight"),
@@ -432,6 +472,7 @@ def load_runtime_config(config_path: Path | None = None) -> RuntimeConfig:  # py
             coercer=_coerce_float,
             warnings=warnings,
             validator=lambda value: value >= 0,
+            constraint="must be >= 0",
         ),
         option_score_liquidity_weight=_resolve_config_value(
             settings.get("option_score_liquidity_weight"),
@@ -440,6 +481,7 @@ def load_runtime_config(config_path: Path | None = None) -> RuntimeConfig:  # py
             coercer=_coerce_float,
             warnings=warnings,
             validator=lambda value: value >= 0,
+            constraint="must be >= 0",
         ),
         option_score_risk_weight=_resolve_config_value(
             settings.get("option_score_risk_weight"),
@@ -448,6 +490,7 @@ def load_runtime_config(config_path: Path | None = None) -> RuntimeConfig:  # py
             coercer=_coerce_float,
             warnings=warnings,
             validator=lambda value: value >= 0,
+            constraint="must be >= 0",
         ),
         option_score_efficiency_weight=_resolve_config_value(
             settings.get("option_score_efficiency_weight"),
@@ -456,6 +499,7 @@ def load_runtime_config(config_path: Path | None = None) -> RuntimeConfig:  # py
             coercer=_coerce_float,
             warnings=warnings,
             validator=lambda value: value >= 0,
+            constraint="must be >= 0",
         ),
         data_provider=data_provider,
         stale_quote_seconds=_resolve_config_value(
@@ -507,6 +551,7 @@ def load_runtime_config(config_path: Path | None = None) -> RuntimeConfig:  # py
             coercer=_coerce_int,
             warnings=warnings,
             validator=lambda value: 1 <= value <= 65535,
+            constraint="must be between 1 and 65535",
         ),
         max_strike_distance_pct=_resolve_config_value(
             settings.get("filters_max_strike_distance_pct"),
@@ -515,6 +560,7 @@ def load_runtime_config(config_path: Path | None = None) -> RuntimeConfig:  # py
             coercer=_coerce_float,
             warnings=warnings,
             validator=lambda value: value > 0,
+            constraint="must be > 0",
         ),
         max_expiration_weeks=_resolve_config_value(
             settings.get("max_expiration_weeks"),
@@ -523,6 +569,7 @@ def load_runtime_config(config_path: Path | None = None) -> RuntimeConfig:  # py
             coercer=_coerce_int,
             warnings=warnings,
             validator=lambda value: value is None or value >= 0,
+            constraint="must be >= 0 or null",
         ),
         max_expiration=None,
         today=today,
@@ -536,6 +583,7 @@ def load_runtime_config(config_path: Path | None = None) -> RuntimeConfig:  # py
             coercer=_coerce_int,
             warnings=marketdata_warnings,
             validator=lambda value: value >= 0,
+            constraint="must be >= 0",
         ),
         marketdata_request_interval_seconds=_resolve_config_value(
             marketdata_settings.get("request_interval_seconds"),
@@ -544,6 +592,7 @@ def load_runtime_config(config_path: Path | None = None) -> RuntimeConfig:  # py
             coercer=_coerce_float,
             warnings=marketdata_warnings,
             validator=lambda value: value >= 0,
+            constraint="must be >= 0",
         ),
         marketdata_backoff_seconds=_resolve_config_value(
             marketdata_settings.get("backoff_seconds"),
@@ -552,6 +601,7 @@ def load_runtime_config(config_path: Path | None = None) -> RuntimeConfig:  # py
             coercer=_coerce_float,
             warnings=marketdata_warnings,
             validator=lambda value: value > 0,
+            constraint="must be > 0",
         ),
         yfinance_request_interval_seconds=_resolve_config_value(
             yfinance_settings.get("request_interval_seconds"),
@@ -560,6 +610,7 @@ def load_runtime_config(config_path: Path | None = None) -> RuntimeConfig:  # py
             coercer=_coerce_float,
             warnings=yfinance_warnings,
             validator=lambda value: value >= 0,
+            constraint="must be >= 0",
         ),
         yfinance_max_retries=_resolve_config_value(
             yfinance_settings.get("max_retries"),
@@ -568,6 +619,7 @@ def load_runtime_config(config_path: Path | None = None) -> RuntimeConfig:  # py
             coercer=_coerce_int,
             warnings=yfinance_warnings,
             validator=lambda value: value >= 0,
+            constraint="must be >= 0",
         ),
         yfinance_backoff_seconds=_resolve_config_value(
             yfinance_settings.get("backoff_seconds"),
@@ -576,6 +628,7 @@ def load_runtime_config(config_path: Path | None = None) -> RuntimeConfig:  # py
             coercer=_coerce_float,
             warnings=yfinance_warnings,
             validator=lambda value: value >= 0,
+            constraint="must be >= 0",
         ),
         massive_snapshot_page_limit=_clamp_massive_snapshot_page_limit(_resolve_config_value(
             massive_settings.get("snapshot_page_limit"),
@@ -591,6 +644,7 @@ def load_runtime_config(config_path: Path | None = None) -> RuntimeConfig:  # py
             coercer=_coerce_float,
             warnings=massive_warnings,
             validator=lambda value: value >= 0,
+            constraint="must be >= 0",
         ),
         massive_max_retries=_resolve_config_value(
             massive_settings.get("max_retries"),
@@ -599,6 +653,7 @@ def load_runtime_config(config_path: Path | None = None) -> RuntimeConfig:  # py
             coercer=_coerce_int,
             warnings=massive_warnings,
             validator=lambda value: value >= 0,
+            constraint="must be >= 0",
         ),
         massive_backoff_seconds=_resolve_config_value(
             massive_settings.get("backoff_seconds"),
@@ -607,6 +662,7 @@ def load_runtime_config(config_path: Path | None = None) -> RuntimeConfig:  # py
             coercer=_coerce_float,
             warnings=massive_warnings,
             validator=lambda value: value >= 0,
+            constraint="must be >= 0",
         ),
         config_path=resolved_path,
         storage_enabled=_resolve_config_value(
@@ -623,6 +679,7 @@ def load_runtime_config(config_path: Path | None = None) -> RuntimeConfig:  # py
             coercer=_coerce_str,
             warnings=warnings,
             validator=lambda v: v in {"filesystem", "sqlite"},
+            constraint="must be one of ['filesystem', 'sqlite']",
         ),
         storage_max_runs_retained=_resolve_config_value(
             storage_settings.get("max_runs_retained"),
@@ -631,6 +688,7 @@ def load_runtime_config(config_path: Path | None = None) -> RuntimeConfig:  # py
             coercer=_coerce_int,
             warnings=warnings,
             validator=lambda v: v >= 0,
+            constraint="must be >= 0",
         ),
         storage_dataset_format=_resolve_config_value(
             storage_settings.get("dataset_format"),
@@ -639,6 +697,7 @@ def load_runtime_config(config_path: Path | None = None) -> RuntimeConfig:  # py
             coercer=_coerce_str,
             warnings=warnings,
             validator=lambda v: v in {"csv", "parquet"},
+            constraint="must be one of ['csv', 'parquet']",
         ),
         storage_also_write_csv=_resolve_config_value(
             storage_settings.get("also_write_csv"),
@@ -661,6 +720,7 @@ def load_runtime_config(config_path: Path | None = None) -> RuntimeConfig:  # py
             coercer=_coerce_str,
             warnings=warnings,
             validator=lambda v: v in {"none", "filesystem"},
+            constraint="must be one of ['filesystem', 'none']",
         ),
         provider_cache_dir=_resolve_path_setting(
             storage_settings.get("cache_dir"),
@@ -676,6 +736,7 @@ def load_runtime_config(config_path: Path | None = None) -> RuntimeConfig:  # py
             coercer=_coerce_int,
             warnings=warnings,
             validator=lambda v: v > 0,
+            constraint="must be > 0",
         ),
         provider_chain_ttl=_resolve_config_value(
             storage_settings.get("chain_ttl"),
@@ -684,6 +745,7 @@ def load_runtime_config(config_path: Path | None = None) -> RuntimeConfig:  # py
             coercer=_coerce_int,
             warnings=warnings,
             validator=lambda v: v > 0,
+            constraint="must be > 0",
         ),
         provider_events_ttl=_resolve_config_value(
             storage_settings.get("events_ttl"),
@@ -692,6 +754,7 @@ def load_runtime_config(config_path: Path | None = None) -> RuntimeConfig:  # py
             coercer=_coerce_int,
             warnings=warnings,
             validator=lambda v: v > 0,
+            constraint="must be > 0",
         ),
         config_warnings=tuple(warnings),
     )

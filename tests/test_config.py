@@ -410,6 +410,52 @@ def test_load_runtime_config_defaults_invalid_numeric_settings(
     assert any(setting in warning for warning in config.config_warnings)
 
 
+def test_invalid_numeric_warning_includes_rejected_value_and_constraint(tmp_path: Path):
+    """Validation warnings should identify the rejected value and constraint."""
+    config_path = tmp_path / "invalid-volume.toml"
+    config_path.write_text(
+        """
+[settings]
+filters_min_volume = -5
+""".strip(),
+        encoding="utf-8",
+    )
+
+    config = load_runtime_config(config_path)
+
+    warning = next(
+        warning
+        for warning in config.config_warnings
+        if "settings.filters_min_volume" in warning
+    )
+    assert "rejected value -5" in warning
+    assert "must be >= 0" in warning
+    assert "using default 10" in warning
+
+
+def test_type_error_warning_includes_rejected_value_and_coercion_message(tmp_path: Path):
+    """Coercion warnings should preserve the invalid input and parser reason."""
+    config_path = tmp_path / "invalid-volume-type.toml"
+    config_path.write_text(
+        """
+[settings]
+filters_min_volume = "many"
+""".strip(),
+        encoding="utf-8",
+    )
+
+    config = load_runtime_config(config_path)
+
+    warning = next(
+        warning
+        for warning in config.config_warnings
+        if "settings.filters_min_volume" in warning
+    )
+    assert "rejected value 'many'" in warning
+    assert "must be an integer" in warning
+    assert "using default 10" in warning
+
+
 def test_get_data_provider_returns_provider_from_runtime_config(monkeypatch, tmp_path: Path):
     """Provider factory should resolve yfinance and massive from config."""
     yfinance_config = tmp_path / "yfinance.toml"
