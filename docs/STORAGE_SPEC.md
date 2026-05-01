@@ -127,6 +127,9 @@ Behavior:
   guarded by a re-entrant lock and opened with `check_same_thread = false`,
   so method calls amortize connection and PRAGMA setup while preserving
   serialized access inside the process
+- atomic filesystem helpers fsync the temporary file before replacement and
+  fsync the parent directory after replacement where the platform supports it,
+  preserving both concurrent-reader atomicity and power-loss durability
 - `backend` is only read when `enable = true`; it is ignored otherwise
 - `also_write_csv = false` suppresses the timestamped CSV; only the
   storage-managed artifact (e.g. `~/.local/share/opx-chain/runs/<run-id>/output/<uuid>.parquet`)

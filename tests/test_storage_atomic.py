@@ -1,5 +1,6 @@
 """Atomic storage-write helper tests."""
 
+import os
 from pathlib import Path
 
 import pandas as pd
@@ -11,6 +12,24 @@ from opx_chain.storage.serializers import CsvSerializer
 
 def _temp_files_for(path: Path) -> list[Path]:
     return list(path.parent.glob(f".{path.name}.*.tmp"))
+
+
+def test_atomic_write_bytes_fsyncs_temp_and_parent_dir(tmp_path: Path, monkeypatch):
+    """Successful byte writes should fsync content before rename and the parent after."""
+    dest = tmp_path / "artifact.bin"
+    fsync_targets = []
+    original_fsync = os.fsync
+
+    def spy_fsync(fd: int) -> None:
+        fsync_targets.append(os.fstat(fd).st_mode)
+        original_fsync(fd)
+
+    monkeypatch.setattr(os, "fsync", spy_fsync)
+
+    atomic_write_bytes(dest, b"new")
+
+    assert dest.read_bytes() == b"new"
+    assert len(fsync_targets) >= 2
 
 
 def test_atomic_write_bytes_replaces_existing_file_and_cleans_temp(tmp_path: Path):
@@ -38,6 +57,24 @@ def test_atomic_file_write_preserves_existing_file_when_writer_fails(tmp_path: P
 
     assert dest.read_text(encoding="utf-8") == "old"
     assert not _temp_files_for(dest)
+
+
+def test_atomic_file_write_fsyncs_temp_and_parent_dir(tmp_path: Path, monkeypatch):
+    """Successful callback writes should fsync the temp file and parent directory."""
+    dest = tmp_path / "run.json"
+    fsync_targets = []
+    original_fsync = os.fsync
+
+    def spy_fsync(fd: int) -> None:
+        fsync_targets.append(os.fstat(fd).st_mode)
+        original_fsync(fd)
+
+    monkeypatch.setattr(os, "fsync", spy_fsync)
+
+    atomic_file_write(dest, lambda tmp_path: tmp_path.write_text("new", encoding="utf-8"))
+
+    assert dest.read_text(encoding="utf-8") == "new"
+    assert len(fsync_targets) >= 2
 
 
 def test_csv_serializer_writes_without_temp_leftovers(tmp_path: Path):
