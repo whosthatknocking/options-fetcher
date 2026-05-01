@@ -64,6 +64,15 @@ def _is_boolean_like(value) -> bool:
     return isinstance(value, (bool, np.bool_))
 
 
+def _invalid_boolean_mask(df: pd.DataFrame, field: str) -> pd.Series:
+    """Return rows where a present boolean field has a non-boolean value."""
+    missing = _missing_mask(df, field)
+    series = df[field]
+    if pd.api.types.is_bool_dtype(series):
+        return pd.Series(False, index=df.index)
+    return ~missing & ~series.map(_is_boolean_like)
+
+
 def _missing_mask(df: pd.DataFrame, field: str) -> pd.Series:
     """Return a boolean mask for missing or blank field values."""
     if field not in df.columns:
@@ -209,7 +218,7 @@ def validate_option_rows(df: pd.DataFrame) -> list[ValidationFinding]:
     for field in BOOLEAN_FIELDS:
         if field not in df.columns:
             continue
-        invalid_boolean = ~_missing_mask(df, field) & ~df[field].map(_is_boolean_like)
+        invalid_boolean = _invalid_boolean_mask(df, field)
         _append_row_findings(
             findings,
             invalid_boolean,

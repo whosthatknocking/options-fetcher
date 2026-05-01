@@ -2,6 +2,7 @@
 
 import pandas as pd
 
+import opx_chain.validate as validate_mod
 from opx_chain.export import CANONICAL_EXPORT_COLUMNS
 from opx_chain.schema import BOOLEAN_FIELDS
 from opx_chain.validate import (
@@ -107,6 +108,27 @@ def test_validate_option_rows_flags_derived_boolean_fields():
     fields = {finding.field for finding in findings if finding.code == "invalid_boolean_field"}
 
     assert DERIVED_BOOLEAN_FIELDS.issubset(fields)
+
+
+def test_validate_option_rows_skips_python_boolean_map_for_bool_dtype(monkeypatch):
+    """Native bool columns should use the dtype fast path."""
+    frame = pd.DataFrame(
+        [
+            {
+                **make_valid_row(),
+                **{field: True for field in BOOLEAN_FIELDS},
+            }
+        ]
+    )
+
+    def fail_boolean_like(_value):
+        raise AssertionError("bool dtype fields should not call _is_boolean_like")
+
+    monkeypatch.setattr(validate_mod, "_is_boolean_like", fail_boolean_like)
+
+    findings = validate_option_rows(frame)
+
+    assert not any(f.code == "invalid_boolean_field" for f in findings)
 
 
 def test_validate_option_rows_does_not_use_iterrows(monkeypatch):
