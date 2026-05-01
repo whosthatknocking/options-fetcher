@@ -70,8 +70,7 @@ class FilesystemBackend:
         self._runs_dir = runs_dir
         self._debug_dir = debug_dir
         self._max_runs_retained = max_runs_retained
-        self._dataset_format = dataset_format
-        self._serializer = get_serializer(dataset_format)
+        get_serializer(dataset_format)
 
     # ------------------------------------------------------------------
     # Internal helpers

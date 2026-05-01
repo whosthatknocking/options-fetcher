@@ -144,8 +144,7 @@ class SqliteIndexedBackend:
         self._runs_dir = Path(runs_dir)
         self._debug_dir = Path(debug_dir)
         self._max_runs_retained = max_runs_retained
-        self._dataset_format = dataset_format
-        self._serializer = get_serializer(dataset_format)
+        get_serializer(dataset_format)
         self._db_path.parent.mkdir(parents=True, exist_ok=True)
         self._init_schema()
 

@@ -614,7 +614,7 @@ def test_write_dataset_uses_payload_format_over_backend_default(tmp_path: Path):
 
 
 def test_factory_passes_dataset_format_to_backend(tmp_path: Path):
-    """get_storage_backend must honour storage_dataset_format from config."""
+    """get_storage_backend must preflight storage_dataset_format from config."""
     config = make_runtime_config(
         storage_enabled=True,
         storage_backend="filesystem",
@@ -624,7 +624,8 @@ def test_factory_passes_dataset_format_to_backend(tmp_path: Path):
     )
     backend = get_storage_backend(config)
     assert isinstance(backend, FilesystemBackend)
-    assert backend._dataset_format == "parquet"  # pylint: disable=protected-access
+    assert "_dataset_format" not in vars(backend)
+    assert "_serializer" not in vars(backend)
 
 
 # ---------------------------------------------------------------------------
