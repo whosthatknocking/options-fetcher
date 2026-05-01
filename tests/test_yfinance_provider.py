@@ -256,6 +256,38 @@ def test_yfinance_provider_raises_quota_error_after_rate_limit_retries(monkeypat
     assert sleep_calls == [pytest.approx(0.25)]
 
 
+def test_yfinance_safe_metadata_paths_propagate_quota_errors():
+    """Best-effort Yahoo metadata wrappers should not swallow quota failures."""
+    provider = YFinanceProvider()
+
+    class LimitedTicker:  # pylint: disable=too-few-public-methods
+        """Ticker stub whose metadata properties simulate terminal quota errors."""
+
+        @property
+        def info(self):
+            """Simulate a typed quota error after retry classification."""
+            raise ProviderQuotaError("info quota exhausted")
+
+        @property
+        def calendar(self):
+            """Simulate a typed quota error after retry classification."""
+            raise ProviderQuotaError("calendar quota exhausted")
+
+        @property
+        def dividends(self):
+            """Simulate a typed quota error after retry classification."""
+            raise ProviderQuotaError("dividends quota exhausted")
+
+    stock = LimitedTicker()
+
+    with pytest.raises(ProviderQuotaError, match="info quota exhausted"):
+        provider._safe_info("TSLA", stock)  # pylint: disable=protected-access
+    with pytest.raises(ProviderQuotaError, match="calendar quota exhausted"):
+        provider._safe_calendar("TSLA", stock)  # pylint: disable=protected-access
+    with pytest.raises(ProviderQuotaError, match="dividends quota exhausted"):
+        provider._safe_dividends("TSLA", stock)  # pylint: disable=protected-access
+
+
 def test_yfinance_fast_info_retry_log_names_action(monkeypatch, capsys):
     """Fast-info retries should include the action in the operator log label."""
     attempts = {"count": 0}

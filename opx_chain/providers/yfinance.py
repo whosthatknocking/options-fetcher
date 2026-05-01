@@ -16,6 +16,7 @@ from opx_chain.config import US_MARKET_TIMEZONE, get_runtime_config
 from opx_chain.providers.base import (
     DataProvider,
     OptionChainFrames,
+    ProviderAuthenticationError,
     ProviderQuotaError,
     is_provider_quota_error,
     normalize_provider_frame,
@@ -195,6 +196,8 @@ class YFinanceProvider(DataProvider):
         """Return the yfinance info payload or an empty dict on failure."""
         try:
             info = self._call_yahoo(f"{ticker} info", lambda: stock.info)
+        except (ProviderAuthenticationError, ProviderQuotaError):
+            raise
         except Exception:  # pylint: disable=broad-exception-caught
             return {}
         return info if isinstance(info, dict) else {}
@@ -203,6 +206,8 @@ class YFinanceProvider(DataProvider):
         """Return the yfinance calendar payload or None on failure."""
         try:
             return self._call_yahoo(f"{ticker} calendar", lambda: stock.calendar)
+        except (ProviderAuthenticationError, ProviderQuotaError):
+            raise
         except Exception:  # pylint: disable=broad-exception-caught
             return None
 
@@ -210,6 +215,8 @@ class YFinanceProvider(DataProvider):
         """Return the yfinance dividends series or an empty series on failure."""
         try:
             dividends = self._call_yahoo(f"{ticker} dividends", lambda: stock.dividends)
+        except (ProviderAuthenticationError, ProviderQuotaError):
+            raise
         except Exception:  # pylint: disable=broad-exception-caught
             return pd.Series(dtype="float64")
         return dividends if isinstance(dividends, pd.Series) else pd.Series(dtype="float64")
