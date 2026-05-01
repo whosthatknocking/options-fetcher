@@ -42,6 +42,8 @@ debug_dump_dir = "debug"  # resolved under $XDG_DATA_HOME/opx-chain/
 # Set enable = true to activate the storage port for pipeline integration.
 # When disabled (default), the existing filesystem write path is used unchanged.
 enable = false
+# Optional base data directory override. Relative values resolve under $XDG_DATA_HOME/opx-chain/.
+# dir = "data"
 backend = "filesystem"   # "filesystem" | "sqlite" (when enable = true)
 max_runs_retained = 0  # 0 = keep all datasets; positive integer = keep last N
 cache_backend = "none"  # "none" | "filesystem"

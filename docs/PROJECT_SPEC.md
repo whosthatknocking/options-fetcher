@@ -376,7 +376,8 @@ The fetcher uses a lock file to prevent concurrent runs.
 Current behavior:
 
 - a run acquires `<data-dir>/fetcher.lock`, where `<data-dir>` is
-  `[storage].dir` when configured and otherwise `$XDG_DATA_HOME/opx-chain`
+  `[storage].dir` when configured and otherwise `$XDG_DATA_HOME/opx-chain`;
+  relative `[storage].dir` values resolve under `$XDG_DATA_HOME/opx-chain`
 - a second run exits clearly if the lock is already held
 - the lock file is removed when the run finishes or is interrupted
 

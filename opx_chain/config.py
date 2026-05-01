@@ -214,6 +214,26 @@ def _resolve_path_setting(
     return resolve_relative_path(Path(value), base_dir=base_dir)
 
 
+def _resolve_optional_path_setting(
+    raw_value,
+    *,
+    field_name,
+    base_dir: Path,
+    warnings: list[str],
+) -> Path | None:
+    """Resolve an optional config path, anchoring relative values to an XDG base."""
+    value = _resolve_config_value(
+        raw_value,
+        field_name=field_name,
+        default=None,
+        coercer=_coerce_path,
+        warnings=warnings,
+    )
+    if value is None:
+        return None
+    return resolve_relative_path(Path(value), base_dir=base_dir)
+
+
 def _read_config_data(config_path: Path, warnings: list[str] | None = None) -> dict:
     if not config_path.exists():
         return {}
@@ -706,11 +726,10 @@ def load_runtime_config(config_path: Path | None = None) -> RuntimeConfig:  # py
             coercer=_coerce_bool,
             warnings=warnings,
         ),
-        storage_dir=_resolve_config_value(
+        storage_dir=_resolve_optional_path_setting(
             storage_settings.get("dir"),
             field_name="storage.dir",
-            default=None,
-            coercer=_coerce_path,
+            base_dir=get_data_dir(),
             warnings=warnings,
         ),
         provider_cache_backend=_resolve_config_value(

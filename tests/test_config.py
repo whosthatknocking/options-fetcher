@@ -12,6 +12,7 @@ from opx_chain.config import describe_runtime_config, load_runtime_config, reset
 from opx_chain.paths import (
     get_default_debug_dump_dir,
     get_default_provider_cache_dir,
+    get_data_dir,
 )
 from opx_chain.providers import (
     PROVIDER_FACTORIES,
@@ -607,6 +608,39 @@ cache_dir = "provider-cache"
     config = load_runtime_config(config_path)
 
     assert config.provider_cache_dir == get_default_provider_cache_dir().parent / "provider-cache"
+
+
+def test_load_runtime_config_resolves_relative_storage_dir_under_xdg_data_home(tmp_path: Path):
+    """Relative storage.dir values should resolve under the app data directory."""
+    config_path = tmp_path / "storage-dir.toml"
+    config_path.write_text(
+        """
+[storage]
+dir = "custom-data"
+""".strip(),
+        encoding="utf-8",
+    )
+
+    config = load_runtime_config(config_path)
+
+    assert config.storage_dir == get_data_dir() / "custom-data"
+
+
+def test_load_runtime_config_preserves_absolute_storage_dir(tmp_path: Path):
+    """Absolute storage.dir values should remain unchanged."""
+    storage_dir = tmp_path / "absolute-storage"
+    config_path = tmp_path / "absolute-storage-dir.toml"
+    config_path.write_text(
+        f"""
+[storage]
+dir = "{storage_dir}"
+""".strip(),
+        encoding="utf-8",
+    )
+
+    config = load_runtime_config(config_path)
+
+    assert config.storage_dir == storage_dir
 
 
 def test_load_runtime_config_defaults_invalid_filter_toggle(tmp_path: Path):

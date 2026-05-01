@@ -73,7 +73,8 @@ Run logs are written under `$XDG_STATE_HOME/opx-chain/logs/` (default `~/.local/
 
 Provider response cache files are written under `$XDG_CACHE_HOME/opx-chain/cache/` (default `~/.cache/opx-chain/cache/`) when `[storage].cache_backend = "filesystem"`.
 
-Override the base path with `dir` in the `[storage]` config section.
+Override the base path with `dir` in the `[storage]` config section. Relative
+values resolve under `$XDG_DATA_HOME/opx-chain/`.
 
 ## Documentation
 

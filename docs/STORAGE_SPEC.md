@@ -678,7 +678,8 @@ All seven steps are complete and shipped.
 - `also_write_csv` config key (default `true`) controls whether the timestamped
   `runs/options_engine_output_<ts>.csv` is also written alongside the storage artifact
 - `storage.dir` controls the fetcher lock, timestamped CSV side write, `_latest`
-  copy, and storage backend root as one data directory
+  copy, and storage backend root as one data directory; relative values resolve
+  under `$XDG_DATA_HOME/opx-chain/`
 
 ### Step 4 — Parquet serializer ✓
 
