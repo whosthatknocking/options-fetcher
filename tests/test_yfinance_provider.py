@@ -9,7 +9,7 @@ import pytest
 
 from conftest import make_runtime_config
 from opx_chain.providers.base import ProviderQuotaError
-from opx_chain.providers.yfinance import YFinanceProvider
+from opx_chain.providers.yfinance import YFinanceProvider, compute_historical_volatility
 
 
 class FakeChain:  # pylint: disable=too-few-public-methods
@@ -286,6 +286,23 @@ def test_yfinance_safe_metadata_paths_propagate_quota_errors():
         provider._safe_calendar("TSLA", stock)  # pylint: disable=protected-access
     with pytest.raises(ProviderQuotaError, match="dividends quota exhausted"):
         provider._safe_dividends("TSLA", stock)  # pylint: disable=protected-access
+
+
+def test_yfinance_historical_volatility_propagates_quota_errors(monkeypatch):
+    """Historical-volatility fallback should not hide typed quota failures."""
+    monkeypatch.setattr(
+        "opx_chain.providers.yfinance.get_runtime_config",
+        make_runtime_config,
+    )
+
+    class Stock:  # pylint: disable=too-few-public-methods
+        """Unused stock placeholder for injected history loader."""
+
+    def load_history(**_kwargs):
+        raise ProviderQuotaError("history quota exhausted")
+
+    with pytest.raises(ProviderQuotaError, match="history quota exhausted"):
+        compute_historical_volatility(Stock(), load_history=load_history)
 
 
 def test_yfinance_fast_info_retry_log_names_action(monkeypatch, capsys):

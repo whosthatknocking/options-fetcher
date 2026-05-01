@@ -120,6 +120,8 @@ def compute_historical_volatility(stock, load_history=None):  # pylint: disable=
     history_loader = load_history or stock.history
     try:
         history = history_loader(period=lookback_period, interval="1d", auto_adjust=False)
+    except (ProviderAuthenticationError, ProviderQuotaError):
+        raise
     except Exception:  # pylint: disable=broad-exception-caught
         return np.nan
     if history.empty:
