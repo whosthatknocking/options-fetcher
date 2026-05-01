@@ -3,11 +3,9 @@
 from __future__ import annotations
 
 import hashlib
-import io
 import uuid
 from datetime import datetime, timezone
 
-from opx_chain.storage.serializers import ensure_parquet_available
 from opx_chain.storage.models import (
     ArtifactRecord,
     ArtifactWrite,
@@ -22,6 +20,7 @@ from opx_chain.storage.models import (
     ValidationRecord,
     record_to_handle,
 )
+from opx_chain.storage.serializers import get_serializer
 
 
 class MemoryBackend:
@@ -80,17 +79,8 @@ class MemoryBackend:
     def write_dataset(self, run_id: str, dataset: DatasetWrite) -> DatasetRecord:
         """Serialize the DataFrame in memory and record the dataset."""
         dataset_id = str(uuid.uuid4())
-        if dataset.format == "csv":
-            text_buf = io.StringIO()
-            dataset.data.to_csv(text_buf, index=False)
-            content = text_buf.getvalue().encode()
-        elif dataset.format == "parquet":
-            ensure_parquet_available()
-            bytes_buf = io.BytesIO()
-            dataset.data.to_parquet(bytes_buf, index=False, engine="pyarrow")
-            content = bytes_buf.getvalue()
-        else:
-            raise ValueError(f"Unsupported dataset format: {dataset.format!r}")
+        serializer = get_serializer(dataset.format)
+        content = serializer.serialize_bytes(dataset.data)
         content_hash = hashlib.sha256(content).hexdigest()
         record = DatasetRecord(
             dataset_id=dataset_id,

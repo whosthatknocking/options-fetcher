@@ -333,15 +333,18 @@ def test_write_dataset_parquet_stores_matching_bytes():
     assert len(result) == len(df)
 
 
-def test_write_dataset_has_no_dead_serializer_lookup():
-    """MemoryBackend should not call get_serializer and discard the result."""
+def test_write_dataset_uses_shared_serializer_bytes_path():
+    """MemoryBackend should use the shared serializer abstraction."""
     source = inspect.getsource(MemoryBackend.write_dataset)
 
-    assert "get_serializer(" not in source
+    assert "get_serializer(dataset.format)" in source
+    assert "serialize_bytes(dataset.data)" in source
+    assert "to_csv" not in source
+    assert "to_parquet" not in source
 
 
 def test_write_dataset_rejects_unknown_format():
-    """MemoryBackend should reject unsupported dataset formats directly."""
+    """MemoryBackend should reject unsupported dataset formats through serializers."""
     backend = MemoryBackend()
     run_id = backend.create_run(_make_context())
 
