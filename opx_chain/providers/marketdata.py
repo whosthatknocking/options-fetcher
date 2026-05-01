@@ -250,6 +250,14 @@ class MarketDataProvider(DataProvider):
         except (ValueError, TypeError, AttributeError):
             return None
 
+    @staticmethod
+    def _is_no_data_response(response) -> bool:
+        """Return True for Market Data's expected empty-result response shape."""
+        payload = MarketDataProvider._decode_response_json(response)
+        if not isinstance(payload, dict):
+            return False
+        return str(payload.get("s") or "").lower() == "no_data"
+
     def _dump_debug_payload(  # pylint: disable=too-many-arguments,too-many-positional-arguments
         self, url, method, endpoint_label, response, decoded
     ) -> None:
@@ -523,7 +531,11 @@ class MarketDataProvider(DataProvider):
             response = self._client()._make_request(  # pylint: disable=protected-access
                 method="GET",
                 url=self._raw_endpoint_url(f"stocks/dividends/{ticker.upper()}/"),
+                raise_for_status=False,
+                retry_status_codes=[],
             )
+            if self._is_no_data_response(response):
+                return None, np.nan
             self._raise_raw_response_if_error(response, context="dividends request")
             div_data = self._decode_response_json(response) or {}
             ex_dates = div_data.get("exDate") or []

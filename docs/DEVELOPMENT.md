@@ -91,7 +91,7 @@ This installs all market-data client libraries used by the project, including th
 For Massive / Polygon access, this project assumes you have an options-capable Massive account. The default `request_interval_seconds = 12.0` is intentionally conservative for delayed-plan usage, and you should adjust it together with `max_retries` and `backoff_seconds` in `$XDG_CONFIG_HOME/opx-chain/config.toml` (default `~/.config/opx-chain/config.toml`) to match the actual rate limits and throughput your Massive options plan allows.
 
 For Market Data access, this project assumes you have a Market Data account and API token configured under `[providers.marketdata].api_token`.
-The Market Data provider now retries transient failures (`429`, `408`, `5xx`, and request exceptions) with exponential backoff, honors `Retry-After` when present, and exposes optional client-side pacing through `[providers.marketdata].request_interval_seconds`.
+The Market Data provider now retries transient failures (`429`, `408`, `5xx`, and request exceptions) with exponential backoff, honors `Retry-After` when present, and exposes optional client-side pacing through `[providers.marketdata].request_interval_seconds`. Expected event no-data responses, such as absent dividend data, are classified as blank event fields rather than transient failures.
 
 ## External Dependencies
 

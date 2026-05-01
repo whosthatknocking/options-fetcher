@@ -76,6 +76,7 @@ class FakeMarketDataClient:  # pylint: disable=too-few-public-methods,too-many-i
         self._chain_result = make_chain_result()
         self.last_chain_kwargs = None
         self.options.chain = self._options_chain
+        self._dividend_status_code = 200
         self._dividend_payload = {"s": "ok", "exDate": [], "amount": []}
         self._quote_payload = {
             "s": "ok",
@@ -94,7 +95,7 @@ class FakeMarketDataClient:  # pylint: disable=too-few-public-methods,too-many-i
     def _make_request(self, _method, url, *_args, **_kwargs):
         self.request_urls.append(url)
         if "stocks/dividends/" in url:
-            return FakeResponse(200, self._dividend_payload)
+            return FakeResponse(self._dividend_status_code, self._dividend_payload)
         if "stocks/quotes/" in url:
             return FakeResponse(200, self._quote_payload)
         if "options/chain/" in url:
@@ -611,6 +612,31 @@ def test_marketdata_provider_event_dividend_quota_error_aborts(monkeypatch):
 
     with pytest.raises(ProviderQuotaError):
         provider.load_ticker_events("TSLA")
+
+
+def test_marketdata_provider_dividend_no_data_does_not_retry(monkeypatch):
+    """Expected no-dividend responses should return blanks without burning retries."""
+    patch_marketdata_client(monkeypatch)
+    monkeypatch.setattr(
+        "opx_chain.providers.marketdata.get_runtime_config",
+        lambda: make_runtime_config(
+            today=date(2026, 4, 16),
+            marketdata_max_retries=3,
+            marketdata_backoff_seconds=1.0,
+        ),
+    )
+    sleep_calls = []
+    monkeypatch.setattr("opx_chain.providers.marketdata.time.sleep", sleep_calls.append)
+    provider = MarketDataProvider()
+    client = fake_client(provider)
+    client._dividend_status_code = 404  # pylint: disable=protected-access
+    client._dividend_payload = {"s": "no_data"}  # pylint: disable=protected-access
+
+    events = provider.load_ticker_events("TSLA")
+
+    assert events["next_ex_div_date"] is None
+    assert pd.isna(events["dividend_amount"])
+    assert not sleep_calls
 
 
 def test_fetch_ticker_option_chain_runs_with_marketdata_selected(monkeypatch, tmp_path):

@@ -265,7 +265,7 @@ These settings are only used by the matching provider.
 
 - `providers.marketdata.api_token`: Market Data API token used only when `data_provider = "marketdata"`.
 - `providers.marketdata.mode`: optional Market Data SDK mode. Valid values are `live`, `cached`, and `delayed`. If omitted, the SDK uses its default behavior for your account and plan. Mode support and effective recency depend on the plan you are paying for; the Free Forever tier remains 24 hours delayed.
-- `providers.marketdata.max_retries = 3`: retry count for transient Market Data failures (`429`, `408`, `5xx`, and request exceptions). The provider uses exponential backoff and honors `Retry-After` when the upstream response supplies it.
+- `providers.marketdata.max_retries = 3`: retry count for transient Market Data failures (`429`, `408`, `5xx`, and request exceptions). The provider uses exponential backoff and honors `Retry-After` when the upstream response supplies it. Expected no-data event responses, such as missing dividend data, are treated as blank fields instead of retried.
 - `providers.marketdata.request_interval_seconds = 0.0`: optional minimum spacing between Market Data HTTP requests. Leave it at `0.0` unless you want extra pacing for low-credit or low-throughput plans.
 - `providers.marketdata.backoff_seconds = 1.0`: base exponential-backoff delay used between Market Data retries when `Retry-After` is absent.
 

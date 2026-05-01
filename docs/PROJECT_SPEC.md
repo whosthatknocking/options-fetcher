@@ -280,6 +280,7 @@ Implemented Market Data behavior:
 - suppresses the SDK startup rate-limit probe so provider initialization does not spend an extra API call
 - supports optional SDK request mode selection through `[providers.marketdata].mode`
 - retries `429`, `408`, `5xx`, and transient request exceptions with configurable exponential backoff, and honors `Retry-After` when present
+- treats expected event `no_data` responses, such as absent dividend data, as blank event fields rather than retryable failures
 - optional client-side request spacing is available through `[providers.marketdata].request_interval_seconds`
 - request caller header identifies the app as `opx-chain/<version>`
 - fetch progress prints per-request API status and row-count progress
