@@ -413,7 +413,6 @@ def _do_fetch_with_lock_held(  # pylint: disable=too-many-branches,too-many-loca
             csv_output_dir = runs_dir / run_id / "output"
         else:
             csv_output_dir = runs_dir
-        csv_output_dir.mkdir(parents=True, exist_ok=True)
         output_path = csv_output_dir / f"options_engine_output_{timestamp}.csv"
         if write_csv:
             export_df = write_options_csv([combined], output_path=output_path)

@@ -160,7 +160,6 @@ def prepare_export_frame(ticker_frames) -> pd.DataFrame:
 def write_options_csv(ticker_frames, output_path):
     """Combine fetched frames, format the schema, and write the final CSV."""
     output_path = Path(output_path)
-    output_path.parent.mkdir(parents=True, exist_ok=True)
     df = prepare_export_frame(ticker_frames)
     atomic_file_write(output_path, lambda tmp_path: df.to_csv(tmp_path, index=False))
     return df

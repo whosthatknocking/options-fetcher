@@ -58,7 +58,7 @@ def test_reorder_export_columns_drops_noncanonical_provider_fields():
 
 def test_write_options_csv_persists_only_canonical_columns(tmp_path: Path):
     """CSV exports should preserve the canonical schema and discard extras."""
-    output_path = tmp_path / "export.csv"
+    output_path = tmp_path / "nested" / "export.csv"
     frame = pd.DataFrame(
         [
             {
@@ -87,6 +87,7 @@ def test_write_options_csv_persists_only_canonical_columns(tmp_path: Path):
 
     write_options_csv([frame], output_path)
 
+    assert output_path.exists()
     exported = pd.read_csv(output_path)
 
     assert "provider_debug_field" not in exported.columns
