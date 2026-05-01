@@ -437,6 +437,35 @@ def test_write_sidecar_artifact_stays_under_run_dir(tmp_path: Path):
     assert Path(record.location).read_bytes() == b"positions"
 
 
+def test_delete_run_artifacts_preserves_run_and_removes_payloads(tmp_path: Path):
+    """Rollback cleanup must remove sidecars, debug artifacts, and output files."""
+    backend = _make_backend(tmp_path)
+    run_id = backend.create_run(_make_context())
+    sidecar = backend.write_artifact(run_id, ArtifactWrite(
+        artifact_type="sidecar",
+        content=b"positions",
+        filename="positions.csv",
+    ))
+    debug = backend.write_artifact(run_id, ArtifactWrite(
+        artifact_type="run_log",
+        content=b"{}",
+        filename="run_log_reference.json",
+    ))
+    output_dir = tmp_path / "runs" / run_id / "output"
+    output_dir.mkdir(parents=True)
+    output_file = output_dir / "options_engine_output.csv"
+    output_file.write_text("partial", encoding="utf-8")
+
+    backend.delete_run_artifacts(run_id)
+
+    assert (tmp_path / "runs" / run_id / "run.json").exists()
+    assert not Path(sidecar.location).exists()
+    assert not Path(debug.location).exists()
+    assert not Path(debug.location).parent.exists()
+    assert not output_file.exists()
+    assert not output_dir.exists()
+
+
 # ---------------------------------------------------------------------------
 # Retention pruning
 # ---------------------------------------------------------------------------

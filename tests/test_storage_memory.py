@@ -276,6 +276,21 @@ def test_write_artifact_roundtrip():
     assert "debug.json" in record.location
 
 
+def test_delete_run_artifacts_removes_artifacts():
+    """delete_run_artifacts must discard artifacts while preserving the run."""
+    backend = MemoryBackend()
+    run_id = backend.create_run(_make_context())
+    backend.write_artifact(
+        run_id,
+        ArtifactWrite(artifact_type="sidecar", content=b"positions", filename="positions.csv"),
+    )
+
+    backend.delete_run_artifacts(run_id)
+
+    assert backend.get_run(run_id).run_id == run_id
+    assert run_id not in backend._artifacts  # pylint: disable=protected-access
+
+
 # ---------------------------------------------------------------------------
 # Run lifecycle transitions
 # ---------------------------------------------------------------------------

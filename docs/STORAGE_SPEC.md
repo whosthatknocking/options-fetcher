@@ -191,6 +191,8 @@ Responsibilities:
 - write optional serialized summaries or sidecars
 - keep sidecars storage-managed and associated with the owning run rather than
   treating them as ad hoc files
+- delete storage-managed artifacts for a run when fetch fails before dataset
+  publication, while preserving the run metadata needed for `fail_run`
 
 ### 5.4 Provider Cache
 
@@ -403,6 +405,7 @@ class StorageBackend(Protocol):
     def record_validation(self, record: ValidationRecord) -> None: ...
     def write_dataset(self, run_id: str, dataset: DatasetWrite) -> DatasetRecord: ...
     def write_artifact(self, run_id: str, artifact: ArtifactWrite) -> ArtifactRecord: ...
+    def delete_run_artifacts(self, run_id: str) -> None: ...
     def list_datasets(
         self,
         limit: int = 50,
@@ -493,8 +496,9 @@ on KeyboardInterrupt:
 `list_datasets` only exposes datasets after this call succeeds. Run sidecars
 that are part of the successful fetch artifact set, such as the positions
 snapshot and run-log reference, are written before `write_dataset`. If those
-artifact writes fail, `fail_run` records the failure and no dataset is published
-for that run.
+artifact writes fail, `delete_run_artifacts` removes any earlier sidecar,
+run-log, or pre-publication output artifacts for that run, then `fail_run`
+records the failure and no dataset is published for that run.
 
 The `pending` status value is reserved for future use; `create_run` sets
 `status=running` immediately.

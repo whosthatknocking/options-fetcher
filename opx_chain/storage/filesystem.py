@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import shutil
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
@@ -101,6 +102,20 @@ class FilesystemBackend:
             if entry.is_file() and entry.name != "run.json":
                 entry.unlink(missing_ok=True)
 
+    def _delete_run_payloads(self, run_id: str) -> None:
+        run_dir = self._runs_dir / run_id
+        try:
+            entries = list(run_dir.iterdir())
+        except OSError:
+            return
+        for entry in entries:
+            if entry.name == "run.json":
+                continue
+            if entry.is_dir():
+                shutil.rmtree(entry, ignore_errors=True)
+            elif entry.is_file():
+                entry.unlink(missing_ok=True)
+
     def _delete_artifact_path(self, location: str) -> None:
         path = Path(location)
         path.unlink(missing_ok=True)
@@ -139,6 +154,11 @@ class FilesystemBackend:
                 self._delete_artifact_path(location)
         # Preserve cleanup for sidecars written before artifact metadata existed.
         self._delete_sidecar_files(run_id)
+
+    def delete_run_artifacts(self, run_id: str) -> None:
+        """Delete storage-managed artifacts for a run while preserving run metadata."""
+        self._delete_run_artifacts(run_id)
+        self._delete_run_payloads(run_id)
 
     def _read_run(self, run_id: str) -> dict:
         path = self._run_path(run_id)

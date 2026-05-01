@@ -6,8 +6,10 @@ from __future__ import annotations
 import hashlib
 import json
 import re
+import shutil
 import sqlite3
 import threading
+import weakref
 from contextlib import contextmanager
 import uuid
 from datetime import datetime, timezone
@@ -146,6 +148,7 @@ class SqliteIndexedBackend:
         self._debug_dir = Path(debug_dir)
         self._max_runs_retained = max_runs_retained
         self._connection: sqlite3.Connection | None = None
+        self._connection_finalizer: weakref.finalize | None = None
         self._connection_lock = threading.RLock()
         get_serializer(dataset_format)
         self._db_path.parent.mkdir(parents=True, exist_ok=True)
@@ -166,6 +169,7 @@ class SqliteIndexedBackend:
         """Return the pooled connection, creating it on first use."""
         if self._connection is None:
             self._connection = self._connect()
+            self._connection_finalizer = weakref.finalize(self, self._connection.close)
         return self._connection
 
     @contextmanager
@@ -185,6 +189,9 @@ class SqliteIndexedBackend:
             if self._connection is None:
                 return
             self._connection.close()
+            if self._connection_finalizer is not None:
+                self._connection_finalizer.detach()
+                self._connection_finalizer = None
             self._connection = None
 
     def __del__(self) -> None:
@@ -267,6 +274,30 @@ class SqliteIndexedBackend:
     def _sidecar_path(self, run_id: str, filename: str) -> Path:
         return self._runs_dir / run_id / filename
 
+    def _delete_sidecar_files(self, run_id: str) -> None:
+        run_dir = self._runs_dir / run_id
+        try:
+            entries = list(run_dir.iterdir())
+        except OSError:
+            return
+        for entry in entries:
+            if entry.is_file() and entry.name != "run.json":
+                entry.unlink(missing_ok=True)
+
+    def _delete_run_payloads(self, run_id: str) -> None:
+        run_dir = self._runs_dir / run_id
+        try:
+            entries = list(run_dir.iterdir())
+        except OSError:
+            return
+        for entry in entries:
+            if entry.name == "run.json":
+                continue
+            if entry.is_dir():
+                shutil.rmtree(entry, ignore_errors=True)
+            elif entry.is_file():
+                entry.unlink(missing_ok=True)
+
     def _delete_artifact_file(self, location: str) -> None:
         path = Path(location)
         path.unlink(missing_ok=True)
@@ -285,6 +316,14 @@ class SqliteIndexedBackend:
         for row in rows:
             self._delete_artifact_file(row["location"])
             conn.execute("DELETE FROM artifacts WHERE artifact_id = ?", (row["artifact_id"],))
+        self._delete_sidecar_files(run_id)
+
+    def delete_run_artifacts(self, run_id: str) -> None:
+        """Delete storage-managed artifacts for a run while preserving run metadata."""
+        with self._open_connection() as conn:
+            self._delete_run_artifacts(conn, run_id)
+            self._delete_run_payloads(run_id)
+            conn.commit()
 
     def _prune_datasets(self, conn: sqlite3.Connection) -> None:
         if self._max_runs_retained <= 0:

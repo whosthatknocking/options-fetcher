@@ -114,6 +114,11 @@ class MemoryBackend:
         self._artifacts.setdefault(run_id, []).append(record)
         return record
 
+    def delete_run_artifacts(self, run_id: str) -> None:
+        """Delete artifacts associated with a run."""
+        for artifact in self._artifacts.pop(run_id, []):
+            self._artifact_bytes.pop(artifact.artifact_id, None)
+
     def list_datasets(  # pylint: disable=too-many-arguments,too-many-positional-arguments
         self,
         limit: int = 50,

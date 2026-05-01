@@ -255,6 +255,7 @@ def _do_fetch_with_lock_held(  # pylint: disable=too-many-branches,too-many-loca
     log_path = None
     storage = None
     run_id = None
+    dataset_record = None
     try:
         storage = get_storage_backend(config)
         if dry_run:
@@ -423,7 +424,6 @@ def _do_fetch_with_lock_held(  # pylint: disable=too-many-branches,too-many-loca
             export_df = prepare_export_frame([combined])
             file_size_bytes = 0
 
-        dataset_record = None
         if storage is not None and run_id is not None:
             if resolved_positions_path.exists():
                 storage.write_artifact(run_id, ArtifactWrite(
@@ -490,6 +490,11 @@ def _do_fetch_with_lock_held(  # pylint: disable=too-many-branches,too-many-loca
         if logger:
             logger.exception("run_finished fatal error: %s", exc)
         if storage is not None and run_id is not None:
+            if dataset_record is None:
+                try:
+                    storage.delete_run_artifacts(run_id)
+                except Exception:  # pylint: disable=broad-exception-caught
+                    pass
             try:
                 storage.fail_run(run_id, str(exc))
             except Exception:  # pylint: disable=broad-exception-caught
