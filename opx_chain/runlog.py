@@ -9,16 +9,38 @@ from opx_chain.paths import get_state_dir
 from opx_chain.providers import get_data_provider
 from opx_chain.storage.factory import get_data_dir
 
+_RUNLOG_HANDLER_ATTR = "_opx_chain_runlog_handler"
+_MANAGED_EXTERNAL_LOGGER_NAMES: set[str] = set()
+
+
+def _mark_runlog_handler(handler):
+    setattr(handler, _RUNLOG_HANDLER_ATTR, True)
+    return handler
+
+
+def _close_logger_handlers(logger: logging.Logger, *, only_managed: bool = False) -> None:
+    """Remove and close logger handlers, optionally only those installed here."""
+    for handler in list(logger.handlers):
+        if only_managed and not getattr(handler, _RUNLOG_HANDLER_ATTR, False):
+            continue
+        logger.removeHandler(handler)
+        handler.close()
+
 
 def configure_external_loggers(file_handler):
     """Route configured provider-library errors into the same append-only run log."""
     provider = get_data_provider()
+    external_logger_names = set(provider.external_logger_names)
+    for logger_name in _MANAGED_EXTERNAL_LOGGER_NAMES | external_logger_names:
+        provider_logger = logging.getLogger(logger_name)
+        _close_logger_handlers(provider_logger, only_managed=True)
+    _MANAGED_EXTERNAL_LOGGER_NAMES.clear()
     for logger_name in provider.external_logger_names:
         provider_logger = logging.getLogger(logger_name)
         provider_logger.setLevel(logging.ERROR)
-        provider_logger.handlers.clear()
         provider_logger.propagate = False
         provider_logger.addHandler(file_handler)
+        _MANAGED_EXTERNAL_LOGGER_NAMES.add(logger_name)
 
 
 def _migrate_legacy_shared_log(src, dst):
@@ -42,12 +64,12 @@ def create_run_logger():
 
     logger = logging.getLogger("opx_chain.run")
     logger.setLevel(logging.INFO)
-    logger.handlers.clear()
+    _close_logger_handlers(logger)
     logger.propagate = False
 
     formatter = logging.Formatter("%(asctime)sZ | %(levelname)s | %(message)s")
     formatter.converter = time.gmtime
-    file_handler = logging.FileHandler(log_path, encoding="utf-8")
+    file_handler = _mark_runlog_handler(logging.FileHandler(log_path, encoding="utf-8"))
     file_handler.setFormatter(formatter)
     logger.addHandler(file_handler)
     configure_external_loggers(file_handler)
