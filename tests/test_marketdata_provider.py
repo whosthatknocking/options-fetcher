@@ -443,6 +443,62 @@ def test_marketdata_provider_request_limit_raises_quota_error(monkeypatch):
         provider.load_option_chain("TSLA", "2026-06-20")
 
 
+def test_marketdata_provider_event_earnings_quota_error_aborts(monkeypatch):
+    """Earnings event quota responses should abort instead of becoming blanks."""
+
+    class LimitedEarningsClient(FakeMarketDataClient):  # pylint: disable=too-few-public-methods
+        """Fake SDK client that returns a request-limit error for earnings calls."""
+
+        def _stocks_earnings(self, _symbol, **_kwargs):
+            return MarketDataClientErrorResult(
+                BaseMarketdataException(
+                    "You've reached the daily request limit for your Market Data account."
+                )
+            )
+
+    monkeypatch.setattr("opx_chain.providers.marketdata.OpxMarketDataClient", LimitedEarningsClient)
+    monkeypatch.setattr(
+        "opx_chain.providers.marketdata.get_provider_credentials",
+        lambda provider_name: {"api_token": "token"} if provider_name == "marketdata" else {},
+    )
+    provider = MarketDataProvider()
+
+    with pytest.raises(ProviderQuotaError):
+        provider.load_ticker_events("TSLA")
+
+
+def test_marketdata_provider_event_dividend_quota_error_aborts(monkeypatch):
+    """Dividend event quota responses should abort instead of becoming blanks."""
+
+    class LimitedDividendClient(FakeMarketDataClient):  # pylint: disable=too-few-public-methods
+        """Fake SDK client that returns a request-limit error for dividend calls."""
+
+        def _make_request(self, _method, url, *_args, **_kwargs):
+            if "stocks/dividends/" in url:
+                return FakeResponse(
+                    429,
+                    {
+                        "s": "error",
+                        "errmsg": "You've reached the daily request limit.",
+                    },
+                )
+            return super()._make_request(_method, url, *_args, **_kwargs)
+
+    monkeypatch.setattr("opx_chain.providers.marketdata.OpxMarketDataClient", LimitedDividendClient)
+    monkeypatch.setattr(
+        "opx_chain.providers.marketdata.get_provider_credentials",
+        lambda provider_name: {"api_token": "token"} if provider_name == "marketdata" else {},
+    )
+    monkeypatch.setattr(
+        "opx_chain.providers.marketdata.get_runtime_config",
+        lambda: make_runtime_config(marketdata_max_retries=0),
+    )
+    provider = MarketDataProvider()
+
+    with pytest.raises(ProviderQuotaError):
+        provider.load_ticker_events("TSLA")
+
+
 def test_fetch_ticker_option_chain_runs_with_marketdata_selected(monkeypatch, tmp_path):
     """The shared fetch path should run successfully when Market Data is selected."""
     patch_marketdata_client(monkeypatch)

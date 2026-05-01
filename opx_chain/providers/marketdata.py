@@ -278,6 +278,35 @@ class MarketDataProvider(DataProvider):
             raise ProviderQuotaError(f"Market Data {context} failed: {message}")
         raise RuntimeError(f"Market Data {context} failed: {message}")
 
+    @staticmethod
+    def _raise_raw_response_if_error(response, *, context: str) -> None:
+        """Convert raw HTTP responses into provider exceptions."""
+        status_code = getattr(response, "status_code", 200)
+        if status_code < 400:
+            return
+        payload = MarketDataProvider._decode_response_json(response)
+        message = ""
+        if isinstance(payload, dict):
+            message = str(
+                payload.get("message")
+                or payload.get("errmsg")
+                or payload.get("error")
+                or payload.get("s")
+                or ""
+            )
+        normalized = message.lower()
+        if status_code in {401, 403} or any(
+            token in normalized for token in ("unauthorized", "forbidden", "token", "auth")
+        ):
+            raise ProviderAuthenticationError(
+                "Market Data authentication failed. Check [providers.marketdata] api_token "
+                f"in {get_default_config_path()}."
+            )
+        if status_code == 429 or "request limit" in normalized or "rate limit" in normalized:
+            detail = message or f"HTTP {status_code}"
+            raise ProviderQuotaError(f"Market Data {context} failed: {detail}")
+        raise RuntimeError(f"Market Data {context} failed: {message or f'HTTP {status_code}'}")
+
     @lru_cache(maxsize=32)
     def _chain_frame(self, ticker: str) -> pd.DataFrame:
         """Load the full option chain once and split/filter it in memory."""
@@ -448,6 +477,8 @@ class MarketDataProvider(DataProvider):
                     continue
                 upcoming.append(parsed)
             return min(upcoming).isoformat() if upcoming else None
+        except (ProviderAuthenticationError, ProviderQuotaError):
+            raise
         except Exception:  # pylint: disable=broad-exception-caught
             return None
 
@@ -458,6 +489,7 @@ class MarketDataProvider(DataProvider):
                 method="GET",
                 url=self._raw_endpoint_url(f"stocks/dividends/{ticker.upper()}/"),
             )
+            self._raise_raw_response_if_error(response, context="dividends request")
             div_data = self._decode_response_json(response) or {}
             ex_dates = div_data.get("exDate") or []
             amounts = div_data.get("amount") or []
@@ -476,6 +508,8 @@ class MarketDataProvider(DataProvider):
                 return next_date.isoformat(), float(next_amount)
             except (TypeError, ValueError):
                 return next_date.isoformat(), np.nan
+        except (ProviderAuthenticationError, ProviderQuotaError):
+            raise
         except Exception:  # pylint: disable=broad-exception-caught
             return None, np.nan
 
