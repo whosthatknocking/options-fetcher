@@ -369,6 +369,51 @@ def test_massive_provider_client_uses_configured_retry_count(monkeypatch):
     assert created == {"api_key": "secret", "retries": 5, "pagination": True}
 
 
+def test_massive_provider_client_rebuilds_after_config_override(monkeypatch):
+    """Credential and retry overrides should rebuild the cached Massive client."""
+    created = []
+
+    class FakeInnerClient:  # pylint: disable=too-few-public-methods
+        """Minimal inner HTTP client surface used by the provider wrapper."""
+
+        def __init__(self):
+            self.headers = {}
+
+        def request(self, method, url, *args, **kwargs):  # pylint: disable=unused-argument
+            """Placeholder request function."""
+            return None
+
+    class FakeRESTClient:  # pylint: disable=too-few-public-methods
+        """Minimal Massive RESTClient stand-in."""
+
+        def __init__(self, api_key, retries, pagination):
+            self.api_key = api_key
+            self.retries = retries
+            self.pagination = pagination
+            self.headers = {}
+            self.client = FakeInnerClient()
+            self._get = lambda *args, **kwargs: None  # pylint: disable=protected-access
+            created.append((api_key, retries, pagination))
+
+    monkeypatch.setattr("opx_chain.providers.massive.RESTClient", FakeRESTClient)
+    provider = MassiveProvider()
+
+    set_runtime_config_override(
+        make_runtime_config(massive_api_key="first-key", massive_max_retries=1)
+    )
+    first_client = provider._client()  # pylint: disable=protected-access
+    set_runtime_config_override(
+        make_runtime_config(massive_api_key="second-key", massive_max_retries=2)
+    )
+    second_client = provider._client()  # pylint: disable=protected-access
+
+    assert first_client is not second_client
+    assert created == [
+        ("first-key", 1, True),
+        ("second-key", 2, True),
+    ]
+
+
 def test_massive_provider_normalization_keeps_provider_greeks(monkeypatch):
     """Provider-native Massive greeks should survive normalization for later shared use."""
     monkeypatch.setattr(

@@ -12,6 +12,7 @@ from marketdata.sdk_error import MarketDataClientErrorResult
 
 from conftest import make_runtime_config
 from opx_chain import SCHEMA_VERSION, fetch
+from opx_chain.config import set_runtime_config_override
 from opx_chain.export import prepare_export_frame
 from opx_chain.providers.base import DataProvider, ProviderAuthenticationError, ProviderQuotaError
 from opx_chain.providers.marketdata import CALLER_USER_AGENT, MarketDataProvider
@@ -270,6 +271,21 @@ def test_marketdata_provider_client_sets_app_user_agent(monkeypatch):
 
     assert client.headers["User-Agent"] == CALLER_USER_AGENT
     assert client.client.headers["User-Agent"] == CALLER_USER_AGENT
+
+
+def test_marketdata_provider_client_rebuilds_after_token_override(monkeypatch):
+    """Credential overrides should rebuild the cached Market Data client."""
+    monkeypatch.setattr("opx_chain.providers.marketdata.OpxMarketDataClient", FakeMarketDataClient)
+    provider = MarketDataProvider()
+
+    set_runtime_config_override(make_runtime_config(marketdata_api_token="first-token"))
+    first_client = fake_client(provider)
+    set_runtime_config_override(make_runtime_config(marketdata_api_token="second-token"))
+    second_client = fake_client(provider)
+
+    assert first_client is not second_client
+    assert first_client.token == "first-token"
+    assert second_client.token == "second-token"
 
 
 def test_marketdata_provider_passes_configured_mode(monkeypatch):

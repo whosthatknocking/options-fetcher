@@ -110,6 +110,8 @@ class MarketDataProvider(DataProvider):
         self._debug_call_sequence = 0
         self._active_debug_ticker: str | None = None
         self._last_request_started_at: float | None = None
+        self._client_cache_key: tuple[str] | None = None
+        self._client_cache: OpxMarketDataClient | None = None
 
     @property
     def external_logger_names(self) -> tuple[str, ...]:
@@ -152,11 +154,14 @@ class MarketDataProvider(DataProvider):
         separator = "&" if "?" in endpoint else "?"
         return f"{endpoint}{separator}mode={mode.value}"
 
-    @lru_cache(maxsize=1)
     def _client(self) -> OpxMarketDataClient:
         """Construct the official Market Data client once per provider instance."""
+        cache_key = (self._api_token(),)
+        if self._client_cache_key == cache_key and self._client_cache is not None:
+            return self._client_cache
+
         client = OpxMarketDataClient(
-            token=self._api_token(),
+            token=cache_key[0],
             logger=logging.getLogger("marketdata.logger"),
         )
         client.headers["User-Agent"] = CALLER_USER_AGENT
@@ -164,6 +169,8 @@ class MarketDataProvider(DataProvider):
         client._make_request = self._wrap_logged_request(  # pylint: disable=protected-access
             client._make_request  # pylint: disable=protected-access
         )  # type: ignore[method-assign]
+        self._client_cache_key = cache_key
+        self._client_cache = client
         return client
 
     def _wrap_logged_request(self, wrapped_request):

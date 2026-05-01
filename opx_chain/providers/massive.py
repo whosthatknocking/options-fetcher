@@ -108,6 +108,8 @@ class MassiveProvider(DataProvider):
         self._api_result_count = 0
         self._debug_call_sequence = 0
         self._active_debug_ticker: str | None = None
+        self._client_cache_key: tuple[str, int] | None = None
+        self._client_cache: RESTClient | None = None
 
     @property
     def external_logger_names(self) -> tuple[str, ...]:
@@ -124,14 +126,19 @@ class MassiveProvider(DataProvider):
         credentials = get_provider_credentials(self.name)
         return credentials["api_key"]
 
-    @lru_cache(maxsize=1)
     def _client(self) -> RESTClient:
         """Construct the official Massive REST client once per provider instance."""
-        client = RESTClient(api_key=self._api_key(), retries=self._max_retries(), pagination=True)
+        cache_key = (self._api_key(), self._max_retries())
+        if self._client_cache_key == cache_key and self._client_cache is not None:
+            return self._client_cache
+
+        client = RESTClient(api_key=cache_key[0], retries=cache_key[1], pagination=True)
         client.headers["User-Agent"] = CALLER_USER_AGENT
         client.client.headers["User-Agent"] = CALLER_USER_AGENT
         client.client.request = self._wrap_logged_request(client.client.request)
         client._get = self._wrap_rate_limited_get(client._get)  # pylint: disable=protected-access
+        self._client_cache_key = cache_key
+        self._client_cache = client
         return client
 
     def _snapshot_page_limit(self) -> int:
