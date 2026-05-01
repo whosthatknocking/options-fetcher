@@ -76,11 +76,6 @@ def test_viewer_markdown_loader_falls_back_to_packaged_docs(tmp_path: Path):
     assert "underlying_symbol" in markdown
 
 
-def test_hidden_columns_have_no_orphaned_roll_yield_fields():
-    """Viewer hidden columns should not preserve removed roll-yield scaffolding."""
-    assert not any(column.startswith("roll_") for column in viewer.HIDDEN_COLUMNS)
-
-
 def test_viewer_has_no_dead_user_guide_loader():
     """The viewer runtime should depend on the field-reference document only."""
     assert not hasattr(viewer, "load_user_guide_text")

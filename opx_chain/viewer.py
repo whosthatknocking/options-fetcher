@@ -22,7 +22,7 @@ from urllib.parse import parse_qs, urlparse
 import pandas as pd
 from pandas.api.types import is_bool_dtype, is_numeric_dtype
 from opx_chain.config import get_runtime_config
-from opx_chain.export import CANONICAL_EXPORT_COLUMNS, UNWANTED_EXPORT_COLUMNS
+from opx_chain.export import CANONICAL_EXPORT_COLUMNS
 from opx_chain.paths import get_runs_dir
 from opx_chain.positions import DEFAULT_POSITIONS_PATH
 from opx_chain.storage.factory import get_data_dir, get_storage_backend
@@ -37,7 +37,6 @@ POSITIONS_PATH = DEFAULT_POSITIONS_PATH
 CSV_PATTERN = "options_engine_output_*.csv"
 _DATA_DIR_OVERRIDE: Path | None = None
 _CSV_MODE: bool = False
-HIDDEN_COLUMNS = {*UNWANTED_EXPORT_COLUMNS}
 DATASET_CARD_COLUMNS = (
     "premium_reference_method",
     "risk_free_rate_used",
@@ -714,8 +713,6 @@ def build_summary_payload(csv_name: str | None = None) -> SummaryPayload:
     """Build the compact per-ticker summary payload used by the Summary tab."""
     csv_path = resolve_csv_path(csv_name)
     frame = read_dataset_file(csv_path)
-    visible_columns = [column for column in frame.columns if column not in HIDDEN_COLUMNS]
-    frame = frame[visible_columns]
     if "underlying_symbol" not in frame.columns:
         return {
             "selected_file": csv_path.name,
@@ -808,8 +805,6 @@ def load_csv_payload(csv_name: str | None = None) -> CsvPayload:
     freshness_summary = build_freshness_summary(frame, csv_path)
     descriptions = extract_field_descriptions()
     dataset_cards = build_dataset_cards(frame, descriptions)
-    visible_columns = [column for column in frame.columns if column not in HIDDEN_COLUMNS]
-    frame = frame[visible_columns]
     rows = [
         {column: normalize_row_value(column, value) for column, value in record.items()}
         for record in frame.to_dict(orient="records")

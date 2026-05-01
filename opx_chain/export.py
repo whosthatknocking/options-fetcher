@@ -112,7 +112,6 @@ COLUMN_ORDER = [
     "data_source",
     "risk_free_rate_used",
 ]
-UNWANTED_EXPORT_COLUMNS: frozenset[str] = frozenset()
 CANONICAL_EXPORT_COLUMNS = tuple(COLUMN_ORDER)
 INTEGER_EXPORT_COLUMNS = ("days_to_expiration",)
 
@@ -125,12 +124,6 @@ def format_export_timestamps(df):
                 "%Y-%m-%dT%H:%M:%SZ"
             )
     return df
-
-
-def drop_unwanted_columns(df):
-    """Remove transient runtime columns that should not be persisted to CSV."""
-    existing = [column for column in df.columns if column in UNWANTED_EXPORT_COLUMNS]
-    return df.drop(columns=existing) if existing else df
 
 
 def reorder_export_columns(df):
@@ -150,7 +143,6 @@ def coerce_export_column_types(df):
 def prepare_export_frame(ticker_frames) -> pd.DataFrame:
     """Combine fetched frames and apply schema formatting without writing to disk."""
     df = pd.concat(ticker_frames, ignore_index=True)
-    df = drop_unwanted_columns(df)
     df = format_export_timestamps(df)
     df = reorder_export_columns(df)
     df = coerce_export_column_types(df)
