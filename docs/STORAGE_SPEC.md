@@ -120,6 +120,9 @@ Behavior:
   newest existing CSV artifact when one is available, otherwise the newest
   existing readable dataset artifact of any supported format, and the Python
   package interface becomes available to downstream consumers
+- `get_storage_backend()` memoizes backend instances within the process, keyed
+  by backend type, storage dir, debug dir, retention limit, and dataset format,
+  so repeated viewer requests do not rebuild SQLite schema state on every call
 - `backend` is only read when `enable = true`; it is ignored otherwise
 - `also_write_csv = false` suppresses the timestamped CSV; only the
   storage-managed artifact (e.g. `~/.local/share/opx-chain/runs/<run-id>/output/<uuid>.parquet`)

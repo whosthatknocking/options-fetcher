@@ -576,6 +576,18 @@ def test_factory_returns_sqlite_backend_when_configured(tmp_path: Path):
     assert isinstance(backend, SqliteIndexedBackend)
 
 
+def test_factory_reuses_sqlite_backend_for_same_config(tmp_path: Path):
+    """Repeated factory calls with the same sqlite config must reuse the backend."""
+    config = make_runtime_config(
+        storage_enabled=True,
+        storage_backend="sqlite",
+        storage_dir=tmp_path,
+        debug_dump_dir=tmp_path / "debug",
+    )
+
+    assert get_storage_backend(config) is get_storage_backend(config)
+
+
 def test_sqlite_connections_are_closed_after_operations(tmp_path: Path):
     """Backend methods must not leak sqlite connections that warn at GC time."""
     result = TickerFetchResult(

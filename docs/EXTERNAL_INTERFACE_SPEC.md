@@ -384,7 +384,9 @@ Implemented. Behaviour is specified in `docs/PROJECT_SPEC.md` §7.3.
 
 Implemented. `opx_chain.storage.factory.get_storage_backend()` returns a
 `StorageBackend` instance configured from the `opx-chain` config, or `None` when
-storage is disabled.
+storage is disabled. Enabled backends are memoized within the process by the
+storage-affecting config values, so repeated calls return the same backend
+instance until storage config changes or the cache is cleared.
 
 ### 7.5 `also_write_csv` config option
 

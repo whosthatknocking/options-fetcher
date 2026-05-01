@@ -575,6 +575,36 @@ def test_factory_returns_filesystem_backend_when_enabled(tmp_path: Path):
     assert isinstance(backend, FilesystemBackend)
 
 
+def test_factory_reuses_filesystem_backend_for_same_config(tmp_path: Path):
+    """Repeated factory calls with the same config must reuse the backend."""
+    config = make_runtime_config(
+        storage_enabled=True,
+        storage_backend="filesystem",
+        storage_dir=tmp_path,
+        debug_dump_dir=tmp_path / "debug",
+    )
+
+    assert get_storage_backend(config) is get_storage_backend(config)
+
+
+def test_factory_rebuilds_filesystem_backend_when_config_changes(tmp_path: Path):
+    """Storage-affecting config changes must produce a separate backend."""
+    config = make_runtime_config(
+        storage_enabled=True,
+        storage_backend="filesystem",
+        storage_dir=tmp_path / "one",
+        debug_dump_dir=tmp_path / "debug",
+    )
+    changed = make_runtime_config(
+        storage_enabled=True,
+        storage_backend="filesystem",
+        storage_dir=tmp_path / "two",
+        debug_dump_dir=tmp_path / "debug",
+    )
+
+    assert get_storage_backend(config) is not get_storage_backend(changed)
+
+
 # ---------------------------------------------------------------------------
 # Parquet format
 # ---------------------------------------------------------------------------

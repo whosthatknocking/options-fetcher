@@ -105,6 +105,7 @@ def isolate_xdg_dirs(tmp_path: Path, monkeypatch):
 
     storage_factory_mod = sys.modules.get("opx_chain.storage.factory")
     if storage_factory_mod is not None:
+        storage_factory_mod.clear_storage_backend_cache()
         monkeypatch.setattr(storage_factory_mod, "_default_data_dir", lambda: paths["app_data_dir"])
 
     positions_mod = sys.modules.get("opx_chain.positions")
@@ -135,3 +136,5 @@ def isolate_xdg_dirs(tmp_path: Path, monkeypatch):
         monkeypatch.setattr(viewer_mod, "POSITIONS_PATH", paths["positions_path"])
         monkeypatch.setattr(viewer_mod, "RUNS_DIR", paths["app_data_dir"] / "runs")
     yield
+    if storage_factory_mod is not None:
+        storage_factory_mod.clear_storage_backend_cache()
