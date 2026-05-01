@@ -170,6 +170,15 @@ class FilesystemBackend:
             raise KeyError(f"dataset not found: {dataset_id}")
         return matches[0]
 
+    def _find_dataset_record(self, dataset_id: str) -> DatasetRecord:
+        """Return a dataset record by id, preferring the dataset index."""
+        for record in self._dataset_records():
+            if record.dataset_id == dataset_id:
+                return record
+        meta_path = self._find_meta_path(dataset_id)
+        data = json.loads(meta_path.read_text(encoding="utf-8"))
+        return self._meta_to_record(data)
+
     def _write_meta(self, record: DatasetRecord) -> None:
         path = self._meta_path(record.dataset_id, record.run_id)
         atomic_write_text(path, json.dumps(self._record_to_meta(record), indent=2))
@@ -422,9 +431,7 @@ class FilesystemBackend:
 
     def get_dataset(self, dataset_id: str) -> DatasetHandle:
         """Return a DatasetHandle by loading the dataset's meta file."""
-        meta_path = self._find_meta_path(dataset_id)
-        data = json.loads(meta_path.read_text(encoding="utf-8"))
-        return record_to_handle(self._meta_to_record(data))
+        return record_to_handle(self._find_dataset_record(dataset_id))
 
     def finalize_run(self, run_id: str, summary: RunSummary) -> None:
         """Update the run sidecar with a completion status."""

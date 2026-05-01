@@ -259,6 +259,22 @@ def test_get_dataset_returns_handle(tmp_path: Path):
     assert handle.script_version == record.script_version
 
 
+def test_get_dataset_uses_index_before_directory_glob(tmp_path: Path, monkeypatch):
+    """get_dataset should use the dataset index instead of scanning run dirs."""
+    backend = _make_backend(tmp_path)
+    run_id = backend.create_run(_make_context())
+    record = _write(backend, run_id)
+
+    def fail_find_meta_path(_dataset_id):
+        raise AssertionError("get_dataset should not glob when the index has the record")
+
+    monkeypatch.setattr(backend, "_find_meta_path", fail_find_meta_path)
+
+    handle = backend.get_dataset(record.dataset_id)
+
+    assert handle.dataset_id == record.dataset_id
+
+
 def test_filesystem_backend_has_no_dead_private_helpers():
     """FilesystemBackend should not carry unused private path/read helpers."""
     source = inspect.getsource(FilesystemBackend)
