@@ -443,6 +443,41 @@ def test_marketdata_provider_request_limit_raises_quota_error(monkeypatch):
         provider.load_option_chain("TSLA", "2026-06-20")
 
 
+def test_marketdata_provider_stock_quote_quota_error_aborts(monkeypatch):
+    """Raw stock quote quota responses should not fall back to the chain endpoint."""
+
+    class LimitedQuoteClient(FakeMarketDataClient):  # pylint: disable=too-few-public-methods
+        """Fake SDK client that returns a request-limit error for stock quotes."""
+
+        def _make_request(self, _method, url, *_args, **_kwargs):
+            self.request_urls.append(url)
+            if "stocks/quotes/" in url:
+                return FakeResponse(
+                    429,
+                    {
+                        "s": "error",
+                        "errmsg": "You've reached the daily request limit.",
+                    },
+                )
+            return FakeMarketDataClient._make_request(self, _method, url, *_args, **_kwargs)
+
+    monkeypatch.setattr("opx_chain.providers.marketdata.OpxMarketDataClient", LimitedQuoteClient)
+    monkeypatch.setattr(
+        "opx_chain.providers.marketdata.get_provider_credentials",
+        lambda provider_name: {"api_token": "token"} if provider_name == "marketdata" else {},
+    )
+    monkeypatch.setattr(
+        "opx_chain.providers.marketdata.get_runtime_config",
+        lambda: make_runtime_config(marketdata_max_retries=0),
+    )
+    provider = MarketDataProvider()
+
+    with pytest.raises(ProviderQuotaError):
+        provider.load_underlying_snapshot("TSLA")
+
+    assert fake_client(provider).request_urls == ["stocks/quotes/TSLA/"]  # pylint: disable=no-member
+
+
 def test_marketdata_provider_event_earnings_quota_error_aborts(monkeypatch):
     """Earnings event quota responses should abort instead of becoming blanks."""
 

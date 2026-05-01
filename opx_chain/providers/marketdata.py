@@ -391,8 +391,7 @@ class MarketDataProvider(DataProvider):
                 method="GET",
                 url=self._raw_endpoint_url(f"stocks/quotes/{ticker.upper()}/"),
             )
-            if getattr(response, "status_code", 200) >= 400:
-                return None
+            self._raise_raw_response_if_error(response, context="stock quote request")
             quote_data = self._decode_response_json(response)
             if not isinstance(quote_data, dict):
                 return None
@@ -405,6 +404,8 @@ class MarketDataProvider(DataProvider):
                 "underlying_day_change_pct": best_quote["underlying_day_change_pct"],
                 "historical_volatility": np.nan,
             }
+        except (ProviderAuthenticationError, ProviderQuotaError):
+            raise
         except Exception:  # pylint: disable=broad-exception-caught
             return None
         finally:
