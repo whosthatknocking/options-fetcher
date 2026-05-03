@@ -19,7 +19,6 @@ from marketdata.sdk_error import MarketDataClientErrorResult
 
 from opx_chain.config import (
     SCRIPT_VERSION,
-    US_MARKET_TIMEZONE,
     get_provider_credentials,
     get_runtime_config,
 )
@@ -32,36 +31,10 @@ from opx_chain.providers.base import (
     is_provider_quota_error,
     normalize_provider_frame,
 )
+from opx_chain.providers._dates import parse_event_date as _parse_event_date
 from opx_chain.utils import coerce_float, normalize_timestamp
 
 CALLER_USER_AGENT = f"opx-chain/{SCRIPT_VERSION}"
-
-
-def _parse_event_date(raw_date) -> date | None:
-    """Convert Market Data date values into U.S. market-calendar dates."""
-    if raw_date is None:
-        return None
-    parsed_date = None
-    try:
-        if pd.isna(raw_date):
-            return None
-        if isinstance(raw_date, (int, float, np.integer, np.floating)):
-            parsed_date = datetime.fromtimestamp(
-                float(raw_date),
-                tz=timezone.utc,
-            ).astimezone(US_MARKET_TIMEZONE).date()
-        elif isinstance(raw_date, str):
-            parsed_date = datetime.strptime(raw_date[:10], "%Y-%m-%d").date()
-        elif isinstance(raw_date, datetime):
-            if raw_date.tzinfo is None:
-                parsed_date = raw_date.date()
-            else:
-                parsed_date = raw_date.astimezone(US_MARKET_TIMEZONE).date()
-        elif isinstance(raw_date, date):
-            parsed_date = raw_date
-    except (ValueError, TypeError, OSError):
-        pass
-    return parsed_date
 
 
 class OpxMarketDataClient(MarketDataClient):  # pylint: disable=too-few-public-methods

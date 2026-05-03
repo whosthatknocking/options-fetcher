@@ -4,7 +4,7 @@
 
 from __future__ import annotations
 
-from datetime import date, datetime, timezone
+from datetime import date
 import time
 from typing import Any
 
@@ -12,7 +12,7 @@ import numpy as np
 import pandas as pd
 import yfinance as yf
 
-from opx_chain.config import US_MARKET_TIMEZONE, get_runtime_config
+from opx_chain.config import get_runtime_config
 from opx_chain.providers.base import (
     DataProvider,
     OptionChainFrames,
@@ -21,6 +21,7 @@ from opx_chain.providers.base import (
     is_provider_quota_error,
     normalize_provider_frame,
 )
+from opx_chain.providers._dates import parse_event_date as _parse_event_date
 from opx_chain.utils import coerce_float, normalize_timestamp
 
 
@@ -30,33 +31,6 @@ def _first_non_missing(*values):
         if value is not None and not pd.isna(value):
             return value
     return None
-
-
-def _parse_event_date(raw_date) -> date | None:
-    """Convert Yahoo event date values into U.S. market-calendar dates."""
-    if raw_date is None:
-        return None
-    parsed_date = None
-    try:
-        if pd.isna(raw_date):
-            return None
-        if isinstance(raw_date, (int, float, np.integer, np.floating)):
-            parsed_date = datetime.fromtimestamp(
-                float(raw_date),
-                tz=timezone.utc,
-            ).astimezone(US_MARKET_TIMEZONE).date()
-        elif isinstance(raw_date, str):
-            parsed_date = datetime.strptime(raw_date[:10], "%Y-%m-%d").date()
-        elif isinstance(raw_date, datetime):
-            if raw_date.tzinfo is None:
-                parsed_date = raw_date.date()
-            else:
-                parsed_date = raw_date.astimezone(US_MARKET_TIMEZONE).date()
-        elif isinstance(raw_date, date):
-            parsed_date = raw_date
-    except (ValueError, TypeError, OSError):
-        pass
-    return parsed_date
 
 
 def _flatten_calendar_values(value: Any) -> list[Any]:  # pylint: disable=too-many-return-statements
