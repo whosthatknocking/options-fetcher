@@ -573,11 +573,14 @@ def test_delete_run_artifacts_preserves_run_and_removes_payloads(tmp_path: Path)
     assert not Path(debug.location).parent.exists()
     assert not output_file.exists()
     assert not output_dir.exists()
-    with sqlite3.connect(tmp_path / "opx-chain.db") as conn:
+    conn = sqlite3.connect(tmp_path / "opx-chain.db")
+    try:
         count = conn.execute(
             "SELECT COUNT(*) FROM artifacts WHERE run_id = ?",
             (run_id,),
         ).fetchone()[0]
+    finally:
+        conn.close()
     assert count == 0
 
 
@@ -842,7 +845,8 @@ def test_interrupt_stale_runs_marks_old_running_rows(tmp_path: Path):
     backend = _make_backend(tmp_path)
     stale_run = backend.create_run(_make_context(provider="marketdata"))
     fresh_run = backend.create_run(_make_context(provider="marketdata"))
-    with sqlite3.connect(tmp_path / "opx-chain.db") as conn:
+    conn = sqlite3.connect(tmp_path / "opx-chain.db")
+    try:
         conn.execute(
             "UPDATE runs SET started_at = ? WHERE run_id = ?",
             (
@@ -851,6 +855,8 @@ def test_interrupt_stale_runs_marks_old_running_rows(tmp_path: Path):
             ),
         )
         conn.commit()
+    finally:
+        conn.close()
 
     count = backend.interrupt_stale_runs(
         datetime.now(tz=timezone.utc) - timedelta(seconds=30),

@@ -521,7 +521,10 @@ class FilesystemBackend:
 
     def get_run(self, run_id: str) -> RunRecord:
         """Return a RunRecord by loading the run sidecar."""
-        data = self._read_run(run_id)
+        try:
+            data = self._read_run(run_id)
+        except FileNotFoundError as exc:
+            raise KeyError(f"run not found: {run_id}") from exc
         return RunRecord(
             run_id=data["run_id"],
             started_at=_str_to_dt(data["started_at"]),
@@ -562,7 +565,10 @@ class FilesystemBackend:
 
     def get_ticker_results(self, run_id: str) -> list[TickerRunRecord]:
         """Return per-ticker results stored in the run sidecar."""
-        data = self._read_run(run_id)
+        try:
+            data = self._read_run(run_id)
+        except FileNotFoundError as exc:
+            raise KeyError(f"run not found: {run_id}") from exc
         return [
             TickerRunRecord(
                 run_id=run_id,

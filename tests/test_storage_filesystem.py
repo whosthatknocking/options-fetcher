@@ -870,9 +870,9 @@ def test_factory_passes_dataset_format_to_backend(tmp_path: Path):
 # ---------------------------------------------------------------------------
 
 def test_get_run_raises_for_unknown_id(tmp_path: Path):
-    """get_run must raise an exception when the run sidecar does not exist."""
+    """get_run must raise KeyError when the run sidecar does not exist."""
     backend = _make_backend(tmp_path)
-    with pytest.raises((KeyError, FileNotFoundError, OSError)):
+    with pytest.raises(KeyError, match="run not found"):
         backend.get_run("no-such-run")
 
 

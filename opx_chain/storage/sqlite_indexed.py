@@ -605,6 +605,11 @@ class SqliteIndexedBackend:
     def get_ticker_results(self, run_id: str) -> list[TickerRunRecord]:
         """Return per-ticker results for a run."""
         with self._open_connection() as conn:
+            run_exists = conn.execute(
+                "SELECT 1 FROM runs WHERE run_id = ?", (run_id,)
+            ).fetchone()
+            if run_exists is None:
+                raise KeyError(f"run not found: {run_id}")
             rows = conn.execute(
                 "SELECT * FROM ticker_results WHERE run_id = ?", (run_id,)
             ).fetchall()
