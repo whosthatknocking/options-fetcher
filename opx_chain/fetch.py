@@ -124,9 +124,16 @@ def _cache_get_chain(cache, key: str) -> OptionChainFrames | None:
     if data is None:
         return None
     try:
-        return pickle.loads(data)  # nosec pickle — local filesystem cache only
+        value = pickle.loads(data)  # nosec pickle — local filesystem cache only
     except Exception:  # pylint: disable=broad-exception-caught
         return None
+    if not isinstance(value, OptionChainFrames):
+        try:
+            cache.invalidate(key)
+        except Exception:  # pylint: disable=broad-exception-caught
+            pass
+        return None
+    return value
 
 
 def _cache_put_chain(cache, key: str, value: OptionChainFrames, ttl: int, logger=None) -> None:
