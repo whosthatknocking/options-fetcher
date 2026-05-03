@@ -31,7 +31,11 @@ from opx_chain.storage.models import (
     record_to_handle,
 )
 from opx_chain.storage.atomic import atomic_write_bytes
-from opx_chain.storage._disk import write_artifact_bytes, write_dataset_artifact
+from opx_chain.storage._disk import (
+    resolve_child_path,
+    write_artifact_bytes,
+    write_dataset_artifact,
+)
 from opx_chain.storage.serializers import get_serializer
 
 
@@ -278,10 +282,10 @@ class SqliteIndexedBackend:
             )
 
     def _sidecar_path(self, run_id: str, filename: str) -> Path:
-        return self._runs_dir / run_id / filename
+        return resolve_child_path(self._runs_dir, run_id, filename)
 
     def _delete_sidecar_files(self, run_id: str) -> None:
-        run_dir = self._runs_dir / run_id
+        run_dir = resolve_child_path(self._runs_dir, run_id)
         try:
             entries = list(run_dir.iterdir())
         except OSError:
@@ -291,7 +295,7 @@ class SqliteIndexedBackend:
                 entry.unlink(missing_ok=True)
 
     def _delete_run_payloads(self, run_id: str) -> None:
-        run_dir = self._runs_dir / run_id
+        run_dir = resolve_child_path(self._runs_dir, run_id)
         try:
             entries = list(run_dir.iterdir())
         except OSError:
@@ -426,7 +430,7 @@ class SqliteIndexedBackend:
 
     def write_dataset(self, run_id: str, dataset: DatasetWrite) -> DatasetRecord:
         """Serialize the DataFrame, store metadata in SQLite, and return a DatasetRecord."""
-        output_dir = self._runs_dir / run_id / "output"
+        output_dir = resolve_child_path(self._runs_dir, run_id) / "output"
         output_dir.mkdir(parents=True, exist_ok=True)
         serializer = get_serializer(dataset.format)
         dataset_id, artifact_path, content_hash = write_dataset_artifact(

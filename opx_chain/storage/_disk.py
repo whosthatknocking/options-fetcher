@@ -12,6 +12,34 @@ from opx_chain.storage.atomic import atomic_write_bytes
 from opx_chain.storage.serializers import DatasetSerializer
 
 
+def validate_path_component(value: str, *, label: str = "path component") -> str:
+    """Return a single safe path component or raise ValueError."""
+    if not isinstance(value, str) or not value:
+        raise ValueError(f"invalid {label}: {value!r}")
+    path = Path(value)
+    if (
+        path.is_absolute()
+        or path.name != value
+        or value in {".", ".."}
+        or "/" in value
+        or "\\" in value
+    ):
+        raise ValueError(f"invalid {label}: {value!r}")
+    return value
+
+
+def resolve_child_path(base_dir: Path, *components: str) -> Path:
+    """Resolve a child path and ensure it stays under base_dir."""
+    resolved_base = base_dir.resolve()
+    dest = resolved_base
+    for component in components:
+        dest /= validate_path_component(component)
+    resolved_dest = dest.resolve()
+    if not resolved_dest.is_relative_to(resolved_base):
+        raise ValueError(f"path escapes base directory: {resolved_dest}")
+    return resolved_dest
+
+
 def write_dataset_artifact(
     data: pd.DataFrame,
     output_dir: Path,
@@ -34,7 +62,11 @@ def write_artifact_bytes(
 ) -> tuple[str, Path, str]:
     """Write raw artifact bytes to disk. Returns (artifact_id, dest_path, content_hash)."""
     artifact_id = str(uuid.uuid4())
-    dest = (debug_dir / artifact_id / filename).resolve()
+    dest = resolve_child_path(
+        debug_dir,
+        artifact_id,
+        validate_path_component(filename, label="filename"),
+    )
     atomic_write_bytes(dest, content)
     content_hash = hashlib.sha256(content).hexdigest()
     return artifact_id, dest, content_hash

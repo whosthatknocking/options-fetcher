@@ -27,7 +27,11 @@ from opx_chain.storage.models import (
     record_to_handle,
 )
 from opx_chain.storage.atomic import atomic_write_bytes, atomic_write_text
-from opx_chain.storage._disk import write_artifact_bytes, write_dataset_artifact
+from opx_chain.storage._disk import (
+    resolve_child_path,
+    write_artifact_bytes,
+    write_dataset_artifact,
+)
 from opx_chain.storage.serializers import get_serializer
 
 
@@ -81,10 +85,10 @@ class FilesystemBackend:
     # ------------------------------------------------------------------
 
     def _run_output_dir(self, run_id: str) -> Path:
-        return self._runs_dir / run_id / "output"
+        return resolve_child_path(self._runs_dir, run_id) / "output"
 
     def _run_path(self, run_id: str) -> Path:
-        return self._runs_dir / run_id / "run.json"
+        return resolve_child_path(self._runs_dir, run_id) / "run.json"
 
     def _dataset_index_path(self) -> Path:
         return self._runs_dir / "datasets.index.json"
@@ -93,10 +97,10 @@ class FilesystemBackend:
         return self._run_output_dir(run_id) / f"{dataset_id}.meta.json"
 
     def _sidecar_path(self, run_id: str, filename: str) -> Path:
-        return self._runs_dir / run_id / filename
+        return resolve_child_path(self._runs_dir, run_id, filename)
 
     def _delete_sidecar_files(self, run_id: str) -> None:
-        run_dir = self._runs_dir / run_id
+        run_dir = resolve_child_path(self._runs_dir, run_id)
         try:
             entries = list(run_dir.iterdir())
         except OSError:
@@ -106,7 +110,7 @@ class FilesystemBackend:
                 entry.unlink(missing_ok=True)
 
     def _delete_run_payloads(self, run_id: str) -> None:
-        run_dir = self._runs_dir / run_id
+        run_dir = resolve_child_path(self._runs_dir, run_id)
         try:
             entries = list(run_dir.iterdir())
         except OSError:
