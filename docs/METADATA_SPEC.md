@@ -80,6 +80,8 @@ public contract — these fields may not be removed or renamed without a
 | Field | Type | Nullable | Source |
 |---|---|---|---|
 | `dataset_id` | `str` | NO | `DatasetRecord.dataset_id` |
+| `run_id` | `str` | NO | `DatasetRecord.run_id` |
+| `provider` | `str` | NO | `DatasetRecord.provider` |
 | `location` | `str` | NO | `DatasetRecord.location` |
 | `schema_version` | `int` | NO | `DatasetRecord.schema_version` |
 | `script_version` | `str` | NO | `DatasetRecord.script_version` |
@@ -88,10 +90,11 @@ public contract — these fields may not be removed or renamed without a
 | `content_hash` | `str` | NO | `DatasetRecord.content_hash` |
 | `created_at` | `datetime` | NO | `DatasetRecord.created_at` |
 
-`content_hash` and `created_at` are required additions to `DatasetHandle`
-(they were previously only on `DatasetRecord`). Downstream consumers need
-both to perform integrity checks and freshness assessments without
-fetching the full `DatasetRecord`. See EXTERNAL_INTERFACE_SPEC.md §7.2.
+`run_id`, `provider`, `content_hash`, and `created_at` are required additions to
+`DatasetHandle` (they were previously only on `DatasetRecord`). Downstream
+consumers need them to preserve dataset provenance, avoid paginated
+`list_datasets()` lookups, perform integrity checks, and assess freshness
+without fetching the full `DatasetRecord`. See EXTERNAL_INTERFACE_SPEC.md §7.2.
 
 ---
 
@@ -251,6 +254,7 @@ as a read-only consumer. These are the fields it depends on from day one:
 | Field | Record | Why required |
 |---|---|---|
 | `dataset_id` | `DatasetRecord` / `DatasetHandle` | Stable reference stored in the pipeline's `runs` table to link every pipeline run to the exact chain it consumed |
+| `provider` | `DatasetRecord` / `DatasetHandle` | Provider provenance for a specific dataset id; downstream consumers should not need paginated `list_datasets()` scans to recover it |
 | `location` | `DatasetHandle` | Absolute path used to read the chain artifact; must never be constructed independently |
 | `schema_version` | `DatasetHandle` | Checked against `SCHEMA_VERSION` before reading; mismatch is a fatal error — the pipeline refuses to process a drifted schema |
 | `script_version` | `RunRecord`, `DatasetRecord`, `DatasetHandle` | Carries the opx-chain package version that produced the run/dataset so downstream provenance does not depend on grepping `opx_runs.log` |

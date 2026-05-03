@@ -413,6 +413,8 @@ def test_get_dataset_returns_handle(tmp_path: Path):
 
     assert isinstance(handle, DatasetHandle)
     assert handle.dataset_id == record.dataset_id
+    assert handle.run_id == record.run_id
+    assert handle.provider == record.provider
     assert handle.content_hash == record.content_hash
     assert handle.script_version == record.script_version
 

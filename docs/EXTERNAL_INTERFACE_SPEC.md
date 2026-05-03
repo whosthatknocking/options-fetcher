@@ -274,6 +274,8 @@ fields are part of the external interface contract:
 @dataclass
 class DatasetHandle:
     dataset_id: str       # stable identifier for this dataset
+    run_id: str           # fetch run that produced this dataset
+    provider: str         # provider that produced this dataset
     location: str         # absolute or relative path to the artifact file
     schema_version: int   # matches SCHEMA_VERSION at write time
     script_version: str   # opx-chain package version that wrote the dataset
@@ -283,10 +285,12 @@ class DatasetHandle:
     created_at: datetime  # UTC timestamp when the dataset was written
 ```
 
-**Change from STORAGE_SPEC §6:** `content_hash`, `created_at`, and
-`script_version` are exposed on `DatasetHandle`. Downstream consumers need these
-for chain integrity verification, freshness checks, and producer-version
-provenance without having to fetch the full `DatasetRecord`.
+**Change from STORAGE_SPEC §6:** `run_id`, `provider`, `content_hash`,
+`created_at`, and `script_version` are exposed on `DatasetHandle`. Downstream
+consumers need these for dataset provenance, direct provider lookup by
+`dataset_id`, chain integrity verification, freshness checks, and
+producer-version provenance without having to fetch the full `DatasetRecord` or
+scan a paginated dataset listing.
 
 `location` is an absolute path when the filesystem backend is active. Downstream
 consumers must not construct or infer artifact paths independently — always use the
@@ -360,7 +364,7 @@ dependency.
 - this is already described in STORAGE_SPEC §3.4 and §17 step 1; this spec
   makes it a named public constant importable from `opx_chain` directly
 
-### 7.2 Add `content_hash` and `created_at` to `DatasetHandle`
+### 7.2 Add provenance and integrity fields to `DatasetHandle`
 
 Current `DatasetHandle` (STORAGE_SPEC §6):
 ```python
@@ -369,12 +373,14 @@ dataset_id, location, schema_version, row_count, format
 
 Required addition:
 ```python
+run_id: str           # already on DatasetRecord; copy here
+provider: str         # already on DatasetRecord; copy here
 content_hash: str     # already on DatasetRecord; copy here
 created_at: datetime  # already on DatasetRecord; copy here
 ```
 
-`get_dataset` must populate both fields from the underlying `DatasetRecord`.
-No storage schema change is required — both values are already persisted.
+`get_dataset` must populate these fields from the underlying `DatasetRecord`.
+No storage schema change is required — these values are already persisted.
 
 ### 7.3 Add `--positions` argument to `opx-fetch`
 

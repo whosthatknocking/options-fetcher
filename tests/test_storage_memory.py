@@ -113,6 +113,8 @@ def test_get_dataset_returns_handle():
 
     assert isinstance(handle, DatasetHandle)
     assert handle.dataset_id == record.dataset_id
+    assert handle.run_id == record.run_id
+    assert handle.provider == record.provider
     assert handle.schema_version == record.schema_version
     assert handle.content_hash == record.content_hash
     assert handle.created_at == record.created_at

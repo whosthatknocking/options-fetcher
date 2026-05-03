@@ -52,6 +52,8 @@ class DatasetHandle:
     """Stable external reference returned by get_dataset."""
 
     dataset_id: str
+    run_id: str
+    provider: str
     location: str
     schema_version: int
     row_count: int
@@ -65,6 +67,8 @@ def record_to_handle(record: DatasetRecord) -> DatasetHandle:
     """Convert a DatasetRecord to a DatasetHandle."""
     return DatasetHandle(
         dataset_id=record.dataset_id,
+        run_id=record.run_id,
+        provider=record.provider,
         location=record.location,
         schema_version=record.schema_version,
         row_count=record.row_count,

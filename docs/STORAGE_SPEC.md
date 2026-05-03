@@ -391,6 +391,8 @@ implementation details:
 @dataclass
 class DatasetHandle:
     dataset_id: str
+    run_id: str
+    provider: str
     location: str
     schema_version: int
     row_count: int
