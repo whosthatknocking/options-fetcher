@@ -257,9 +257,12 @@ class RunRecord:
 
 `tickers` records the effective fetch universe for this run, including configured
 tickers and stock tickers expanded from the positions file. `config_fingerprint`
-covers the fields that affect fetch output: provider, tickers, expiration
-ceiling, filter settings, scoring weights, Greek/HV constants, quote freshness
-threshold, and Market Data mode. It does not cover log paths or debug flags.
+covers resolved runtime fields that affect fetch output: provider, tickers,
+expiration ceiling, filter settings, validation setting, scoring weights,
+Greek/HV constants, quote freshness threshold, provider modes, retry/backoff
+settings, provider-cache settings, and storage/export settings. It excludes
+credentials, local runtime paths, viewer bind settings, config warnings, and the
+transient `today` value.
 Two runs with the same fingerprint and the same positions fingerprint should
 produce structurally comparable datasets.
 

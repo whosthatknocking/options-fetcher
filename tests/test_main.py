@@ -2,6 +2,7 @@
 
 # pylint: disable=duplicate-code
 
+from dataclasses import fields as dataclass_fields
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
@@ -9,8 +10,12 @@ import pandas as pd
 
 from conftest import make_runtime_config
 import main
-from opx_chain.config import get_runtime_config as get_process_runtime_config
-from opx_chain.fetcher import _config_fingerprint
+from opx_chain.config import RuntimeConfig, get_runtime_config as get_process_runtime_config
+from opx_chain.fetcher import (
+    _CONFIG_FINGERPRINT_EXCLUDED_FIELDS,
+    _config_fingerprint,
+    _config_fingerprint_payload,
+)
 from opx_chain.storage.memory import MemoryBackend
 from opx_chain.storage.models import RunContext, RunSummary
 from opx_chain.validate import validate_option_rows
@@ -231,10 +236,56 @@ def test_config_fingerprint_includes_output_affecting_settings():
         {"trading_days_per_year": 260},
         {"stale_quote_seconds": 3600},
         {"marketdata_mode": "live"},
+        {"enable_validation": False},
+        {"marketdata_max_retries": 7},
+        {"marketdata_request_interval_seconds": 0.5},
+        {"marketdata_backoff_seconds": 2.0},
+        {"yfinance_max_retries": 3},
+        {"yfinance_request_interval_seconds": 0.5},
+        {"yfinance_backoff_seconds": 2.0},
+        {"massive_snapshot_page_limit": 500},
+        {"massive_max_retries": 7},
+        {"massive_request_interval_seconds": 0.25},
+        {"massive_backoff_seconds": 2.0},
+        {"provider_cache_backend": "filesystem"},
+        {"provider_cache_dir": Path("/tmp/opx-provider-cache-alt")},
+        {"provider_snapshot_ttl": 900},
+        {"provider_chain_ttl": 1200},
+        {"provider_events_ttl": 3600},
     ):
         changed = make_runtime_config(**{**base_overrides, **overrides})
 
         assert _config_fingerprint(changed) != baseline_fingerprint
+
+
+def test_config_fingerprint_covers_runtime_config_fields_by_default():
+    """New RuntimeConfig fields should fingerprint unless explicitly excluded."""
+    payload = _config_fingerprint_payload(make_runtime_config())
+    runtime_fields = {field.name for field in dataclass_fields(RuntimeConfig)}
+
+    assert set(payload) == runtime_fields - _CONFIG_FINGERPRINT_EXCLUDED_FIELDS
+    assert _CONFIG_FINGERPRINT_EXCLUDED_FIELDS <= runtime_fields
+
+
+def test_config_fingerprint_excludes_runtime_metadata_and_secrets():
+    """Local paths, warning text, and credentials should not affect the config hash."""
+    baseline = make_runtime_config()
+    baseline_fingerprint = _config_fingerprint(baseline)
+
+    for overrides in (
+        {"config_path": Path("/tmp/other.toml")},
+        {"config_warnings": ("settings.min_bid: using default 0.0.",)},
+        {"debug_dump_dir": Path("/tmp/other-debug")},
+        {"marketdata_api_token": "secret-token"},
+        {"massive_api_key": "secret-key"},
+        {"storage_dir": Path("/tmp/other-storage")},
+        {"today": baseline.today + timedelta(days=1)},
+        {"viewer_host": "0.0.0.0"},
+        {"viewer_port": 8123},
+    ):
+        changed = make_runtime_config(**overrides)
+
+        assert _config_fingerprint(changed) == baseline_fingerprint
 
 
 def test_main_uses_utc_timestamp_for_side_csv_filename(monkeypatch, tmp_path: Path):

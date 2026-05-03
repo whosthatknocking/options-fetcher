@@ -1,7 +1,7 @@
 """CLI entrypoint for fetching option chains and writing the export CSV."""
 
 import argparse
-from dataclasses import replace
+from dataclasses import fields as dataclass_fields, replace
 from datetime import datetime, timedelta, timezone
 import hashlib
 import json
@@ -38,6 +38,19 @@ RUNS_DIR = _DATA_DIR / "runs"
 FETCHER_LOCK_PATH = _DATA_DIR / "fetcher.lock"
 STALE_RUNNING_RUN_SECONDS = 30
 UNCLEAN_SHUTDOWN_ERROR = "process_terminated_uncleanly"
+_CONFIG_FINGERPRINT_EXCLUDED_FIELDS = frozenset(
+    {
+        "config_path",
+        "config_warnings",
+        "debug_dump_dir",
+        "marketdata_api_token",
+        "massive_api_key",
+        "storage_dir",
+        "today",
+        "viewer_host",
+        "viewer_port",
+    }
+)
 
 
 def parse_args(argv=None):
@@ -108,30 +121,36 @@ def format_file_size(byte_count):
     return f"{byte_count / (1024 * 1024):.1f} MB"
 
 
+def _fingerprint_value(value):
+    """Return a JSON-stable representation for config fingerprinting."""
+    if isinstance(value, Path):
+        return str(value)
+    if isinstance(value, tuple):
+        return [_fingerprint_value(item) for item in value]
+    if isinstance(value, list):
+        return [_fingerprint_value(item) for item in value]
+    if isinstance(value, dict):
+        return {
+            str(key): _fingerprint_value(item)
+            for key, item in sorted(value.items(), key=lambda pair: str(pair[0]))
+        }
+    if hasattr(value, "isoformat"):
+        return value.isoformat()
+    return value
+
+
+def _config_fingerprint_payload(config) -> dict[str, object]:
+    """Return config fields that participate in fetch output fingerprinting."""
+    return {
+        field.name: _fingerprint_value(getattr(config, field.name))
+        for field in dataclass_fields(config)
+        if field.name not in _CONFIG_FINGERPRINT_EXCLUDED_FIELDS
+    }
+
+
 def _config_fingerprint(config) -> str:
     """Return a SHA-256 hex digest of the config fields that affect fetch output."""
-    fields = {
-        "provider": config.data_provider,
-        "tickers": sorted(config.tickers),
-        "max_expiration_weeks": config.max_expiration_weeks,
-        "enable_filters": config.enable_filters,
-        "min_bid": config.min_bid,
-        "min_open_interest": config.min_open_interest,
-        "min_volume": config.min_volume,
-        "max_spread_pct_of_mid": config.max_spread_pct_of_mid,
-        "max_strike_distance_pct": config.max_strike_distance_pct,
-        "risk_free_rate": config.risk_free_rate,
-        "hv_lookback_days": config.hv_lookback_days,
-        "trading_days_per_year": config.trading_days_per_year,
-        "stale_quote_seconds": config.stale_quote_seconds,
-        "marketdata_mode": (
-            config.marketdata_mode if config.data_provider == "marketdata" else None
-        ),
-        "option_score_income_weight": config.option_score_income_weight,
-        "option_score_liquidity_weight": config.option_score_liquidity_weight,
-        "option_score_risk_weight": config.option_score_risk_weight,
-        "option_score_efficiency_weight": config.option_score_efficiency_weight,
-    }
+    fields = _config_fingerprint_payload(config)
     return hashlib.sha256(json.dumps(fields, sort_keys=True).encode()).hexdigest()
 
 
