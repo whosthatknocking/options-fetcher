@@ -296,6 +296,7 @@ Field-mapping rules already implemented for Market Data include:
 - `bid`, `ask`, `last`, `openInterest`, `volume`, `iv`, and greeks map directly into canonical fields
 - future `stocks/earnings/{symbol}/ reportDate` values are exposed with `next_earnings_date_is_estimated = true` because Market Data documents upcoming earnings dates as estimates rather than confirmed announcements; rows whose `reportedEPS` is already populated are treated as already reported and excluded from the upcoming-event selection even if the stale estimate remains in the future
 - runtime `today` and numeric Market Data event dates are interpreted on the `America/New_York` market calendar so expiration and catalyst day-count fields do not drift on non-Eastern hosts
+- process runtime config may be cached within one market-calendar date, but long-running processes must refresh the cached config when the `America/New_York` date changes so DTE, event day counts, and expiration cutoffs do not freeze overnight
 
 ## 6. Output Contract
 

@@ -8,7 +8,12 @@ from pathlib import Path
 
 import pytest
 
-from opx_chain.config import describe_runtime_config, load_runtime_config, reset_runtime_config
+from opx_chain.config import (
+    describe_runtime_config,
+    get_runtime_config,
+    load_runtime_config,
+    reset_runtime_config,
+)
 from opx_chain.paths import (
     get_default_debug_dump_dir,
     get_default_provider_cache_dir,
@@ -93,6 +98,34 @@ def test_load_runtime_config_uses_eastern_market_calendar_for_today(tmp_path: Pa
     config = load_runtime_config(tmp_path / "missing.toml")
 
     assert config.today == date(2026, 4, 19)
+
+
+def test_get_runtime_config_refreshes_after_market_day_boundary(monkeypatch):
+    """Long-running processes should not keep yesterday's cached config forever."""
+
+    class AdvancingDatetime(datetime):
+        """Datetime stub that advances across a U.S. Eastern date boundary."""
+
+        calls = iter(
+            [
+                datetime(2026, 4, 20, 3, 55, tzinfo=timezone.utc),
+                datetime(2026, 4, 20, 4, 5, tzinfo=timezone.utc),
+            ]
+        )
+
+        @classmethod
+        def now(cls, tz=None):
+            instant = next(cls.calls)
+            return instant if tz is None else instant.astimezone(tz)
+
+    monkeypatch.setattr("opx_chain.config.datetime", AdvancingDatetime)
+
+    first = get_runtime_config()
+    second = get_runtime_config()
+
+    assert first.today == date(2026, 4, 19)
+    assert second.today == date(2026, 4, 20)
+    assert first is not second
 
 
 def test_load_runtime_config_reads_user_config_file(tmp_path: Path):

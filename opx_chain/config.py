@@ -340,7 +340,9 @@ def _clamp_massive_snapshot_page_limit(value: int, warnings: list[str]) -> int:
     return value
 
 
-def load_runtime_config(config_path: Path | None = None) -> RuntimeConfig:  # pylint: disable=too-many-locals
+def load_runtime_config(  # pylint: disable=too-many-locals
+    config_path: Path | None = None, *, today: date | None = None
+) -> RuntimeConfig:
     """Load runtime config from the user config file, falling back to defaults."""
     default_config_path = DEFAULT_CONFIG_PATH_OVERRIDE or get_default_config_path()
     resolved_path = (config_path or default_config_path).expanduser()
@@ -364,7 +366,7 @@ def load_runtime_config(config_path: Path | None = None) -> RuntimeConfig:  # py
         warnings=warnings,
     )
 
-    today = market_calendar_today()
+    runtime_day = today or market_calendar_today()
     data_provider = _resolve_config_value(
         settings.get("data_provider"),
         field_name="settings.data_provider",
@@ -592,7 +594,7 @@ def load_runtime_config(config_path: Path | None = None) -> RuntimeConfig:  # py
             constraint="must be >= 0 or null",
         ),
         max_expiration=None,
-        today=today,
+        today=runtime_day,
         massive_api_key=massive_api_key,
         marketdata_api_token=marketdata_api_token,
         marketdata_mode=marketdata_mode,
@@ -783,7 +785,7 @@ def load_runtime_config(config_path: Path | None = None) -> RuntimeConfig:  # py
         (
             None
             if config.max_expiration_weeks in {None, 0}
-            else _default_max_expiration(today, config.max_expiration_weeks)
+            else _default_max_expiration(runtime_day, config.max_expiration_weeks)
         ),
     )
     if (
@@ -813,24 +815,29 @@ def load_runtime_config(config_path: Path | None = None) -> RuntimeConfig:  # py
 
 
 @lru_cache(maxsize=1)
+def _load_runtime_config_for_market_day(market_day: date) -> RuntimeConfig:
+    """Return config cached only for the active market-calendar date."""
+    return load_runtime_config(today=market_day)
+
+
 def get_runtime_config() -> RuntimeConfig:
     """Return the cached runtime config for the current process."""
     if _RUNTIME_CONFIG_OVERRIDE is not None:
         return _RUNTIME_CONFIG_OVERRIDE
-    return load_runtime_config()
+    return _load_runtime_config_for_market_day(market_calendar_today())
 
 
 def set_runtime_config_override(config: RuntimeConfig | None) -> None:
     """Override the process runtime config for one-off entrypoint behavior."""
     global _RUNTIME_CONFIG_OVERRIDE  # pylint: disable=global-statement
     _RUNTIME_CONFIG_OVERRIDE = config
-    get_runtime_config.cache_clear()
+    _load_runtime_config_for_market_day.cache_clear()
 
 
 def reset_runtime_config() -> None:
     """Clear the cached runtime config, primarily for tests."""
     set_runtime_config_override(None)
-    get_runtime_config.cache_clear()
+    _load_runtime_config_for_market_day.cache_clear()
 
 
 def get_provider_credentials(provider_name: str) -> dict[str, str]:
