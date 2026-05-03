@@ -663,6 +663,22 @@ def test_viewer_main_env_overrides_runtime_config(monkeypatch):
     assert captured == {"host": "0.0.0.0", "port": 9100}
 
 
+def test_viewer_main_accepts_bracketed_ipv6_env_host(monkeypatch):
+    """Bracketed IPv6 env hosts should be normalized for socket binding."""
+    captured: dict[str, object] = {}
+
+    monkeypatch.setattr(
+        "opx_chain.viewer.get_runtime_config",
+        lambda: build_config("127.0.0.1", 8000),
+    )
+    monkeypatch.setattr("opx_chain.viewer.serve", captured.update)
+    monkeypatch.setenv("OPX_VIEWER_HOST", "[::1]")
+
+    viewer.main()
+
+    assert captured == {"host": "::1", "port": 8000}
+
+
 @pytest.mark.parametrize(
     ("host", "expected_url"),
     [
@@ -730,6 +746,31 @@ def test_viewer_main_rejects_invalid_env_port(monkeypatch):
     monkeypatch.setenv("OPX_VIEWER_PORT", "abc")
 
     with pytest.raises(ValueError, match="Invalid OPX_VIEWER_PORT='abc'"):
+        viewer.main()
+
+
+@pytest.mark.parametrize("host", ["   ", "invalid host", "999.999.999.999", "localhost:8000"])
+def test_viewer_main_rejects_invalid_env_host(monkeypatch, host: str):
+    """Invalid OPX_VIEWER_HOST values should fail before socket bind."""
+    monkeypatch.setattr(
+        "opx_chain.viewer.get_runtime_config",
+        lambda: build_config("127.0.0.1", 8000),
+    )
+    monkeypatch.setenv("OPX_VIEWER_HOST", host)
+
+    with pytest.raises(ValueError, match="Invalid OPX_VIEWER_HOST="):
+        viewer.main()
+
+
+def test_viewer_main_rejects_invalid_config_host(monkeypatch):
+    """Invalid configured viewer hosts should fail before socket bind."""
+    monkeypatch.setattr(
+        "opx_chain.viewer.get_runtime_config",
+        lambda: build_config("invalid host", 8000),
+    )
+    monkeypatch.delenv("OPX_VIEWER_HOST", raising=False)
+
+    with pytest.raises(ValueError, match="Invalid settings.viewer_host="):
         viewer.main()
 
 

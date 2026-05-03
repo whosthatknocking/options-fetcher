@@ -38,6 +38,7 @@ RUNS_DIR = get_data_dir() / "runs"
 POSITIONS_PATH = DEFAULT_POSITIONS_PATH
 CSV_PATTERN = "options_engine_output_*.csv"
 VIEWER_DATASET_DISCOVERY_LIMIT = 10_000
+_HOST_LABEL_RE = re.compile(r"^[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?$")
 _DATA_DIR_OVERRIDE: Path | None = None
 _CSV_MODE: bool = False
 DATASET_CARD_COLUMNS = (
@@ -1053,6 +1054,39 @@ def _resolve_viewer_port(config_port: int) -> int:
     return port
 
 
+def _is_valid_hostname(host: str) -> bool:
+    """Return whether host is syntactically valid for local bind resolution."""
+    if len(host) > 253 or any(char.isspace() for char in host):
+        return False
+    labels = host.rstrip(".").split(".")
+    if not labels or any(not label for label in labels):
+        return False
+    if len(labels) > 1 and all(label.isdigit() for label in labels):
+        return False
+    return all(_HOST_LABEL_RE.fullmatch(label) for label in labels)
+
+
+def _resolve_viewer_host(config_host: str) -> str:
+    """Return a validated viewer bind host from environment or config."""
+    source = "OPX_VIEWER_HOST" if "OPX_VIEWER_HOST" in os.environ else "settings.viewer_host"
+    raw_host = os.environ.get("OPX_VIEWER_HOST", config_host)
+    host = raw_host.strip()
+    if host.startswith("[") and host.endswith("]"):
+        host = host[1:-1].strip()
+    if not host:
+        raise ValueError(
+            f"Invalid {source}={raw_host!r}; expected an IP address or hostname."
+        )
+    try:
+        return ipaddress.ip_address(host).compressed
+    except ValueError:
+        if ":" in host or not _is_valid_hostname(host):
+            raise ValueError(
+                f"Invalid {source}={raw_host!r}; expected an IP address or hostname."
+            ) from None
+    return host
+
+
 def main(argv=None) -> None:
     """Start the local viewer using runtime config with optional env overrides."""
     global _DATA_DIR_OVERRIDE, _CSV_MODE  # pylint: disable=global-statement
@@ -1063,7 +1097,7 @@ def main(argv=None) -> None:
         _DATA_DIR_OVERRIDE = None
     _CSV_MODE = args.csv
     config = get_runtime_config()
-    host = os.environ.get("OPX_VIEWER_HOST", config.viewer_host)
+    host = _resolve_viewer_host(config.viewer_host)
     port = _resolve_viewer_port(config.viewer_port)
     if args.open:
         threading.Timer(0.2, open_viewer_in_browser, args=(host, port)).start()
