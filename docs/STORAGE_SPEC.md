@@ -223,10 +223,12 @@ Examples:
 
 Viewer dataset discovery is already storage-aware. When storage is enabled and
 the viewer is not forced into CSV mode, the viewer discovers datasets through
-`StorageBackend.list_datasets()` and resolves the returned artifact locations.
-It falls back to filesystem discovery when storage is disabled, when CSV mode or
-an explicit data-dir override is active, or when the storage index has no
-readable artifact paths.
+`StorageBackend.list_datasets(limit=10000)` and resolves the returned artifact
+locations. The explicit high limit keeps storage-backed discovery aligned with
+CSV/fallback discovery, which scans all matching local files instead of
+showing only the backend's small default page. It falls back to filesystem
+discovery when storage is disabled, when CSV mode or an explicit data-dir
+override is active, or when the storage index has no readable artifact paths.
 
 Persisting viewer/user preferences remains lower priority than run and dataset
 storage. Preference state is separate from dataset discovery and should be added

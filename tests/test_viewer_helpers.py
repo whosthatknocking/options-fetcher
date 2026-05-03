@@ -1,4 +1,5 @@
 """Viewer helper tests for field descriptions, cards, and freshness metadata."""
+from datetime import datetime, timezone
 from importlib import resources
 import os
 from pathlib import Path
@@ -9,6 +10,7 @@ import pytest
 
 from opx_chain import viewer
 from opx_chain.export import CANONICAL_EXPORT_COLUMNS
+from opx_chain.storage.models import DatasetRecord
 
 
 def build_config(viewer_host: str, viewer_port: int):
@@ -234,6 +236,50 @@ def test_discover_dataset_paths_uses_runtime_storage_dir_fallback(
     monkeypatch.setattr(viewer, "get_runtime_config", lambda: config)
 
     assert viewer.discover_dataset_paths() == [dataset]
+
+
+def test_discover_dataset_paths_requests_uncapped_storage_listing(tmp_path: Path, monkeypatch):
+    """Storage-backed viewer discovery should not inherit the backend's small default cap."""
+
+    class FakeStorage:  # pylint: disable=too-few-public-methods
+        """Storage stub that honors the requested limit like real backends do."""
+
+        def __init__(self, records: list[DatasetRecord]) -> None:
+            self.records = records
+            self.requested_limit = None
+
+        def list_datasets(self, limit=50, **_kwargs):
+            """Return records up to the supplied limit."""
+            self.requested_limit = limit
+            return self.records[:limit]
+
+    records = []
+    for index in range(60):
+        dataset = tmp_path / f"options_engine_output_20260102_12{index:04d}.csv"
+        dataset.write_text("underlying_symbol\nAAPL\n", encoding="utf-8")
+        records.append(
+            DatasetRecord(
+                dataset_id=f"dataset-{index}",
+                run_id=f"run-{index}",
+                created_at=datetime(2026, 1, 2, 12, index % 60, tzinfo=timezone.utc),
+                provider="yfinance",
+                schema_version=1,
+                row_count=1,
+                format="csv",
+                location=str(dataset),
+                content_hash=f"hash-{index}",
+            )
+        )
+    storage = FakeStorage(records)
+
+    monkeypatch.setattr(viewer, "_DATA_DIR_OVERRIDE", None)
+    monkeypatch.setattr(viewer, "_CSV_MODE", False)
+    monkeypatch.setattr(viewer, "get_storage_backend", lambda: storage)
+
+    discovered = viewer.discover_dataset_paths()
+
+    assert storage.requested_limit == viewer.VIEWER_DATASET_DISCOVERY_LIMIT
+    assert len(discovered) == len(records)
 
 
 def test_make_file_listing_stats_each_file_once(tmp_path: Path, monkeypatch):

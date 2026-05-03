@@ -35,6 +35,7 @@ FIELD_REFERENCE_PATH = _PKG_ROOT.parent / "docs" / "FIELD_REFERENCE.md"
 RUNS_DIR = get_data_dir() / "runs"
 POSITIONS_PATH = DEFAULT_POSITIONS_PATH
 CSV_PATTERN = "options_engine_output_*.csv"
+VIEWER_DATASET_DISCOVERY_LIMIT = 10_000
 _DATA_DIR_OVERRIDE: Path | None = None
 _CSV_MODE: bool = False
 DATASET_CARD_COLUMNS = (
@@ -197,7 +198,7 @@ def discover_dataset_paths() -> list[Path]:
     if not _CSV_MODE:
         storage = get_storage_backend()
         if storage is not None:
-            records = storage.list_datasets()
+            records = storage.list_datasets(limit=VIEWER_DATASET_DISCOVERY_LIMIT)
             paths = [Path(r.location) for r in records if Path(r.location).exists()]
             if paths:
                 return paths

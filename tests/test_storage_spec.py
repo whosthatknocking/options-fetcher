@@ -56,6 +56,7 @@ def test_storage_spec_documents_current_viewer_storage_discovery():
     spec = (ROOT / "docs" / "STORAGE_SPEC.md").read_text(encoding="utf-8")
 
     assert "viewer discovers datasets through" in spec
-    assert "`StorageBackend.list_datasets()`" in spec
-    assert "falls back to filesystem discovery" in spec
+    assert "`StorageBackend.list_datasets(limit=10000)`" in spec
+    assert "showing only the backend's small default page" in spec
+    assert "It falls back to filesystem" in spec
     assert "migrating it to the storage port should happen" not in spec
