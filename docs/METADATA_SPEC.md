@@ -31,14 +31,14 @@ One record per fetch run. Created by `create_run`, updated by
 | `script_version` | `str` | NO | 2 | opx-chain package version that opened the run; legacy records without this field read back as `unknown` |
 | `tickers` | `tuple[str, ...]` | NO | 2 | Effective fetch universe for this run, including configured tickers and stock tickers expanded from the positions file; used by ticker-filtered dataset discovery |
 | `config_fingerprint` | `str` | NO | 2 | SHA-256 of the resolved config fields that affect output, including provider, tickers, expiration cap, filters, validation, scoring weights, Greek/HV constants, freshness threshold, provider modes, retry/backoff settings, cache settings, and storage/export settings; excludes credentials, local runtime paths, viewer bind settings, config warnings, and the transient `today` value; two runs with the same fingerprint and positions fingerprint should produce structurally comparable datasets |
-| `positions_fingerprint` | `str` | NO | 2 | SHA-256 of the raw positions file bytes; empty string when no positions file is present; changes when held positions change, making it easy to attribute output differences to position vs. market changes |
+| `positions_fingerprint` | `str` | NO | 2 | SHA-256 of the canonical parsed positions payload; empty string when no positions file is present; changes when held stock or option contracts change, but not for cosmetic CSV rewrites such as line endings, column order, BOMs, or quoting |
 | `dataset_id` | `str` | YES | 2 | FK to `DatasetRecord`; `None` until `write_dataset` succeeds; a run may complete without a dataset if all tickers fail |
 | `error_summary` | `str` | YES | 2 | Short error description when `status = failed` or `interrupted`; `None` otherwise |
 
 **Required by downstream consumer**: `run_id`, `status`, `provider`,
 `tickers`, `positions_fingerprint`. The pipeline reads `positions_fingerprint` to
-detect whether the chain was collected against the same positions file
-that is being processed in the current pipeline run.
+detect whether the chain was collected against the same parsed portfolio that is
+being processed in the current pipeline run.
 
 ---
 

@@ -256,7 +256,7 @@ class RunRecord:
     script_version: str  # opx-chain package version that opened the run
     tickers: tuple[str, ...]     # effective fetch universe for this run
     config_fingerprint: str   # SHA-256 of the resolved config fields that affect output
-    positions_fingerprint: str  # SHA-256 of the positions file bytes; empty string if absent
+    positions_fingerprint: str  # SHA-256 of parsed positions; empty string if absent
     dataset_id: str | None
     error_summary: str | None
 ```
@@ -272,9 +272,10 @@ transient `today` value.
 Two runs with the same fingerprint and the same positions fingerprint should
 produce structurally comparable datasets.
 
-`positions_fingerprint` is the SHA-256 of the raw positions file bytes. It changes
-when any held position changes, making it easy to attribute output differences to
-position changes vs. market changes.
+`positions_fingerprint` is the SHA-256 of the canonical parsed positions
+payload. It changes when any held stock ticker or option contract key changes,
+making it easy to attribute output differences to position changes vs. market
+changes without treating cosmetic CSV rewrites as portfolio changes.
 `script_version` stores the opx-chain package version that created the run. Legacy
 records that predate this field read back as `unknown`.
 

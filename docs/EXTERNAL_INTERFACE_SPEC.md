@@ -213,9 +213,11 @@ run: RunRecord = backend.get_run(run_id)
 Returns the `RunRecord` for the given `run_id`. Raises `KeyError` when the run
 does not exist. Downstream consumers use this to retrieve
 `RunRecord.tickers` — the effective fetch universe for that run — and
-`RunRecord.positions_fingerprint` — the SHA-256 of the positions file that was
-active when the chain was fetched — for cross-checking against the consumer's
-own positions fingerprint.
+`RunRecord.positions_fingerprint` — the SHA-256 of the canonical parsed
+positions payload active when the chain was fetched — for cross-checking against
+the consumer's own positions fingerprint. Cosmetic positions CSV rewrites, such
+as line-ending or column-order changes, do not change this fingerprint when the
+parsed stock and option positions are unchanged.
 
 `status="running"` is transient. If a previous fetch process terminates without
 running cleanup, the next real fetch that acquires the fetcher lock marks stale

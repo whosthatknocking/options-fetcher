@@ -19,7 +19,12 @@ from opx_chain.export import prepare_export_frame, write_options_csv
 from opx_chain.fetch import fetch_ticker_option_chain
 from opx_chain.locks import acquire_nonblocking_file_lock, release_file_lock
 from opx_chain.paths import get_runs_dir
-from opx_chain.positions import DEFAULT_POSITIONS_PATH, load_positions
+from opx_chain.positions import (
+    DEFAULT_POSITIONS_PATH,
+    OptionPositionKey,
+    PositionSet,
+    load_positions,
+)
 from opx_chain.runlog import create_run_logger, log_run_started
 from opx_chain.storage.atomic import atomic_file_write
 from opx_chain.storage.factory import get_data_dir, get_storage_backend
@@ -154,11 +159,26 @@ def _config_fingerprint(config) -> str:
     return hashlib.sha256(json.dumps(fields, sort_keys=True).encode()).hexdigest()
 
 
-def _positions_fingerprint(positions_path: Path) -> str:
-    """Return SHA-256 of the positions file bytes, or empty string if absent."""
+def _option_key_fingerprint_value(key: OptionPositionKey) -> list[object]:
+    return [key.ticker, key.expiration_date, key.option_type, key.strike]
+
+
+def _positions_fingerprint(
+    positions_path: Path,
+    position_set: PositionSet | None = None,
+) -> str:
+    """Return SHA-256 of canonical parsed positions, or empty string if absent."""
     if not positions_path.exists():
         return ""
-    return hashlib.sha256(positions_path.read_bytes()).hexdigest()
+    positions = position_set or load_positions(positions_path)
+    payload = {
+        "stock_tickers": sorted(positions.stock_tickers),
+        "option_keys": sorted(
+            _option_key_fingerprint_value(key)
+            for key in positions.option_keys
+        ),
+    }
+    return hashlib.sha256(json.dumps(payload, sort_keys=True).encode()).hexdigest()
 
 
 def _runtime_data_dir(config) -> Path:
@@ -338,7 +358,10 @@ def _do_fetch_with_lock_held(  # pylint: disable=too-many-branches,too-many-loca
                 provider=config.data_provider,
                 tickers=effective_tickers,
                 config_fingerprint=_config_fingerprint(config),
-                positions_fingerprint=_positions_fingerprint(resolved_positions_path),
+                positions_fingerprint=_positions_fingerprint(
+                    resolved_positions_path,
+                    position_set,
+                ),
             ))
         log_run_started(logger, run_id=run_id, config=config)
         logger.info(

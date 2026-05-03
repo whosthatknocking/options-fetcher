@@ -15,6 +15,7 @@ from opx_chain.fetcher import (
     _CONFIG_FINGERPRINT_EXCLUDED_FIELDS,
     _config_fingerprint,
     _config_fingerprint_payload,
+    _positions_fingerprint,
 )
 from opx_chain.storage.memory import MemoryBackend
 from opx_chain.storage.models import RunContext, RunSummary
@@ -81,6 +82,53 @@ def make_run_context(**overrides):
         "positions_fingerprint": "",
     }
     return RunContext(**{**defaults, **overrides})
+
+
+def test_positions_fingerprint_uses_canonical_parsed_positions(tmp_path: Path):
+    """Cosmetic CSV differences must not change the positions fingerprint."""
+    lf_positions = tmp_path / "positions_lf.csv"
+    crlf_positions = tmp_path / "positions_crlf.csv"
+    reordered_positions = tmp_path / "positions_reordered.csv"
+    lf_positions.write_text(
+        "Symbol,Quantity\n"
+        "TSLA,100\n"
+        "-NVDA260605P200,1\n",
+        encoding="utf-8",
+    )
+    crlf_positions.write_bytes(
+        b"Symbol,Quantity\r\n"
+        b"TSLA,100\r\n"
+        b"-NVDA260605P200,1\r\n"
+    )
+    reordered_positions.write_text(
+        "Quantity,Symbol\n"
+        "100,TSLA\n"
+        "1,-NVDA260605P200\n",
+        encoding="utf-8",
+    )
+
+    assert _positions_fingerprint(lf_positions) == _positions_fingerprint(crlf_positions)
+    assert _positions_fingerprint(lf_positions) == _positions_fingerprint(reordered_positions)
+
+
+def test_positions_fingerprint_changes_when_parsed_positions_change(tmp_path: Path):
+    """Semantic portfolio changes must still change the positions fingerprint."""
+    base_positions = tmp_path / "positions_base.csv"
+    changed_positions = tmp_path / "positions_changed.csv"
+    base_positions.write_text(
+        "Symbol,Quantity\n"
+        "TSLA,100\n"
+        "-NVDA260605P200,1\n",
+        encoding="utf-8",
+    )
+    changed_positions.write_text(
+        "Symbol,Quantity\n"
+        "TSLA,100\n"
+        "-NVDA260605P210,1\n",
+        encoding="utf-8",
+    )
+
+    assert _positions_fingerprint(base_positions) != _positions_fingerprint(changed_positions)
 
 
 def test_main_prints_rows_written_after_saved(monkeypatch, capsys, tmp_path: Path):
