@@ -8,6 +8,7 @@ import json
 import os
 from pathlib import Path
 import shutil
+import signal
 
 import pandas as pd
 
@@ -278,6 +279,33 @@ def _delete_prepublication_artifacts(storage, run_id: str, dataset_record) -> No
         storage.delete_run_artifacts(run_id)
     except Exception:  # pylint: disable=broad-exception-caught
         pass
+
+
+def _raise_keyboard_interrupt_on_sigterm(_signum, _frame) -> None:
+    """Route SIGTERM through the same cleanup path as Ctrl-C."""
+    raise KeyboardInterrupt
+
+
+class _SigtermAsKeyboardInterrupt:
+    """Temporarily translate SIGTERM into KeyboardInterrupt when supported."""
+
+    def __init__(self) -> None:
+        self._previous_handler = None
+        self._installed = False
+
+    def __enter__(self):
+        try:
+            self._previous_handler = signal.getsignal(signal.SIGTERM)
+            signal.signal(signal.SIGTERM, _raise_keyboard_interrupt_on_sigterm)
+            self._installed = True
+        except (AttributeError, ValueError):
+            self._installed = False
+        return self
+
+    def __exit__(self, _exc_type, _exc, _tb) -> bool:
+        if self._installed:
+            signal.signal(signal.SIGTERM, self._previous_handler)
+        return False
 
 
 def _run_log_reference(run_id: str, log_path: Path) -> bytes:
@@ -584,12 +612,13 @@ def run_fetch(
     if dry_run:
         try:
             set_runtime_config_override(config)
-            _do_fetch_with_lock_held(
-                config,
-                positions_path,
-                cli_override=None,
-                dry_run=True,
-            )
+            with _SigtermAsKeyboardInterrupt():
+                _do_fetch_with_lock_held(
+                    config,
+                    positions_path,
+                    cli_override=None,
+                    dry_run=True,
+                )
         finally:
             set_runtime_config_override(None)
         return
@@ -600,12 +629,13 @@ def run_fetch(
         raise RuntimeError(f"Another fetcher run is already active: {lock_path}")
     try:
         set_runtime_config_override(config)
-        _do_fetch_with_lock_held(
-            config,
-            positions_path,
-            cli_override=None,
-            dry_run=dry_run,
-        )
+        with _SigtermAsKeyboardInterrupt():
+            _do_fetch_with_lock_held(
+                config,
+                positions_path,
+                cli_override=None,
+                dry_run=dry_run,
+            )
     finally:
         set_runtime_config_override(None)
         release_fetcher_lock(lock_handle, lock_path)
@@ -615,12 +645,13 @@ def _run_dry_run(config, positions_path: Path | None, cli_override) -> int:
     """Run dry-run validation without acquiring the cross-process fetcher lock."""
     try:
         set_runtime_config_override(config)
-        _do_fetch_with_lock_held(
-            config,
-            positions_path,
-            cli_override=cli_override,
-            dry_run=True,
-        )
+        with _SigtermAsKeyboardInterrupt():
+            _do_fetch_with_lock_held(
+                config,
+                positions_path,
+                cli_override=cli_override,
+                dry_run=True,
+            )
         return 0
     except KeyboardInterrupt:
         return 130
@@ -644,8 +675,9 @@ def main(argv=None):
         return 1
     try:
         set_runtime_config_override(config)
-        _do_fetch_with_lock_held(config, args.positions, cli_override=cli_override,
-                                 dry_run=args.dry_run)
+        with _SigtermAsKeyboardInterrupt():
+            _do_fetch_with_lock_held(config, args.positions, cli_override=cli_override,
+                                     dry_run=args.dry_run)
         return 0
     except KeyboardInterrupt:
         return 130
