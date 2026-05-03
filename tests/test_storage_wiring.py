@@ -413,6 +413,55 @@ def test_fetcher_rolls_back_partial_artifacts_before_dataset_publication(tmp_pat
     assert runs[0].status == "failed"
 
 
+def test_fetcher_rolls_back_partial_artifacts_on_keyboard_interrupt(tmp_path: Path):
+    """KeyboardInterrupt before dataset publication must remove earlier artifacts."""
+    from opx_chain import fetcher  # pylint: disable=import-outside-toplevel
+
+    class InterruptingArtifactBackend(MemoryBackend):
+        """Memory backend that interrupts after writing the first artifact."""
+
+        def __init__(self):
+            super().__init__()
+            self.artifact_attempts = 0
+            self.delete_run_artifacts_called = False
+            self.write_dataset_called = False
+
+        def write_artifact(self, run_id, artifact):
+            self.artifact_attempts += 1
+            if self.artifact_attempts == 2:
+                raise KeyboardInterrupt
+            return super().write_artifact(run_id, artifact)
+
+        def delete_run_artifacts(self, run_id):
+            self.delete_run_artifacts_called = True
+            return super().delete_run_artifacts(run_id)
+
+        def write_dataset(self, run_id, dataset):
+            self.write_dataset_called = True
+            return super().write_dataset(run_id, dataset)
+
+    backend = InterruptingArtifactBackend()
+    config = make_runtime_config(storage_enabled=True)
+    positions_file = tmp_path / "positions.csv"
+    positions_file.write_text("Symbol\nTSLA\n", encoding="utf-8")
+    patches = _fetcher_patches(tmp_path, config, backend)
+
+    with patches[0], patches[1], patches[2], patches[3], patches[4], \
+         patches[5], patches[6], patches[7], patches[8], patches[9], \
+         patches[10], patches[11]:
+        result = fetcher.main(["--positions", str(positions_file)])
+
+    assert result == 130
+    assert backend.artifact_attempts == 2
+    assert backend.delete_run_artifacts_called
+    assert not backend.write_dataset_called
+    assert not backend.list_datasets()
+    assert not backend._artifacts  # pylint: disable=protected-access
+    runs = list(backend._runs.values())  # pylint: disable=protected-access
+    assert len(runs) == 1
+    assert runs[0].status == "interrupted"
+
+
 def test_fetcher_skips_storage_when_disabled(tmp_path: Path):
     """When storage is disabled, write_dataset must never be called."""
     from opx_chain import fetcher  # pylint: disable=import-outside-toplevel

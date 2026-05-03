@@ -270,6 +270,16 @@ def _record_validation_findings(storage, run_id: str, findings: list[ValidationF
         ))
 
 
+def _delete_prepublication_artifacts(storage, run_id: str, dataset_record) -> None:
+    """Remove run artifacts when fetch exits before dataset publication."""
+    if dataset_record is not None:
+        return
+    try:
+        storage.delete_run_artifacts(run_id)
+    except Exception:  # pylint: disable=broad-exception-caught
+        pass
+
+
 def _run_log_reference(run_id: str, log_path: Path) -> bytes:
     """Return a storage-managed reference to the shared append-only run log."""
     payload = {
@@ -523,6 +533,7 @@ def _do_fetch_with_lock_held(  # pylint: disable=too-many-branches,too-many-loca
         if logger:
             logger.warning("run_finished interrupted=true")
         if storage is not None and run_id is not None:
+            _delete_prepublication_artifacts(storage, run_id, dataset_record)
             storage.finalize_run(
                 run_id, RunSummary(status="interrupted", error_summary="interrupted")
             )
@@ -532,11 +543,7 @@ def _do_fetch_with_lock_held(  # pylint: disable=too-many-branches,too-many-loca
         if logger:
             logger.exception("run_finished fatal error: %s", exc)
         if storage is not None and run_id is not None:
-            if dataset_record is None:
-                try:
-                    storage.delete_run_artifacts(run_id)
-                except Exception:  # pylint: disable=broad-exception-caught
-                    pass
+            _delete_prepublication_artifacts(storage, run_id, dataset_record)
             try:
                 storage.fail_run(run_id, str(exc))
             except Exception:  # pylint: disable=broad-exception-caught
