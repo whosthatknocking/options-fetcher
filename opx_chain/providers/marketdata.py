@@ -146,9 +146,8 @@ class MarketDataProvider(DataProvider):
         """Return the configured Market Data retry backoff base."""
         return get_runtime_config().marketdata_backoff_seconds
 
-    def _raw_endpoint_url(self, endpoint: str) -> str:
+    def _raw_endpoint_url(self, endpoint: str, mode: Mode | None = None) -> str:
         """Return a raw SDK endpoint URL with configured mode applied when needed."""
-        mode = self._mode()
         if mode is None:
             return endpoint
         separator = "&" if "?" in endpoint else "?"
@@ -350,7 +349,7 @@ class MarketDataProvider(DataProvider):
         raise RuntimeError(f"Market Data {context} failed: {message or f'HTTP {status_code}'}")
 
     @lru_cache(maxsize=32)
-    def _chain_frame(self, ticker: str) -> pd.DataFrame:
+    def _chain_frame(self, ticker: str, mode: Mode | None) -> pd.DataFrame:
         """Load the full option chain once and split/filter it in memory."""
         self._debug_call_sequence = 0
         self._active_debug_ticker = ticker.upper()
@@ -359,7 +358,7 @@ class MarketDataProvider(DataProvider):
                 ticker.upper(),
                 expiration="all",
                 output_format=OutputFormat.INTERNAL,
-                mode=self._mode(),
+                mode=mode,
             )  # pylint: disable=missing-kwoa
             chain = self._raise_if_error(result, context="options chain request")
             payload = {
@@ -380,11 +379,12 @@ class MarketDataProvider(DataProvider):
 
     def load_underlying_snapshot(self, ticker: str) -> dict:
         """Load the underlying snapshot from the cached Market Data chain payload."""
-        quote_snapshot = self._fetch_stock_quote_snapshot(ticker)
+        mode = self._mode()
+        quote_snapshot = self._fetch_stock_quote_snapshot(ticker, mode)
         if quote_snapshot is not None:
             return quote_snapshot
 
-        chain_frame = self._chain_frame(ticker)
+        chain_frame = self._chain_frame(ticker, mode)
         return self._snapshot_from_chain_frame(chain_frame)
 
     @staticmethod
@@ -425,13 +425,13 @@ class MarketDataProvider(DataProvider):
         }
 
     @lru_cache(maxsize=32)
-    def _fetch_stock_quote_snapshot(self, ticker: str) -> dict | None:
+    def _fetch_stock_quote_snapshot(self, ticker: str, mode: Mode | None) -> dict | None:
         """Load a stock quote snapshot so spot price and change stay internally consistent."""
         self._active_debug_ticker = ticker.upper()
         try:
             response = self._client()._make_request(  # pylint: disable=protected-access
                 method="GET",
-                url=self._raw_endpoint_url(f"stocks/quotes/{ticker.upper()}/"),
+                url=self._raw_endpoint_url(f"stocks/quotes/{ticker.upper()}/", mode),
             )
             self._raise_raw_response_if_error(response, context="stock quote request")
             quote_data = self._decode_response_json(response)
@@ -530,7 +530,7 @@ class MarketDataProvider(DataProvider):
         try:
             response = self._client()._make_request(  # pylint: disable=protected-access
                 method="GET",
-                url=self._raw_endpoint_url(f"stocks/dividends/{ticker.upper()}/"),
+                url=self._raw_endpoint_url(f"stocks/dividends/{ticker.upper()}/", self._mode()),
                 raise_for_status=False,
                 retry_status_codes=[],
             )
@@ -574,7 +574,7 @@ class MarketDataProvider(DataProvider):
 
     def list_option_expirations(self, ticker: str) -> list[str]:
         """Return distinct expiration dates present in the full chain payload."""
-        frame = self._chain_frame(ticker)
+        frame = self._chain_frame(ticker, self._mode())
         if frame.empty or "expiration_date" not in frame.columns:
             return []
         expirations = frame["expiration_date"].dropna().astype(str).unique().tolist()
@@ -582,7 +582,7 @@ class MarketDataProvider(DataProvider):
 
     def load_option_chain(self, ticker: str, expiration_date: str) -> OptionChainFrames:
         """Filter the cached chain payload down to one expiration and split by side."""
-        frame = self._chain_frame(ticker)
+        frame = self._chain_frame(ticker, self._mode())
         if frame.empty:
             return OptionChainFrames(calls=pd.DataFrame(), puts=pd.DataFrame())
 

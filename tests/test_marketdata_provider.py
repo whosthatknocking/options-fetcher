@@ -200,10 +200,10 @@ def test_marketdata_prepare_ticker_fetch_clears_ticker_caches(monkeypatch):
     client = fake_client(provider)
     provider.prepare_ticker_fetch("TSLA")
 
-    provider._fetch_stock_quote_snapshot("TSLA")  # pylint: disable=protected-access
-    provider._fetch_stock_quote_snapshot("TSLA")  # pylint: disable=protected-access
-    provider._chain_frame("TSLA")  # pylint: disable=protected-access
-    provider._chain_frame("TSLA")  # pylint: disable=protected-access
+    provider._fetch_stock_quote_snapshot("TSLA", None)  # pylint: disable=protected-access
+    provider._fetch_stock_quote_snapshot("TSLA", None)  # pylint: disable=protected-access
+    provider._chain_frame("TSLA", None)  # pylint: disable=protected-access
+    provider._chain_frame("TSLA", None)  # pylint: disable=protected-access
 
     assert client.last_chain_kwargs is not None  # pylint: disable=no-member
     assert provider._fetch_stock_quote_snapshot.cache_info().hits == 1  # pylint: disable=protected-access,no-value-for-parameter
@@ -301,6 +301,36 @@ def test_marketdata_provider_passes_configured_mode(monkeypatch):
     provider.list_option_expirations("TSLA")
 
     assert str(fake_client(provider).last_chain_kwargs["mode"].value) == "delayed"  # pylint: disable=no-member
+
+
+def test_marketdata_ticker_cache_keys_include_configured_mode(monkeypatch):
+    """In-process chain and quote caches should not cross Market Data modes."""
+    patch_marketdata_client(monkeypatch)
+    selected_mode = "delayed"
+    monkeypatch.setattr(
+        "opx_chain.providers.marketdata.get_runtime_config",
+        lambda: make_runtime_config(marketdata_mode=selected_mode),
+    )
+    provider = MarketDataProvider()
+    client = fake_client(provider)
+
+    provider.list_option_expirations("TSLA")
+    selected_mode = "live"
+    provider.list_option_expirations("TSLA")
+    selected_mode = "delayed"
+    provider.load_underlying_snapshot("TSLA")
+    selected_mode = "live"
+    provider.load_underlying_snapshot("TSLA")
+
+    request_urls = getattr(client, "request_urls")
+    chain_urls = [url for url in request_urls if "options/chain/" in url]
+    quote_urls = [url for url in request_urls if "stocks/quotes/" in url]
+    assert len(chain_urls) == 2
+    assert quote_urls == [
+        "stocks/quotes/TSLA/?mode=delayed",
+        "stocks/quotes/TSLA/?mode=live",
+    ]
+    assert str(client.last_chain_kwargs["mode"].value) == "live"  # pylint: disable=no-member
 
 
 def test_marketdata_provider_passes_configured_mode_to_raw_endpoints(monkeypatch):
