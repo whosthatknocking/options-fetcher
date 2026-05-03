@@ -12,6 +12,16 @@ from opx_chain.normalize import (
 from opx_chain.positions import OptionPositionKey, STRIKE_MATCH_TOLERANCE
 
 
+class NonMatchingTickerStrike:
+    """Sentinel strike that fails if non-matching ticker keys are evaluated."""
+
+    def __rsub__(self, _value):
+        raise AssertionError("non-matching ticker key should not evaluate strike math")
+
+    def __repr__(self) -> str:
+        return "NonMatchingTickerStrike()"
+
+
 def test_filter_zero_bid_quotes_excludes_only_explicit_zero_bid_rows():
     """Rows with NaN bids should remain while explicit zero bids are removed."""
     frame = pd.DataFrame(
@@ -205,3 +215,39 @@ def test_position_bypass_uses_strike_match_tolerance(monkeypatch):
     result = apply_post_download_filters(frame, underlying_price=200.0, position_keys=position_keys)
 
     assert "FUZZ" in result["contract_symbol"].values
+
+
+def test_position_bypass_prefilters_position_keys_by_ticker(monkeypatch):
+    """Position matching should not evaluate keys for tickers absent from the frame."""
+    def make_config():
+        return type("Config", (), {
+            "enable_filters": True,
+            "max_strike_distance_pct": 0.35,
+            "max_spread_pct_of_mid": 0.25,
+        })()
+
+    monkeypatch.setattr("opx_chain.normalize.get_runtime_config", make_config)
+    frame = pd.DataFrame([
+        {
+            "contract_symbol": "TSLA_PUT",
+            "underlying_symbol": "TSLA",
+            "expiration_date": "2026-08-21",
+            "option_type": "put",
+            "strike": 360.0,
+            "bid": 5.0,
+            "bid_ask_spread_pct_of_mid": 0.10,
+            "underlying_price": 391.0,
+        },
+    ])
+    position_keys = frozenset([
+        OptionPositionKey(
+            ticker="NVDA",
+            expiration_date="2026-08-21",
+            option_type="put",
+            strike=NonMatchingTickerStrike(),
+        )
+    ])
+
+    result = apply_post_download_filters(frame, underlying_price=391.0, position_keys=position_keys)
+
+    assert result["contract_symbol"].tolist() == ["TSLA_PUT"]

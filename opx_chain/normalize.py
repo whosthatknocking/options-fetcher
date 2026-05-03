@@ -108,7 +108,8 @@ def _matches_any_position(df, option_keys):
     required = {"underlying_symbol", "expiration_date", "option_type", "strike"}
     if not required.issubset(df.columns):
         return mask
-    for key in option_keys:
+    tickers = set(df["underlying_symbol"].dropna().unique())
+    for key in (key for key in option_keys if key.ticker in tickers):
         row_mask = (
             (df["underlying_symbol"] == key.ticker)
             & (df["expiration_date"] == key.expiration_date)
