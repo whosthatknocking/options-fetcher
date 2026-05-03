@@ -6,6 +6,7 @@ from __future__ import annotations
 import argparse
 import csv
 import json
+import math
 import os
 import re
 import threading
@@ -276,6 +277,24 @@ def normalize_value(value: Any) -> Any:
     if isinstance(value, (pd.Timestamp,)):
         return value.isoformat()
     return value.item() if hasattr(value, "item") else value
+
+
+def sanitize_json_payload(value: Any) -> Any:
+    """Convert nested payload values into strict JSON-safe primitives."""
+    if isinstance(value, dict):
+        return {key: sanitize_json_payload(item) for key, item in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [sanitize_json_payload(item) for item in value]
+    normalized = value
+    if isinstance(normalized, pd.Timestamp):
+        normalized = normalized.isoformat()
+    elif isinstance(normalized, float) and not math.isfinite(normalized):
+        normalized = None
+    elif hasattr(normalized, "item") and not isinstance(normalized, (str, bytes, bytearray)):
+        normalized = sanitize_json_payload(normalized.item())
+    elif pd.isna(normalized):
+        normalized = None
+    return normalized
 
 
 def normalize_row_value(column: str, value: Any) -> Any:
@@ -918,7 +937,7 @@ class ViewerRequestHandler(SimpleHTTPRequestHandler):
 
     def respond_json(self, payload: dict[str, Any], status: HTTPStatus = HTTPStatus.OK) -> None:
         """Serialize and send a JSON response for one of the API endpoints."""
-        encoded = json.dumps(payload).encode("utf-8")
+        encoded = json.dumps(sanitize_json_payload(payload), allow_nan=False).encode("utf-8")
         self.send_response(status)
         self.send_header("Content-Type", "application/json; charset=utf-8")
         self.send_header("Content-Length", str(len(encoded)))

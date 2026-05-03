@@ -1,6 +1,8 @@
 """Viewer helper tests for field descriptions, cards, and freshness metadata."""
 from datetime import datetime, timezone
+import io
 from importlib import resources
+import json
 import os
 from pathlib import Path
 import textwrap
@@ -166,6 +168,32 @@ def test_normalize_row_value_keeps_days_to_expiration_as_integer():
     """Viewer payload serialization should keep days_to_expiration whole."""
     assert viewer.normalize_row_value("days_to_expiration", 14.0) == 14
     assert viewer.normalize_row_value("time_to_expiration_years", 14.0) == 14.0
+
+
+def test_respond_json_serializes_non_finite_values_as_null():
+    """Viewer JSON responses must stay parseable by strict JSON clients."""
+    handler = object.__new__(viewer.ViewerRequestHandler)
+    handler.wfile = io.BytesIO()
+    headers: list[tuple[str, str]] = []
+    handler.send_response = lambda _status: None
+    handler.send_header = lambda name, value: headers.append((name, value))
+    handler.end_headers = lambda: None
+
+    handler.respond_json({
+        "nan_value": float("nan"),
+        "infinite_value": float("inf"),
+        "nested": [{"negative_infinite_value": float("-inf")}],
+    })
+
+    body = handler.wfile.getvalue().decode("utf-8")
+    assert "NaN" not in body
+    assert "Infinity" not in body
+    assert json.loads(body) == {
+        "nan_value": None,
+        "infinite_value": None,
+        "nested": [{"negative_infinite_value": None}],
+    }
+    assert ("Content-Type", "application/json; charset=utf-8") in headers
 
 
 def test_load_positions_payload_reads_rows_and_stops_before_footer(tmp_path: Path):
