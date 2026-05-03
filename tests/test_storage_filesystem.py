@@ -12,6 +12,7 @@ import pandas as pd
 import pytest
 
 from conftest import make_runtime_config
+import opx_chain.storage.filesystem as filesystem_mod
 from opx_chain.storage.base import StorageBackend
 from opx_chain.storage.factory import get_storage_backend
 from opx_chain.storage.filesystem import FilesystemBackend
@@ -530,6 +531,26 @@ def test_pruning_uses_created_at_not_meta_file_mtime(tmp_path: Path):
     assert r1.dataset_id not in ids
     assert r2.dataset_id in ids
     assert r3.dataset_id in ids
+
+
+def test_pruning_selects_only_oldest_excess_meta_files(tmp_path: Path, monkeypatch):
+    """Filesystem pruning must avoid fully sorting every retained meta file."""
+    calls = []
+    original_nsmallest = filesystem_mod.nsmallest
+
+    def tracking_nsmallest(count, iterable, *, key=None):
+        items = list(iterable)
+        calls.append((count, len(items), key is not None))
+        return original_nsmallest(count, items, key=key)
+
+    monkeypatch.setattr(filesystem_mod, "nsmallest", tracking_nsmallest)
+    backend = _make_backend(tmp_path, max_runs_retained=2)
+    run_id = backend.create_run(_make_context())
+    _write(backend, run_id)
+    _write(backend, run_id)
+    _write(backend, run_id)
+
+    assert calls == [(1, 3, True)]
 
 
 def test_pruning_removes_artifact_file(tmp_path: Path):

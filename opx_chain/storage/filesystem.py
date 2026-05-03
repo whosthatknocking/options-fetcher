@@ -7,6 +7,7 @@ import json
 import shutil
 import uuid
 from datetime import datetime, timezone
+from heapq import nsmallest
 from pathlib import Path
 
 from opx_chain.storage.models import (
@@ -301,12 +302,11 @@ class FilesystemBackend:
     def _prune_datasets(self) -> None:
         if self._max_runs_retained <= 0:
             return
-        meta_files = sorted(
-            self._runs_dir.glob("*/output/*.meta.json"),
-            key=self._meta_created_at_sort_key,
-        )
+        meta_files = list(self._runs_dir.glob("*/output/*.meta.json"))
         excess = len(meta_files) - self._max_runs_retained
-        for meta_path in meta_files[:excess]:
+        if excess <= 0:
+            return
+        for meta_path in nsmallest(excess, meta_files, key=self._meta_created_at_sort_key):
             try:
                 data = json.loads(meta_path.read_text(encoding="utf-8"))
                 artifact = meta_path.parent / Path(data["location"]).name

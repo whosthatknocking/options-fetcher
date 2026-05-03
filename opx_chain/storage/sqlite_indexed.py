@@ -329,10 +329,13 @@ class SqliteIndexedBackend:
         if self._max_runs_retained <= 0:
             return
         rows = conn.execute(
-            "SELECT dataset_id, run_id, location FROM datasets ORDER BY created_at DESC"
+            "SELECT dataset_id, run_id, location "
+            "FROM datasets "
+            "ORDER BY created_at DESC "
+            "LIMIT -1 OFFSET ?",
+            (self._max_runs_retained,),
         ).fetchall()
-        excess = rows[self._max_runs_retained:]
-        for row in excess:
+        for row in rows:
             artifact = Path(row["location"])
             if artifact.exists():
                 artifact.unlink(missing_ok=True)

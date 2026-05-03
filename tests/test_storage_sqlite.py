@@ -600,6 +600,33 @@ def test_pruning_removes_oldest_when_limit_exceeded(tmp_path: Path):
     assert r3.dataset_id in ids
 
 
+def test_pruning_queries_only_excess_rows(tmp_path: Path):
+    """Pruning must let SQLite skip retained rows instead of slicing all rows in Python."""
+    backend = _make_backend(tmp_path, max_runs_retained=7)
+    calls = []
+
+    class EmptyCursor:  # pylint: disable=too-few-public-methods
+        """Cursor stub returning no prunable rows."""
+
+        def fetchall(self):
+            """Return an empty pruning result set."""
+            return []
+
+    class TrackingConnection:  # pylint: disable=too-few-public-methods
+        """Connection stub that records the pruning query."""
+
+        def execute(self, sql, params=()):
+            """Record the query and return an empty cursor."""
+            calls.append((sql, params))
+            return EmptyCursor()
+
+    backend._prune_datasets(TrackingConnection())  # pylint: disable=protected-access
+
+    sql, params = calls[0]
+    assert "LIMIT -1 OFFSET ?" in sql
+    assert params == (7,)
+
+
 def test_pruning_removes_artifact_file(tmp_path: Path):
     """Pruning must delete the artifact file on disk."""
     backend = _make_backend(tmp_path, max_runs_retained=1)
