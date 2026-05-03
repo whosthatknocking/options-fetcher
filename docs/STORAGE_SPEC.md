@@ -559,8 +559,10 @@ an empty string. This is the current behavior and the contract for the CSV
 format: **a blank cell means the field was not available for that row**.
 
 Consumers reading the CSV must treat empty cells as absent values, not as
-zero, false, or the empty string. Type inference is the consumer's
-responsibility.
+zero, false, or the empty string. The supported `read_dataset_file(path)` helper
+normalizes CSV reads back to the canonical nullable dtypes used by parquet for
+whole-number, boolean, and quote timestamp fields. Direct raw `pd.read_csv`
+consumers are responsible for applying equivalent dtype coercion themselves.
 
 ### 10.3 Parquet serializer behavior
 
@@ -603,7 +605,9 @@ must match the artifact bytes written by the backend.
 storage is selected, so `opx-fetch --dry-run` and backend construction fail
 fast before provider calls instead of failing after rows are fetched. Reading
 parquet files uses `opx_chain.utils.read_dataset_file(path)`, which dispatches
-on file extension.
+on file extension and normalizes format-sensitive canonical dtypes so CSV and
+parquet artifacts expose consistent nullable integer, nullable boolean, and UTC
+quote timestamp columns.
 
 ## 12. Dataset Retention
 

@@ -239,8 +239,12 @@ df = read_dataset_file(handle.location)  # dispatches on .csv / .parquet extensi
 ```
 
 `read_dataset_file` is the recommended reader. It selects `pd.read_parquet` or
-`pd.read_csv` based on the file extension, matching `handle.format`. Parquet
-requires the optional `pyarrow` dependency (`pip install 'opx-chain[parquet]'`).
+`pd.read_csv` based on the file extension, matching `handle.format`, then
+normalizes format-sensitive canonical dtypes. Whole-number fields such as
+`days_to_expiration` read back as nullable `Int64`, boolean fields read back as
+nullable `boolean`, and quote timestamp fields read back as UTC
+`datetime64[ns, UTC]` for both CSV and parquet artifacts. Parquet requires the
+optional `pyarrow` dependency (`pip install 'opx-chain[parquet]'`).
 
 ### 3.8 Parsing positions consistently
 
