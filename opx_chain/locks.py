@@ -27,6 +27,9 @@ def _ensure_lock_byte(handle: TextIO) -> None:
 
 def acquire_nonblocking_file_lock(path: Path) -> TextIO | None:
     """Acquire an exclusive non-blocking file lock, or return None if busy."""
+    if fcntl is None and msvcrt is None:
+        raise OSError("no file-lock implementation available")
+
     path.parent.mkdir(parents=True, exist_ok=True)
     handle = path.open("a+", encoding="utf-8")
     try:
@@ -35,8 +38,6 @@ def acquire_nonblocking_file_lock(path: Path) -> TextIO | None:
         elif msvcrt is not None:
             _ensure_lock_byte(handle)
             msvcrt.locking(handle.fileno(), msvcrt.LK_NBLCK, 1)
-        else:
-            raise OSError("no file-lock implementation available")
     except OSError:
         handle.close()
         return None
