@@ -895,7 +895,13 @@ class ViewerRequestHandler(SimpleHTTPRequestHandler):
         self.send_header("Expires", "0")
         super().end_headers()
 
-    def _respond_payload(self, payload_factory, csv_name: str | None = None) -> None:
+    def _respond_payload(
+        self,
+        payload_factory,
+        csv_name: str | None = None,
+        *,
+        error_label: str = "dataset",
+    ) -> None:
         """Run a payload factory and translate errors into JSON error responses."""
         try:
             payload = payload_factory(csv_name)
@@ -904,7 +910,7 @@ class ViewerRequestHandler(SimpleHTTPRequestHandler):
             return
         except Exception as exc:  # pylint: disable=broad-except
             self.respond_json(
-                {"error": f"Failed to load dataset: {exc}"},
+                {"error": f"Failed to load {error_label}: {exc}"},
                 status=HTTPStatus.INTERNAL_SERVER_ERROR,
             )
             return
@@ -914,10 +920,16 @@ class ViewerRequestHandler(SimpleHTTPRequestHandler):
         """Serve viewer JSON endpoints or fall back to static assets."""
         parsed = urlparse(self.path)
         if parsed.path == "/api/files":
-            self.respond_json({"files": make_file_listing()})
+            self._respond_payload(
+                lambda _csv_name: {"files": make_file_listing()},
+                error_label="file listing",
+            )
             return
         if parsed.path == "/api/positions":
-            self._respond_payload(lambda _csv_name: load_positions_payload())
+            self._respond_payload(
+                lambda _csv_name: load_positions_payload(),
+                error_label="positions",
+            )
             return
         if parsed.path == "/api/data":
             query = parse_qs(parsed.query)
@@ -925,12 +937,15 @@ class ViewerRequestHandler(SimpleHTTPRequestHandler):
             self._respond_payload(load_csv_payload, csv_name)
             return
         if parsed.path == "/api/reference":
-            self.respond_json({"markdown": load_field_reference_markdown()})
+            self._respond_payload(
+                lambda _csv_name: {"markdown": load_field_reference_markdown()},
+                error_label="field reference",
+            )
             return
         if parsed.path == "/api/summary":
             query = parse_qs(parsed.query)
             csv_name = query.get("file", [None])[0]
-            self._respond_payload(build_summary_payload, csv_name)
+            self._respond_payload(build_summary_payload, csv_name, error_label="summary")
             return
         if parsed.path == "/":
             self.path = "/index.html"  # pylint: disable=attribute-defined-outside-init

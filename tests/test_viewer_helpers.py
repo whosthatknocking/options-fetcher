@@ -1,6 +1,7 @@
 """Viewer helper tests for field descriptions, cards, and freshness metadata."""
 from datetime import datetime, timezone
 import io
+from http import HTTPStatus
 from importlib import resources
 import json
 import os
@@ -194,6 +195,53 @@ def test_respond_json_serializes_non_finite_values_as_null():
         "nested": [{"negative_infinite_value": None}],
     }
     assert ("Content-Type", "application/json; charset=utf-8") in headers
+
+
+def _capture_api_response(handler):
+    """Capture JSON endpoint responses from a handler built without a socket."""
+    captured: dict[str, object] = {}
+    handler.respond_json = lambda payload, status=HTTPStatus.OK: captured.update(
+        {"payload": payload, "status": status}
+    )
+    return captured
+
+
+def test_api_files_returns_structured_error_json(monkeypatch):
+    """File listing failures should return JSON 500 responses, not uncaught errors."""
+    handler = object.__new__(viewer.ViewerRequestHandler)
+    handler.path = "/api/files"
+    captured = _capture_api_response(handler)
+
+    def fail_listing():
+        raise RuntimeError("disk unavailable")
+
+    monkeypatch.setattr(viewer, "make_file_listing", fail_listing)
+
+    handler.do_GET()
+
+    assert captured == {
+        "payload": {"error": "Failed to load file listing: disk unavailable"},
+        "status": HTTPStatus.INTERNAL_SERVER_ERROR,
+    }
+
+
+def test_api_reference_returns_structured_not_found_json(monkeypatch):
+    """Reference markdown failures should use the same FileNotFound JSON contract."""
+    handler = object.__new__(viewer.ViewerRequestHandler)
+    handler.path = "/api/reference"
+    captured = _capture_api_response(handler)
+
+    def missing_reference():
+        raise FileNotFoundError("FIELD_REFERENCE.md missing")
+
+    monkeypatch.setattr(viewer, "load_field_reference_markdown", missing_reference)
+
+    handler.do_GET()
+
+    assert captured == {
+        "payload": {"error": "FIELD_REFERENCE.md missing"},
+        "status": HTTPStatus.NOT_FOUND,
+    }
 
 
 def test_load_positions_payload_reads_rows_and_stops_before_footer(tmp_path: Path):
