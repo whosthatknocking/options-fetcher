@@ -1,5 +1,7 @@
 """Market Data provider tests covering SDK parsing and shared fetch behavior."""
 
+# pylint: disable=too-many-lines
+
 from datetime import date, datetime, timezone
 from typing import cast
 from zoneinfo import ZoneInfo
@@ -380,6 +382,53 @@ def test_marketdata_provider_retries_rate_limits(monkeypatch):
 
     assert response.status_code == 200
     assert sleep_calls == [0.25]
+
+
+def test_marketdata_provider_retries_rate_limits_with_http_date(monkeypatch):
+    """HTTP-date Retry-After headers should also determine retry delay."""
+    patch_marketdata_client(monkeypatch)
+    monkeypatch.setattr(
+        "opx_chain.providers.marketdata.get_runtime_config",
+        lambda: make_runtime_config(
+            marketdata_max_retries=2,
+            marketdata_request_interval_seconds=0.0,
+        ),
+    )
+
+    class FixedDateTime(datetime):
+        """Freeze provider clock for HTTP-date Retry-After delay math."""
+
+        @classmethod
+        def now(cls, tz=None):
+            fixed = datetime(2026, 5, 2, 12, 0, 0, tzinfo=timezone.utc)
+            if tz is None:
+                return fixed.replace(tzinfo=None)
+            return fixed.astimezone(tz)
+
+    sleep_calls = []
+    monkeypatch.setattr("opx_chain.providers.marketdata.datetime", FixedDateTime)
+    monkeypatch.setattr("opx_chain.providers.marketdata.time.sleep", sleep_calls.append)
+    provider = MarketDataProvider()
+    responses = iter(
+        [
+            FakeResponse(
+                429,
+                {"s": "error"},
+                headers={"Retry-After": "Sat, 02 May 2026 12:00:02 GMT"},
+            ),
+            FakeResponse(200, {"optionSymbol": ["TSLA260417C00100000"]}),
+        ]
+    )
+
+    def fake_request(_method, _url, *_args, **_kwargs):
+        return next(responses)
+
+    wrapped = provider._wrap_logged_request(fake_request)  # pylint: disable=protected-access
+
+    response = wrapped("GET", "https://api.marketdata.app/v1/options/chain/TSLA/")
+
+    assert response.status_code == 200
+    assert sleep_calls == [2.0]
 
 
 def test_marketdata_provider_uses_configured_backoff_without_retry_after(monkeypatch):

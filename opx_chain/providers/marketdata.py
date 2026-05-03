@@ -5,6 +5,7 @@
 from __future__ import annotations
 
 from datetime import date, datetime, timezone
+from email.utils import parsedate_to_datetime
 from functools import lru_cache
 import logging
 import time
@@ -298,8 +299,22 @@ class MarketDataProvider(DataProvider):
             try:
                 return max(float(retry_after), 0.0)
             except (TypeError, ValueError):
-                pass
+                retry_at = self._parse_retry_after_http_date(retry_after)
+                if retry_at is not None:
+                    return retry_at
         return self._backoff_seconds() * (2 ** attempt)
+
+    @staticmethod
+    def _parse_retry_after_http_date(retry_after: str) -> float | None:
+        """Return seconds until an HTTP-date Retry-After value, when parseable."""
+        try:
+            retry_at = parsedate_to_datetime(retry_after)
+        except (TypeError, ValueError, IndexError, OverflowError):
+            return None
+        if retry_at.tzinfo is None:
+            retry_at = retry_at.replace(tzinfo=timezone.utc)
+        retry_at = retry_at.astimezone(timezone.utc)
+        return max((retry_at - datetime.now(timezone.utc)).total_seconds(), 0.0)
 
     @staticmethod
     def _classify_endpoint(url: str) -> str:
