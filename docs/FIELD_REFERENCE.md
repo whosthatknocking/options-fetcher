@@ -56,7 +56,7 @@ that field or apply its own default for the downstream calculation.
 - `underlying_price`: Current underlying stock price used in calculations. Use it as the reference price for moneyness and Greeks.
 - `underlying_day_change_pct`: Underlying percentage move versus previous close. Use it to add context to the option chain. Large absolute moves mean the underlying is already having an outsized session. This can be blank for providers that do not expose a reliable underlying previous-close context in the active fetch path.
 - `historical_volatility`: Annualized realized volatility computed from the underlying's trailing 30 daily log returns. Use it to compare recent realized movement against option-implied pricing. Lower is calmer; higher means the stock has been moving more. This is currently expected to be blank for `massive` and `marketdata`.
-- `underlying_price_time`: Timestamp of the underlying quote snapshot. Use it to compare timing with the option quote.
+- `underlying_price_time`: UTC timestamp of the underlying quote snapshot. CSV export uses ISO format with fractional seconds preserved when provided by the upstream provider. Use it to compare timing with the option quote.
 - `underlying_price_age_seconds`: Age of the underlying quote at fetch time. Use it to detect stale stock prices. Lower is better; high values mean the stock snapshot may be stale.
 - `is_stale_underlying_price`: Flag showing whether the underlying quote is older than the configured staleness threshold. Use it to down-rank stale rows.
 
@@ -73,7 +73,7 @@ that field or apply its own default for the downstream calculation.
 - `listed_strike_increment`: Per-(underlying, option_type) minimum adjacent strike spacing, derived from the nearest expiration that has at least three distinct strikes. Broadcast to all rows for the (underlying, option_type) pair. Blank when no qualifying expiration is found. Use it to understand the resolution of the strike ladder for a given underlying and to detect non-standard increments.
 - `change`: Absolute price change reported by the vendor. Use it to understand the contract's move during the session. This is currently expected to be blank for `marketdata`.
 - `percent_change`: Percentage price change reported by the vendor. Use it for relative move comparisons. This is currently expected to be blank for `marketdata`.
-- `option_quote_time`: Timestamp of the option quote or last trade update. Use it to measure quote freshness.
+- `option_quote_time`: UTC timestamp of the option quote or last trade update. CSV export uses ISO format with fractional seconds preserved when provided by the upstream provider. Use it to measure quote freshness.
 - `is_in_the_money`: In-the-money classification from the provider when available, or derived from spot versus strike when the provider snapshot omits a direct flag. Use it as a quick classification check against derived moneyness fields.
 
 ## Corporate Event Fields

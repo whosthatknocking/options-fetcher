@@ -121,7 +121,7 @@ def format_export_timestamps(df):
     for column in ["option_quote_time", "underlying_price_time"]:
         if column in df.columns:
             df[column] = pd.to_datetime(df[column], utc=True, errors="coerce").dt.strftime(
-                "%Y-%m-%dT%H:%M:%SZ"
+                "%Y-%m-%dT%H:%M:%S.%fZ"
             )
     return df
 

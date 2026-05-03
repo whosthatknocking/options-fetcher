@@ -7,6 +7,7 @@ import pytest
 
 from opx_chain.export import (
     CANONICAL_EXPORT_COLUMNS,
+    format_export_timestamps,
     reorder_export_columns,
     write_options_csv,
 )
@@ -34,6 +35,23 @@ def test_reorder_export_columns_drops_noncanonical_provider_fields():
     assert pd.isna(result.loc[0, "historical_volatility"])
     assert pd.isna(result.loc[0, "change"])
     assert pd.isna(result.loc[0, "percent_change"])
+
+
+def test_format_export_timestamps_preserves_subsecond_precision():
+    """CSV timestamp formatting should not collapse provider millisecond data."""
+    frame = pd.DataFrame(
+        [
+            {
+                "option_quote_time": pd.Timestamp("2026-03-20T13:40:00.811Z"),
+                "underlying_price_time": pd.Timestamp("2026-03-20T13:40:00.123456Z"),
+            }
+        ]
+    )
+
+    result = format_export_timestamps(frame)
+
+    assert result.loc[0, "option_quote_time"] == "2026-03-20T13:40:00.811000Z"
+    assert result.loc[0, "underlying_price_time"] == "2026-03-20T13:40:00.123456Z"
 
 
 def test_write_options_csv_persists_only_canonical_columns(tmp_path: Path):
