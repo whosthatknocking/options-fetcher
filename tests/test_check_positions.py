@@ -7,6 +7,7 @@ import time
 import pandas as pd
 
 from opx_chain.check_positions import (
+    _format_iso_timestamp,  # pylint: disable=protected-access
     check_positions,
     find_latest_output,
     format_freshness_summary_lines,
@@ -310,6 +311,14 @@ def test_format_freshness_summary_lines_handles_missing_timestamp_columns(tmp_pa
     assert (
         "underlying_quotes_now: rows_with_timestamp=0  stale_now_rows=0  "
         "stale_at_fetch_rows=0" in rendered
+    )
+
+
+def test_format_iso_timestamp_formats_naive_timestamps_as_utc():
+    """Naive timestamp values should be treated as UTC instead of crashing."""
+    assert (
+        _format_iso_timestamp(pd.Timestamp("2026-04-10T13:50:56"))
+        == "2026-04-10T13:50:56Z"
     )
 
 

@@ -126,7 +126,7 @@ def _format_iso_timestamp(value) -> str:
     """Render timestamps consistently in UTC with a trailing Z."""
     if value is None or pd.isna(value):
         return "—"
-    return pd.Timestamp(value).tz_convert("UTC").strftime("%Y-%m-%dT%H:%M:%SZ")
+    return pd.to_datetime(value, utc=True).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
 def _append_filter_failure(
