@@ -507,9 +507,7 @@ def test_marketdata_provider_respects_request_interval(monkeypatch):
 def test_marketdata_provider_invalid_credentials_fail_clearly(monkeypatch):
     """Authentication-like SDK errors should map to the provider auth exception."""
 
-    class FailingClient(FakeMarketDataClient):  # pylint: disable=too-few-public-methods
-        """Fake SDK client that turns chain requests into auth failures."""
-
+    class FailingClient(FakeMarketDataClient):  # pylint: disable=missing-class-docstring,too-few-public-methods
         def _make_request(self, _method, url, *_args, **_kwargs):
             if "stocks/quotes/" in url:
                 return FakeResponse(401, {"s": "error"})
@@ -529,18 +527,26 @@ def test_marketdata_provider_invalid_credentials_fail_clearly(monkeypatch):
         provider.load_underlying_snapshot("TSLA")
 
 
-def test_marketdata_provider_request_limit_raises_quota_error(monkeypatch):
-    """Daily request-limit responses must raise ProviderQuotaError, not be swallowed."""
+@pytest.mark.parametrize(
+    ("message", "status_code"),
+    [
+        ("You've reached the daily request limit for your Market Data account.", None),
+        ("temporarily unavailable", 429),
+    ],
+)
+def test_marketdata_provider_sdk_quota_errors_raise_quota_error(
+    monkeypatch,
+    message,
+    status_code,
+):
+    """SDK quota responses must raise ProviderQuotaError, not be swallowed."""
 
-    class LimitedClient(FakeMarketDataClient):  # pylint: disable=too-few-public-methods
-        """Fake SDK client that returns a request-limit error for chain calls."""
-
+    class LimitedClient(FakeMarketDataClient):  # pylint: disable=missing-class-docstring,too-few-public-methods
         def _options_chain(self, _symbol, **_kwargs):
-            return MarketDataClientErrorResult(
-                BaseMarketdataException(
-                    "You've reached the daily request limit for your Market Data account."
-                )
-            )
+            error = BaseMarketdataException(message)
+            if status_code is not None:
+                error.status_code = status_code
+            return MarketDataClientErrorResult(error)
 
     monkeypatch.setattr("opx_chain.providers.marketdata.OpxMarketDataClient", LimitedClient)
     monkeypatch.setattr(
@@ -549,24 +555,22 @@ def test_marketdata_provider_request_limit_raises_quota_error(monkeypatch):
     )
     provider = MarketDataProvider()
 
-    with pytest.raises(ProviderQuotaError):
+    with pytest.raises(ProviderQuotaError, match=message):
         provider.load_option_chain("TSLA", "2026-06-20")
 
 
 def test_marketdata_provider_stock_quote_quota_error_aborts(monkeypatch):
     """Raw stock quote quota responses should not fall back to the chain endpoint."""
 
-    class LimitedQuoteClient(FakeMarketDataClient):  # pylint: disable=too-few-public-methods
-        """Fake SDK client that returns a request-limit error for stock quotes."""
-
+    class LimitedQuoteClient(FakeMarketDataClient):  # pylint: disable=missing-class-docstring,too-few-public-methods
         def _make_request(self, _method, url, *_args, **_kwargs):
             self.request_urls.append(url)
             if "stocks/quotes/" in url:
                 return FakeResponse(
-                    429,
+                    503,
                     {
                         "s": "error",
-                        "errmsg": "You've reached the daily request limit.",
+                        "errmsg": "too many requests; retry later",
                     },
                 )
             return FakeMarketDataClient._make_request(self, _method, url, *_args, **_kwargs)
@@ -591,9 +595,7 @@ def test_marketdata_provider_stock_quote_quota_error_aborts(monkeypatch):
 def test_marketdata_provider_event_earnings_quota_error_aborts(monkeypatch):
     """Earnings event quota responses should abort instead of becoming blanks."""
 
-    class LimitedEarningsClient(FakeMarketDataClient):  # pylint: disable=too-few-public-methods
-        """Fake SDK client that returns a request-limit error for earnings calls."""
-
+    class LimitedEarningsClient(FakeMarketDataClient):  # pylint: disable=missing-class-docstring,too-few-public-methods
         def _stocks_earnings(self, _symbol, **_kwargs):
             return MarketDataClientErrorResult(
                 BaseMarketdataException(
@@ -615,9 +617,7 @@ def test_marketdata_provider_event_earnings_quota_error_aborts(monkeypatch):
 def test_marketdata_provider_event_dividend_quota_error_aborts(monkeypatch):
     """Dividend event quota responses should abort instead of becoming blanks."""
 
-    class LimitedDividendClient(FakeMarketDataClient):  # pylint: disable=too-few-public-methods
-        """Fake SDK client that returns a request-limit error for dividend calls."""
-
+    class LimitedDividendClient(FakeMarketDataClient):  # pylint: disable=missing-class-docstring,too-few-public-methods
         def _make_request(self, _method, url, *_args, **_kwargs):
             if "stocks/dividends/" in url:
                 return FakeResponse(

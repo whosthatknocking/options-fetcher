@@ -28,6 +28,7 @@ from opx_chain.providers.base import (
     OptionChainFrames,
     ProviderAuthenticationError,
     ProviderQuotaError,
+    is_provider_quota_error,
     normalize_provider_frame,
 )
 from opx_chain.utils import coerce_float, normalize_timestamp
@@ -81,6 +82,21 @@ def _as_dict(value: Any) -> dict[str, Any]:
         for key, item in vars(value).items()
         if not key.startswith("_")
     }
+
+
+class _MarketDataErrorForClassification(RuntimeError):
+    """Adapter that lets MarketData-specific errors use the shared classifier."""
+
+    def __init__(self, message: str, status_code: Any) -> None:
+        super().__init__(message or f"HTTP {status_code}")
+        self.status_code = status_code
+
+
+def _is_marketdata_quota_error(message: str, status_code: Any) -> bool:
+    """Return True when a MarketData error is quota/rate-limit related."""
+    return is_provider_quota_error(
+        _MarketDataErrorForClassification(message, status_code)
+    )
 
 
 def _count_payload_rows(payload: Any) -> int:
@@ -315,7 +331,7 @@ class MarketDataProvider(DataProvider):
                 "Market Data authentication failed. Check [providers.marketdata] api_token "
                 f"in {get_default_config_path()}."
             )
-        if "request limit" in normalized or "rate limit" in normalized:
+        if _is_marketdata_quota_error(message, status_code):
             raise ProviderQuotaError(f"Market Data {context} failed: {message}")
         raise RuntimeError(f"Market Data {context} failed: {message}")
 
@@ -343,7 +359,7 @@ class MarketDataProvider(DataProvider):
                 "Market Data authentication failed. Check [providers.marketdata] api_token "
                 f"in {get_default_config_path()}."
             )
-        if status_code == 429 or "request limit" in normalized or "rate limit" in normalized:
+        if _is_marketdata_quota_error(message, status_code):
             detail = message or f"HTTP {status_code}"
             raise ProviderQuotaError(f"Market Data {context} failed: {detail}")
         raise RuntimeError(f"Market Data {context} failed: {message or f'HTTP {status_code}'}")
