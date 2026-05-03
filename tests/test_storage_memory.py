@@ -293,6 +293,46 @@ def test_delete_run_artifacts_removes_artifacts():
     assert run_id not in backend._artifacts  # pylint: disable=protected-access
 
 
+def test_delete_run_artifacts_preserves_dataset_bytes():
+    """Artifact cleanup must not confuse artifact IDs with dataset byte keys."""
+    backend = MemoryBackend()
+    run_id = backend.create_run(_make_context())
+    dataset = _write(backend, run_id)
+    backend.write_artifact(
+        run_id,
+        ArtifactWrite(artifact_type="sidecar", content=b"positions", filename="positions.csv"),
+    )
+
+    backend.delete_run_artifacts(run_id)
+
+    assert dataset.dataset_id in backend._dataset_bytes  # pylint: disable=protected-access
+    assert backend.get_dataset(dataset.dataset_id).dataset_id == dataset.dataset_id
+
+
+def test_memory_pruning_removes_old_dataset_records_bytes_and_links():
+    """Memory retention should mirror persisted backends for dataset cleanup."""
+    backend = MemoryBackend(max_runs_retained=1)
+    old_run_id = backend.create_run(_make_context(provider="yfinance"))
+    old_record = _write(backend, old_run_id, provider="yfinance")
+    backend.write_artifact(
+        old_run_id,
+        ArtifactWrite(artifact_type="sidecar", content=b"positions", filename="positions.csv"),
+    )
+    new_run_id = backend.create_run(_make_context(provider="marketdata"))
+    new_record = _write(backend, new_run_id, provider="marketdata")
+
+    assert [record.dataset_id for record in backend.list_datasets(limit=10)] == [
+        new_record.dataset_id
+    ]
+    assert old_record.dataset_id not in backend._dataset_bytes  # pylint: disable=protected-access
+    assert new_record.dataset_id in backend._dataset_bytes  # pylint: disable=protected-access
+    assert backend.get_run(old_run_id).dataset_id is None
+    assert backend.get_run(new_run_id).dataset_id == new_record.dataset_id
+    assert old_run_id not in backend._artifacts  # pylint: disable=protected-access
+    with pytest.raises(KeyError):
+        backend.get_dataset(old_record.dataset_id)
+
+
 # ---------------------------------------------------------------------------
 # Run lifecycle transitions
 # ---------------------------------------------------------------------------
@@ -370,7 +410,7 @@ def test_write_dataset_parquet_stores_matching_bytes():
         DatasetWrite(data=df, provider="yfinance", schema_version=1, format="parquet"),
     )
 
-    content = backend._artifact_bytes[record.dataset_id]  # pylint: disable=protected-access
+    content = backend._dataset_bytes[record.dataset_id]  # pylint: disable=protected-access
     result = pd.read_parquet(io.BytesIO(content))
 
     assert record.format == "parquet"

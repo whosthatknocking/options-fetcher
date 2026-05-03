@@ -30,14 +30,38 @@ class MemoryBackend:
     branches of fetcher.py and opx-check.
     """
 
-    def __init__(self) -> None:
+    def __init__(self, max_runs_retained: int = 0) -> None:
         """Initialise empty in-memory stores."""
+        self._max_runs_retained = max_runs_retained
         self._runs: dict[str, RunRecord] = {}
         self._datasets: list[DatasetRecord] = []
         self._ticker_results: dict[str, list[TickerRunRecord]] = {}
         self._validations: dict[str, list[ValidationRecord]] = {}
         self._artifacts: dict[str, list[ArtifactRecord]] = {}
-        self._artifact_bytes: dict[str, bytes] = {}
+        self._dataset_bytes: dict[str, bytes] = {}
+
+    def _prune_datasets(self) -> None:
+        """Drop oldest dataset records and bytes beyond the retention limit."""
+        if self._max_runs_retained <= 0:
+            return
+        excess = len(self._datasets) - self._max_runs_retained
+        if excess <= 0:
+            return
+        oldest = sorted(
+            enumerate(self._datasets),
+            key=lambda item: (item[1].created_at, item[0]),
+        )[:excess]
+        pruned_ids = {record.dataset_id for _, record in oldest}
+        for _, record in oldest:
+            self._dataset_bytes.pop(record.dataset_id, None)
+            run = self._runs.get(record.run_id)
+            if run is not None and run.dataset_id == record.dataset_id:
+                run.dataset_id = None
+            self.delete_run_artifacts(record.run_id)
+        self._datasets = [
+            record for record in self._datasets
+            if record.dataset_id not in pruned_ids
+        ]
 
     def create_run(self, context: RunContext) -> str:
         """Open a new run record and return its run_id."""
@@ -95,9 +119,10 @@ class MemoryBackend:
             script_version=dataset.script_version,
         )
         self._datasets.append(record)
-        self._artifact_bytes[dataset_id] = content
+        self._dataset_bytes[dataset_id] = content
         if run_id in self._runs:
             self._runs[run_id].dataset_id = dataset_id
+        self._prune_datasets()
         return record
 
     def write_artifact(self, run_id: str, artifact: ArtifactWrite) -> ArtifactRecord:
@@ -116,8 +141,7 @@ class MemoryBackend:
 
     def delete_run_artifacts(self, run_id: str) -> None:
         """Delete artifacts associated with a run."""
-        for artifact in self._artifacts.pop(run_id, []):
-            self._artifact_bytes.pop(artifact.artifact_id, None)
+        self._artifacts.pop(run_id, None)
 
     def list_datasets(  # pylint: disable=too-many-arguments,too-many-positional-arguments
         self,
