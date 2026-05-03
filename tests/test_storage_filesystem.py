@@ -144,6 +144,35 @@ def test_fail_run_sets_status_and_error(tmp_path: Path):
     assert run.error_summary == "network error"
 
 
+def test_terminal_run_status_is_not_overwritten(tmp_path: Path):
+    """Late lifecycle calls must not demote already terminal run records."""
+    backend = _make_backend(tmp_path)
+
+    complete_run_id = backend.create_run(_make_context())
+    backend.finalize_run(complete_run_id, RunSummary(status="complete"))
+    completed = backend.get_run(complete_run_id)
+    backend.fail_run(complete_run_id, "post-finalize error")
+    backend.finalize_run(
+        complete_run_id,
+        RunSummary(status="interrupted", error_summary="interrupted"),
+    )
+
+    after_late_calls = backend.get_run(complete_run_id)
+    assert after_late_calls.status == "complete"
+    assert after_late_calls.finished_at == completed.finished_at
+    assert after_late_calls.error_summary is None
+
+    failed_run_id = backend.create_run(_make_context())
+    backend.fail_run(failed_run_id, "network error")
+    failed = backend.get_run(failed_run_id)
+    backend.finalize_run(failed_run_id, RunSummary(status="complete"))
+
+    after_finalize = backend.get_run(failed_run_id)
+    assert after_finalize.status == "failed"
+    assert after_finalize.finished_at == failed.finished_at
+    assert after_finalize.error_summary == "network error"
+
+
 def test_record_ticker_result_persisted(tmp_path: Path):
     """record_ticker_result must persist the result in the run sidecar."""
     backend = _make_backend(tmp_path)

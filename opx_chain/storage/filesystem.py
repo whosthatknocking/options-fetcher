@@ -456,6 +456,8 @@ class FilesystemBackend:
     def finalize_run(self, run_id: str, summary: RunSummary) -> None:
         """Update the run sidecar with a completion status."""
         data = self._read_run(run_id)
+        if data.get("status") != "running":
+            return
         data["status"] = summary.status
         data["finished_at"] = _dt_to_str(_now())
         data["error_summary"] = summary.error_summary
@@ -464,6 +466,8 @@ class FilesystemBackend:
     def fail_run(self, run_id: str, error: str) -> None:
         """Update the run sidecar with a failed status and error message."""
         data = self._read_run(run_id)
+        if data.get("status") != "running":
+            return
         data["status"] = "failed"
         data["finished_at"] = _dt_to_str(_now())
         data["error_summary"] = error

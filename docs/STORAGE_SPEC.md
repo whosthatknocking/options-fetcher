@@ -497,6 +497,13 @@ on KeyboardInterrupt:
   → release lock
 ```
 
+Terminal transitions are guarded by the current run state. `finalize_run` and
+`fail_run` only mutate rows whose status is still `running`; after a run is
+`complete`, `failed`, or `interrupted`, later lifecycle calls must leave the
+terminal status, `finished_at`, and `error_summary` unchanged. This prevents
+late print/log/storage cleanup errors from demoting an already published
+successful run.
+
 `write_dataset` is the storage publication point for downstream consumers:
 `list_datasets` only exposes datasets after this call succeeds. Run sidecars
 that are part of the successful fetch artifact set, such as the positions

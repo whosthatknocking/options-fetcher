@@ -170,6 +170,8 @@ class MemoryBackend:
         """Mark run as complete or interrupted with the given summary."""
         if run_id in self._runs:
             run = self._runs[run_id]
+            if run.status != "running":
+                return
             run.status = summary.status
             run.finished_at = datetime.now(tz=timezone.utc)
             run.error_summary = summary.error_summary
@@ -178,6 +180,8 @@ class MemoryBackend:
         """Mark run as failed with the given error message."""
         if run_id in self._runs:
             run = self._runs[run_id]
+            if run.status != "running":
+                return
             run.status = "failed"
             run.finished_at = datetime.now(tz=timezone.utc)
             run.error_summary = error

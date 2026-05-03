@@ -531,7 +531,8 @@ class SqliteIndexedBackend:
         """Update the run row with a completion status."""
         with self._open_connection() as conn:
             conn.execute(
-                "UPDATE runs SET status = ?, finished_at = ?, error_summary = ? WHERE run_id = ?",
+                "UPDATE runs SET status = ?, finished_at = ?, error_summary = ? "
+                "WHERE run_id = ? AND status = 'running'",
                 (summary.status, _dt_to_str(_now()), summary.error_summary, run_id),
             )
             conn.commit()
@@ -541,7 +542,7 @@ class SqliteIndexedBackend:
         with self._open_connection() as conn:
             conn.execute(
                 "UPDATE runs SET status = 'failed', finished_at = ?, error_summary = ? "
-                "WHERE run_id = ?",
+                "WHERE run_id = ? AND status = 'running'",
                 (_dt_to_str(_now()), error, run_id),
             )
             conn.commit()
