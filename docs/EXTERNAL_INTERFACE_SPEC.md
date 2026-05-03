@@ -258,7 +258,10 @@ held_contracts: frozenset[OptionPositionKey] = positions.option_keys
 ```
 
 `load_positions()` parses the same Fidelity positions CSV format used by
-`opx-fetch`. It returns a `PositionSet` with:
+`opx-fetch`. The file must be UTF-8 or UTF-8-with-BOM and include a `Symbol`
+column. Missing files return an empty `PositionSet` silently; existing files
+that cannot be parsed print a warning to stderr before returning an empty
+`PositionSet`. It returns a `PositionSet` with:
 
 - `stock_tickers`: stock symbols parsed from held stock rows
 - `option_keys`: held option contracts as `OptionPositionKey` values with `ticker`,

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import csv
 import re
+import sys
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -72,7 +73,8 @@ def _parse_option_symbol(raw: str) -> OptionPositionKey | None:
 def load_positions(path: Path | None = None) -> PositionSet:
     """Load the portfolio positions CSV and return parsed stock tickers and option keys.
 
-    Returns an empty PositionSet when the file does not exist or cannot be parsed.
+    Returns an empty PositionSet when the file does not exist. If the file exists
+    but cannot be parsed, prints a warning to stderr and returns an empty PositionSet.
     """
     resolved = (path or DEFAULT_POSITIONS_PATH).expanduser()
     if not resolved.exists():
@@ -85,6 +87,11 @@ def load_positions(path: Path | None = None) -> PositionSet:
         with resolved.open(newline="", encoding="utf-8-sig") as fh:
             reader = csv.DictReader(fh)
             if reader.fieldnames is None or "Symbol" not in reader.fieldnames:
+                print(
+                    f"Warning: positions file {resolved} missing required 'Symbol' "
+                    f"column (found: {reader.fieldnames}); returning empty positions.",
+                    file=sys.stderr,
+                )
                 return EMPTY_POSITION_SET
             for row in reader:
                 symbol = (row.get("Symbol") or "").strip()
@@ -98,7 +105,12 @@ def load_positions(path: Path | None = None) -> PositionSet:
                         option_keys.add(key)
                 elif _VALID_TICKER_RE.match(symbol):
                     stock_tickers.add(symbol)
-    except Exception:  # pylint: disable=broad-except
+    except (OSError, csv.Error, UnicodeDecodeError) as exc:
+        print(
+            f"Warning: failed to parse positions file {resolved}: {exc}; "
+            "returning empty positions.",
+            file=sys.stderr,
+        )
         return EMPTY_POSITION_SET
 
     return PositionSet(frozenset(stock_tickers), frozenset(option_keys))

@@ -60,7 +60,7 @@ You can also override the positions-file path for one run:
 opx-fetch --positions /path/to/runs/<run_id>/positions.csv
 ```
 
-When `--positions` is omitted, the fetcher still defaults to `$XDG_DATA_HOME/opx-chain/positions.csv` (default `~/.local/share/opx-chain/positions.csv`). If the override path does not exist or cannot be parsed, the run continues without position-aware ticker expansion or filter bypass, matching the existing graceful fallback behavior.
+When `--positions` is omitted, the fetcher still defaults to `$XDG_DATA_HOME/opx-chain/positions.csv` (default `~/.local/share/opx-chain/positions.csv`). If the override path does not exist, the run continues without position-aware ticker expansion or filter bypass. If the file exists but cannot be parsed, the fetcher prints a warning and then continues with the same graceful fallback behavior.
 
 To verify configuration, positions parsing, and storage reachability without provider API calls or output writes, run:
 
@@ -276,11 +276,11 @@ At the start of every run, `opx-fetch` reads `$XDG_DATA_HOME/opx-chain/positions
 - **Position ticker expansion** _(always active)_: all stock tickers and option-underlying tickers found in the file are added to the effective fetch list for the run, even if they are not listed in `settings.tickers`. Today's expiration is also kept for any ticker with stock or option exposure so that options expiring on the current date are available for position matching.
 - **Option filter bypass** _(active only when filters are enabled)_: any option contract that matches a row in the file (by ticker, expiration date, option type, and strike) bypasses all post-download quality filters. These rows are always included in the output regardless of bid, spread, or strike-distance settings. When `filters_enable = false` or `--disable-filters` is used, all rows are already kept unconditionally so the bypass has no effect.
 
-The file is re-read on every run. If the file does not exist or cannot be parsed, the run continues with normal behavior.
+The file is re-read on every run. If the file does not exist, the run continues with normal behavior. If the file exists but cannot be parsed, the run prints a warning and continues without position-aware behavior.
 
 If you need a one-off override, pass `opx-fetch --positions /path/to/positions.csv`. That changes only the file path used for that process; it does not change `filters_enable`, and it does not affect later runs.
 
-The default positions path is user-local and outside version control — place your own export there without risk of committing personal data. The expected format is a standard Fidelity brokerage export. Stock rows use a plain ticker in the Symbol column; option rows use Fidelity's leading-dash option shorthand in the Symbol column (`-TICKERYYMMDDCSTRIKE` or `-TICKERYYMMDDPSTRIKE`). Do not provide full OCC padded-strike symbols such as `-AAPL261016C00230000`; the positions parser expects Fidelity's plain decimal strike format such as `-AAPL261016C230`.
+The default positions path is user-local and outside version control — place your own export there without risk of committing personal data. The expected format is a UTF-8 or UTF-8-with-BOM standard Fidelity brokerage export with a required `Symbol` column. Stock rows use a plain ticker in the Symbol column; option rows use Fidelity's leading-dash option shorthand in the Symbol column (`-TICKERYYMMDDCSTRIKE` or `-TICKERYYMMDDPSTRIKE`). Do not provide full OCC padded-strike symbols such as `-AAPL261016C00230000`; the positions parser expects Fidelity's plain decimal strike format such as `-AAPL261016C230`.
 
 ```
 Account Number,Account Name,Symbol,Description,...,Type

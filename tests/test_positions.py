@@ -3,6 +3,8 @@
 import textwrap
 from pathlib import Path
 
+import pytest
+
 from opx_chain.paths import get_default_positions_path
 from opx_chain import positions
 from opx_chain.positions import EMPTY_POSITION_SET, OptionPositionKey, load_positions
@@ -95,14 +97,42 @@ def test_load_positions_parses_mixed_stocks_and_options(tmp_path):
     assert result.tickers == frozenset({"GOOGL"})
 
 
-def test_load_positions_returns_empty_on_missing_symbol_column(tmp_path):
-    """Returns the empty sentinel when the Symbol column is absent."""
+def test_load_positions_returns_empty_on_missing_symbol_column(tmp_path, capsys):
+    """Warns and returns the empty sentinel when the Symbol column is absent."""
     path = write_positions_csv(tmp_path, """\
         Account,Name
         Z1,INDIVIDUAL
     """)
     result = load_positions(path)
     assert result == EMPTY_POSITION_SET
+    assert "missing required 'Symbol' column" in capsys.readouterr().err
+
+
+def test_load_positions_warns_on_unicode_error(tmp_path, capsys):
+    """Existing but non-UTF-8 positions files should not fail silently."""
+    path = tmp_path / "positions.csv"
+    path.write_bytes(b"Symbol,Description\nTSLA,TESLA\xa0INC\n")
+
+    result = load_positions(path)
+
+    assert result == EMPTY_POSITION_SET
+    assert "Warning: failed to parse positions file" in capsys.readouterr().err
+
+
+def test_load_positions_does_not_swallow_programming_errors(tmp_path, monkeypatch):
+    """Unexpected parser bugs should propagate instead of looking like empty positions."""
+    path = write_positions_csv(tmp_path, """\
+        Symbol
+        -TSLA260821P360
+    """)
+
+    def broken_parser(_raw):
+        raise RuntimeError("parser bug")
+
+    monkeypatch.setattr(positions, "_parse_option_symbol", broken_parser)
+
+    with pytest.raises(RuntimeError, match="parser bug"):
+        load_positions(path)
 
 
 def test_position_set_empty_property():
