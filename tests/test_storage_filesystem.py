@@ -5,6 +5,9 @@ import hashlib
 import inspect
 import json
 import os
+import threading
+import time
+from collections.abc import Callable
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
@@ -87,6 +90,55 @@ def _record_ticker(backend: FilesystemBackend, run_id: str, ticker: str) -> None
             status="ok",
         ),
     )
+
+
+class _SlowReadFilesystemBackend(FilesystemBackend):
+    """Filesystem backend variant that tracks overlapping run sidecar reads."""
+
+    def __init__(self, runs_dir: Path, debug_dir: Path) -> None:
+        super().__init__(runs_dir=runs_dir, debug_dir=debug_dir)
+        self._active_read_count = 0
+        self.max_active_read_count = 0
+        self._read_count_lock = threading.Lock()
+
+    def _read_run(self, run_id: str) -> dict:
+        with self._read_count_lock:
+            self._active_read_count += 1
+            self.max_active_read_count = max(
+                self.max_active_read_count,
+                self._active_read_count,
+            )
+        try:
+            data = super()._read_run(run_id)
+            time.sleep(0.01)
+            return data
+        finally:
+            with self._read_count_lock:
+                self._active_read_count -= 1
+
+
+def _run_concurrently(actions: list[Callable[[], None]]) -> None:
+    start = threading.Barrier(len(actions) + 1)
+    errors = []
+    errors_lock = threading.Lock()
+
+    def worker(action: Callable[[], None]) -> None:
+        try:
+            start.wait(timeout=5)
+            action()
+        except Exception as exc:  # pylint: disable=broad-exception-caught
+            with errors_lock:
+                errors.append(exc)
+
+    threads = [threading.Thread(target=worker, args=(action,)) for action in actions]
+    for thread in threads:
+        thread.start()
+    start.wait(timeout=5)
+    for thread in threads:
+        thread.join(timeout=5)
+
+    assert not [thread for thread in threads if thread.is_alive()]
+    assert not errors, [repr(error) for error in errors]
 
 
 # ---------------------------------------------------------------------------
@@ -215,6 +267,49 @@ def test_record_validation_persisted(tmp_path: Path):
         "count": 1,
         "sample": '{"contract_symbol": "TSLA260620C00100000"}',
     }]
+
+
+def test_record_ticker_result_serializes_concurrent_sidecar_updates(tmp_path: Path):
+    """Concurrent ticker-result writes must not drop run sidecar updates."""
+    backend = _SlowReadFilesystemBackend(
+        runs_dir=tmp_path / "runs",
+        debug_dir=tmp_path / "debug",
+    )
+    run_id = backend.create_run(_make_context())
+    tickers = [f"TK{i:02d}" for i in range(12)]
+
+    _run_concurrently([
+        lambda ticker=ticker: _record_ticker(backend, run_id, ticker)
+        for ticker in tickers
+    ])
+
+    assert backend.max_active_read_count == 1
+    assert sorted(result.ticker for result in backend.get_ticker_results(run_id)) == tickers
+
+
+def test_record_validation_serializes_concurrent_sidecar_updates(tmp_path: Path):
+    """Concurrent validation writes must not drop run sidecar updates."""
+    backend = _SlowReadFilesystemBackend(
+        runs_dir=tmp_path / "runs",
+        debug_dir=tmp_path / "debug",
+    )
+    run_id = backend.create_run(_make_context())
+    codes = [f"VALIDATION_{i:02d}" for i in range(12)]
+
+    _run_concurrently([
+        lambda code=code: backend.record_validation(ValidationRecord(
+            run_id=run_id,
+            severity="warning",
+            code=code,
+            count=1,
+            sample=code,
+        ))
+        for code in codes
+    ])
+
+    data = json.loads((tmp_path / "runs" / run_id / "run.json").read_text(encoding="utf-8"))
+    assert backend.max_active_read_count == 1
+    assert sorted(row["code"] for row in data["validations"]) == codes
 
 
 # ---------------------------------------------------------------------------

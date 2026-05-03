@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import json
 import shutil
+import threading
 import uuid
 from datetime import datetime, timezone
 from heapq import nsmallest
@@ -72,6 +73,7 @@ class FilesystemBackend:
         self._runs_dir = runs_dir
         self._debug_dir = debug_dir
         self._max_runs_retained = max_runs_retained
+        self._run_sidecar_lock = threading.RLock()
         get_serializer(dataset_format)
 
     # ------------------------------------------------------------------
@@ -127,22 +129,23 @@ class FilesystemBackend:
             pass
 
     def _record_artifact(self, record: ArtifactRecord) -> None:
-        data = self._read_run(record.run_id)
-        artifacts = [
-            item
-            for item in data.get("artifacts", [])
-            if item.get("artifact_id") != record.artifact_id
-        ]
-        artifacts.append(
-            {
-                "artifact_id": record.artifact_id,
-                "artifact_type": record.artifact_type,
-                "location": record.location,
-                "content_hash": record.content_hash,
-            }
-        )
-        data["artifacts"] = artifacts
-        self._write_run(record.run_id, data)
+        with self._run_sidecar_lock:
+            data = self._read_run(record.run_id)
+            artifacts = [
+                item
+                for item in data.get("artifacts", [])
+                if item.get("artifact_id") != record.artifact_id
+            ]
+            artifacts.append(
+                {
+                    "artifact_id": record.artifact_id,
+                    "artifact_type": record.artifact_type,
+                    "location": record.location,
+                    "content_hash": record.content_hash,
+                }
+            )
+            data["artifacts"] = artifacts
+            self._write_run(record.run_id, data)
 
     def _delete_run_artifacts(self, run_id: str) -> None:
         try:
@@ -293,17 +296,18 @@ class FilesystemBackend:
             pass
 
     def _clear_run_dataset_reference(self, run_id: str, dataset_id: str) -> None:
-        try:
-            data = self._read_run(run_id)
-        except (OSError, KeyError, json.JSONDecodeError, ValueError):
-            return
-        if data.get("dataset_id") != dataset_id:
-            return
-        data["dataset_id"] = None
-        try:
-            self._write_run(run_id, data)
-        except OSError:
-            pass
+        with self._run_sidecar_lock:
+            try:
+                data = self._read_run(run_id)
+            except (OSError, KeyError, json.JSONDecodeError, ValueError):
+                return
+            if data.get("dataset_id") != dataset_id:
+                return
+            data["dataset_id"] = None
+            try:
+                self._write_run(run_id, data)
+            except OSError:
+                pass
 
     def _meta_created_at_sort_key(self, meta_path: Path) -> datetime:
         try:
@@ -362,29 +366,31 @@ class FilesystemBackend:
 
     def record_ticker_result(self, run_id: str, result: TickerFetchResult) -> None:
         """Append a per-ticker result to the run sidecar."""
-        data = self._read_run(run_id)
-        data["ticker_results"].append({
-            "ticker": result.ticker,
-            "raw_row_count": result.raw_row_count,
-            "normalized_row_count": result.normalized_row_count,
-            "kept_row_count": result.kept_row_count,
-            "filtered_row_count": result.filtered_row_count,
-            "expiration_count": result.expiration_count,
-            "status": result.status,
-            "error_summary": result.error_summary,
-        })
-        self._write_run(run_id, data)
+        with self._run_sidecar_lock:
+            data = self._read_run(run_id)
+            data["ticker_results"].append({
+                "ticker": result.ticker,
+                "raw_row_count": result.raw_row_count,
+                "normalized_row_count": result.normalized_row_count,
+                "kept_row_count": result.kept_row_count,
+                "filtered_row_count": result.filtered_row_count,
+                "expiration_count": result.expiration_count,
+                "status": result.status,
+                "error_summary": result.error_summary,
+            })
+            self._write_run(run_id, data)
 
     def record_validation(self, record: ValidationRecord) -> None:
         """Append a validation summary record to the run sidecar."""
-        data = self._read_run(record.run_id)
-        data.setdefault("validations", []).append({
-            "severity": record.severity,
-            "code": record.code,
-            "count": record.count,
-            "sample": record.sample,
-        })
-        self._write_run(record.run_id, data)
+        with self._run_sidecar_lock:
+            data = self._read_run(record.run_id)
+            data.setdefault("validations", []).append({
+                "severity": record.severity,
+                "code": record.code,
+                "count": record.count,
+                "sample": record.sample,
+            })
+            self._write_run(record.run_id, data)
 
     def write_dataset(self, run_id: str, dataset: DatasetWrite) -> DatasetRecord:
         """Serialize the DataFrame, compute its hash, and write metadata."""
@@ -407,9 +413,10 @@ class FilesystemBackend:
             script_version=dataset.script_version,
         )
         self._write_meta(record)
-        data = self._read_run(run_id)
-        data["dataset_id"] = dataset_id
-        self._write_run(run_id, data)
+        with self._run_sidecar_lock:
+            data = self._read_run(run_id)
+            data["dataset_id"] = dataset_id
+            self._write_run(run_id, data)
         self._append_dataset_index(record)
         self._prune_datasets()
         return record
@@ -469,23 +476,25 @@ class FilesystemBackend:
 
     def finalize_run(self, run_id: str, summary: RunSummary) -> None:
         """Update the run sidecar with a completion status."""
-        data = self._read_run(run_id)
-        if data.get("status") != "running":
-            return
-        data["status"] = summary.status
-        data["finished_at"] = _dt_to_str(_now())
-        data["error_summary"] = summary.error_summary
-        self._write_run(run_id, data)
+        with self._run_sidecar_lock:
+            data = self._read_run(run_id)
+            if data.get("status") != "running":
+                return
+            data["status"] = summary.status
+            data["finished_at"] = _dt_to_str(_now())
+            data["error_summary"] = summary.error_summary
+            self._write_run(run_id, data)
 
     def fail_run(self, run_id: str, error: str) -> None:
         """Update the run sidecar with a failed status and error message."""
-        data = self._read_run(run_id)
-        if data.get("status") != "running":
-            return
-        data["status"] = "failed"
-        data["finished_at"] = _dt_to_str(_now())
-        data["error_summary"] = error
-        self._write_run(run_id, data)
+        with self._run_sidecar_lock:
+            data = self._read_run(run_id)
+            if data.get("status") != "running":
+                return
+            data["status"] = "failed"
+            data["finished_at"] = _dt_to_str(_now())
+            data["error_summary"] = error
+            self._write_run(run_id, data)
 
     def interrupt_stale_runs(self, cutoff: datetime, error_summary: str) -> int:
         """Mark running runs older than cutoff as interrupted."""
@@ -494,17 +503,18 @@ class FilesystemBackend:
             return interrupted
         for run_path in self._runs_dir.glob("*/run.json"):
             try:
-                data = json.loads(run_path.read_text(encoding="utf-8"))
-                started_at = _str_to_dt(data.get("started_at"))
-                if data.get("status") != "running" or started_at is None:
-                    continue
-                if _dt_sort_key(started_at) >= _dt_sort_key(cutoff):
-                    continue
-                data["status"] = "interrupted"
-                data["finished_at"] = _dt_to_str(_now())
-                data["error_summary"] = error_summary
-                self._write_run(data["run_id"], data)
-                interrupted += 1
+                with self._run_sidecar_lock:
+                    data = json.loads(run_path.read_text(encoding="utf-8"))
+                    started_at = _str_to_dt(data.get("started_at"))
+                    if data.get("status") != "running" or started_at is None:
+                        continue
+                    if _dt_sort_key(started_at) >= _dt_sort_key(cutoff):
+                        continue
+                    data["status"] = "interrupted"
+                    data["finished_at"] = _dt_to_str(_now())
+                    data["error_summary"] = error_summary
+                    self._write_run(data["run_id"], data)
+                    interrupted += 1
             except (OSError, KeyError, json.JSONDecodeError, ValueError):
                 continue
         return interrupted

@@ -127,6 +127,10 @@ Behavior:
   guarded by a re-entrant lock and opened with `check_same_thread = false`,
   so method calls amortize connection and PRAGMA setup while preserving
   serialized access inside the process
+- `FilesystemBackend` serializes `run.json` read-modify-write updates inside a
+  backend instance with a re-entrant lock, so concurrent per-ticker result,
+  validation, artifact, dataset, and lifecycle writes in the fetcher process do
+  not drop each other
 - atomic filesystem helpers fsync the temporary file before replacement and
   fsync the parent directory after replacement where the platform supports it,
   preserving both concurrent-reader atomicity and power-loss durability
@@ -469,6 +473,9 @@ unreadable, the backend rebuilds it from the canonical per-dataset metadata.
 
 The current fetcher lock (`fetcher.lock`) prevents concurrent runs. Under
 the storage model, `create_run` does not replace the lock — both coexist.
+Within a single fetcher process, storage backends must also serialize run
+sidecar read-modify-write paths so concurrent ticker workers cannot overwrite
+each other's `ticker_results` or `validations` appends.
 
 Rationale:
 
