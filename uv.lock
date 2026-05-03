@@ -821,9 +821,10 @@ wheels = [
 
 [[package]]
 name = "opx-chain"
-version = "0.3.0"
+version = "0.3.2"
 source = { editable = "." }
 dependencies = [
+    { name = "httpx" },
     { name = "marketdata-sdk-py" },
     { name = "massive" },
     { name = "numpy", version = "2.2.6", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
@@ -851,6 +852,7 @@ parquet = [
 [package.metadata]
 requires-dist = [
     { name = "coverage", extras = ["toml"], marker = "extra == 'dev'", specifier = ">=7.0" },
+    { name = "httpx", specifier = ">=0.28" },
     { name = "marketdata-sdk-py", specifier = ">=1.2.0" },
     { name = "massive", specifier = ">=2.4.0" },
     { name = "numpy", specifier = ">=1.24" },

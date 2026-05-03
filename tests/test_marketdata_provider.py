@@ -2,10 +2,12 @@
 
 # pylint: disable=too-many-lines
 
+import json
 from datetime import date, datetime, timezone
 from typing import cast
 from zoneinfo import ZoneInfo
 
+import httpx
 import pandas as pd
 import pytest
 from marketdata.exceptions import BaseMarketdataException
@@ -496,7 +498,7 @@ def test_marketdata_provider_retries_transient_server_errors(monkeypatch):
     assert sleep_calls == [0.25]
 
 
-def test_marketdata_provider_retries_network_exceptions(monkeypatch):
+def test_marketdata_provider_retries_network_exceptions(monkeypatch, capsys):
     """Transient request exceptions should retry before surfacing failures."""
     patch_marketdata_client(monkeypatch)
     monkeypatch.setattr(
@@ -515,7 +517,7 @@ def test_marketdata_provider_retries_network_exceptions(monkeypatch):
     def fake_request(_method, _url, *_args, **_kwargs):
         attempts.append(1)
         if len(attempts) == 1:
-            raise TimeoutError("temporary network failure")
+            raise httpx.TimeoutException("temporary network failure")
         return FakeResponse(200, {"optionSymbol": ["TSLA260417C00100000"]})
 
     wrapped = provider._wrap_logged_request(fake_request)  # pylint: disable=protected-access
@@ -525,6 +527,47 @@ def test_marketdata_provider_retries_network_exceptions(monkeypatch):
     assert response.status_code == 200
     assert sleep_calls == [0.25]
     assert len(attempts) == 2
+    assert "error_type=TimeoutException" in capsys.readouterr().out
+
+
+@pytest.mark.parametrize(
+    ("error_factory", "error_type"),
+    [
+        (lambda: AttributeError("programmer bug"), AttributeError),
+        (lambda: json.JSONDecodeError("bad json", "", 0), json.JSONDecodeError),
+    ],
+)
+def test_marketdata_provider_does_not_retry_non_transient_exceptions(
+    monkeypatch,
+    error_factory,
+    error_type,
+):
+    """Non-transient exceptions should fail immediately without retry backoff."""
+    patch_marketdata_client(monkeypatch)
+    monkeypatch.setattr(
+        "opx_chain.providers.marketdata.get_runtime_config",
+        lambda: make_runtime_config(
+            marketdata_max_retries=2,
+            marketdata_request_interval_seconds=0.0,
+            marketdata_backoff_seconds=0.25,
+        ),
+    )
+    sleep_calls = []
+    monkeypatch.setattr("opx_chain.providers.marketdata.time.sleep", sleep_calls.append)
+    provider = MarketDataProvider()
+    attempts = []
+
+    def fake_request(_method, _url, *_args, **_kwargs):
+        attempts.append(1)
+        raise error_factory()
+
+    wrapped = provider._wrap_logged_request(fake_request)  # pylint: disable=protected-access
+
+    with pytest.raises(error_type):
+        wrapped("GET", "https://api.marketdata.app/v1/options/chain/TSLA/")
+
+    assert not sleep_calls
+    assert len(attempts) == 1
 
 
 def test_marketdata_provider_respects_request_interval(monkeypatch):

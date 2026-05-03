@@ -105,6 +105,7 @@ Key dependencies:
 - `yfinance` for the baseline Yahoo Finance provider
 - `massive` for the official Massive / Polygon client library
 - `marketdata-sdk-py` for the official Market Data client library
+- `httpx` for Market Data HTTP transport exception handling
 - `pandas`, `numpy`, and `scipy` for normalization and analytics
 - `pytest`, `coverage`, and `pytest-cov` in the `dev` extra for the automated test and coverage workflow
 - `playwright` in the `dev` extra for browser-driven screenshot and UI checks

@@ -11,6 +11,7 @@ import logging
 import time
 from typing import Any
 
+import httpx
 import numpy as np
 import pandas as pd
 from marketdata.client import MarketDataClient
@@ -35,6 +36,12 @@ from opx_chain.providers._dates import parse_event_date as _parse_event_date
 from opx_chain.utils import coerce_float, normalize_timestamp
 
 CALLER_USER_AGENT = f"opx-chain/{SCRIPT_VERSION}"
+TRANSIENT_REQUEST_EXCEPTIONS = (
+    httpx.TimeoutException,
+    httpx.NetworkError,
+    httpx.RemoteProtocolError,
+    TimeoutError,
+)
 
 
 class OpxMarketDataClient(MarketDataClient):  # pylint: disable=too-few-public-methods
@@ -171,16 +178,14 @@ class MarketDataProvider(DataProvider):
                 self._sleep_for_request_interval()
                 try:
                     response = wrapped_request(method, url, *args, **kwargs)
-                except (ProviderAuthenticationError, ProviderQuotaError):
-                    raise
-                except Exception as exc:  # pylint: disable=broad-exception-caught
+                except TRANSIENT_REQUEST_EXCEPTIONS as exc:
                     if attempt == self._max_retries():
                         raise
                     retry_delay = self._backoff_seconds() * (2**attempt)
                     print(
                         f"marketdata api: {endpoint_label} transient_retry_in="
                         f"{retry_delay:.2f}s attempt={attempt + 1}/{self._max_retries()} "
-                        f"error={exc}"
+                        f"error_type={type(exc).__name__} error={exc}"
                     )
                     time.sleep(retry_delay)
                     continue
