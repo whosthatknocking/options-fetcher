@@ -296,6 +296,49 @@ def test_add_derived_pricing_metrics_falls_back_for_call_capital_required(monkey
     assert pd.notna(result.loc[0, "theta_efficiency"])
 
 
+@pytest.mark.parametrize("underlying_price", [0.0, -1.0])
+def test_add_derived_pricing_metrics_guards_otm_pct_divisor(
+    monkeypatch,
+    underlying_price,
+):
+    """Invalid spot prices should not produce inf or sign-flipped OTM percentages."""
+    monkeypatch.setattr("opx_chain.metrics.get_runtime_config", make_score_config)
+    frame = pd.DataFrame(
+        [
+            {
+                "option_type": "call",
+                "bid": 1.00,
+                "ask": 1.40,
+                "last_trade_price": 1.20,
+                "implied_volatility": 0.30,
+                "strike": 100.0,
+                "volume": 20,
+                "open_interest": 100,
+                "days_to_expiration": 10,
+                "time_to_expiration_years": 10 / 365.0,
+            },
+            {
+                "option_type": "put",
+                "bid": 1.00,
+                "ask": 1.40,
+                "last_trade_price": 1.20,
+                "implied_volatility": 0.30,
+                "strike": 100.0,
+                "volume": 20,
+                "open_interest": 100,
+                "days_to_expiration": 10,
+                "time_to_expiration_years": 10 / 365.0,
+            },
+        ]
+    )
+
+    quoted = add_quote_quality_metrics(frame.copy(), underlying_price=underlying_price)
+    result = add_derived_pricing_metrics(quoted, underlying_price=underlying_price)
+
+    assert result["strike_vs_spot_pct"].isna().all()
+    assert result["otm_pct"].isna().all()
+
+
 def test_add_screening_and_freshness_flags_uses_prompt_spread_and_dte_tiers(monkeypatch):
     """Spread and DTE scores should follow the prompt's execution scoring tiers."""
     monkeypatch.setattr("opx_chain.metrics.get_runtime_config", make_score_config)

@@ -260,8 +260,8 @@ def add_derived_pricing_metrics(df, underlying_price):
     df["itm_amount"] = np.where(df["option_type"] == "call", call_itm_amount, put_itm_amount)
     df["otm_pct"] = np.where(
         df["option_type"] == "call",
-        np.maximum(df["strike"] - underlying_price, 0) / underlying_price,
-        np.maximum(underlying_price - df["strike"], 0) / underlying_price,
+        np.maximum(df["strike_vs_spot_pct"], 0),
+        np.maximum(-df["strike_vs_spot_pct"], 0),
     )
 
     df["intrinsic_value"] = df["itm_amount"]
