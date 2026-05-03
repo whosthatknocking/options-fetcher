@@ -115,6 +115,9 @@ Behavior:
   is omitted, the configured data dir is the XDG data dir
 - `dir` overrides the fetcher lock location, timestamped CSV side-write
   location, `_latest` copy, and storage backend run/artifact location together
+- the `_latest` CSV pointer is a same-directory atomic file copy named
+  `options_engine_output_latest.csv`, not a symlink; it remains readable even
+  if the original timestamped CSV artifact is later removed
 - when `enable = true`, `fetcher.py` writes through the configured
   `StorageBackend`, `opx-check` uses `list_datasets(limit=100)` and selects the
   newest existing CSV artifact when one is available, otherwise the newest
@@ -720,6 +723,7 @@ All seven steps are complete and shipped.
 - `storage.dir` controls the fetcher lock, timestamped CSV side write, `_latest`
   copy, and storage backend root as one data directory; relative values resolve
   under `$XDG_DATA_HOME/opx-chain/`
+- `_latest` is a copy of the newest timestamped CSV, not a symlink to it
 
 ### Step 4 — Parquet serializer ✓
 

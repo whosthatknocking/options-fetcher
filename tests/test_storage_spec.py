@@ -51,6 +51,17 @@ def test_storage_spec_documents_current_opx_check_lookup():
     assert "`opx-check` uses `list_datasets(limit=1)`" not in spec
 
 
+def test_storage_spec_documents_latest_csv_copy_semantics():
+    """The latest CSV pointer should be documented as a copy, not a symlink."""
+    spec = (ROOT / "docs" / "STORAGE_SPEC.md").read_text(encoding="utf-8")
+
+    assert "`options_engine_output_latest.csv`" in spec
+    assert "not a symlink" in spec
+    assert "remains readable even" in spec
+    assert "original timestamped CSV artifact is later removed" in spec
+    assert "latest symlink" not in spec.lower()
+
+
 def test_storage_spec_documents_current_viewer_storage_discovery():
     """The viewer storage contract should match the implemented discovery path."""
     spec = (ROOT / "docs" / "STORAGE_SPEC.md").read_text(encoding="utf-8")

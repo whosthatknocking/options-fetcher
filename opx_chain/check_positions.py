@@ -22,7 +22,7 @@ def _runtime_runs_dir() -> Path:
 
 
 def find_latest_output(runs_dir: Path | None = None) -> Path | None:
-    """Return the latest output CSV, checking the latest symlink then globbing run dirs."""
+    """Return the latest output CSV, checking the latest copy then globbing run dirs."""
     runs_dir = runs_dir or _runtime_runs_dir()
     latest = runs_dir / "options_engine_output_latest.csv"
     if latest.exists():

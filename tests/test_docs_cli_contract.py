@@ -11,6 +11,7 @@ from opx_chain.config import (
     DEFAULT_MIN_OPEN_INTEREST,
     DEFAULT_MIN_VOLUME,
 )
+from opx_chain.check_positions import find_latest_output
 from opx_chain.fetcher import run_fetch
 
 
@@ -27,6 +28,12 @@ def test_dry_run_cli_flag_is_documented():
 
     for name, path in docs.items():
         assert "--dry-run" in path.read_text(encoding="utf-8"), name
+
+
+def test_opx_check_latest_docstring_does_not_claim_symlink():
+    """The latest CSV lookup docstring should match copy-based runtime behavior."""
+    assert "latest copy" in inspect.getdoc(find_latest_output)
+    assert "symlink" not in inspect.getdoc(find_latest_output).lower()
 
 
 def test_project_spec_lists_builtin_filter_defaults():
