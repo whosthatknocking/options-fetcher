@@ -351,6 +351,12 @@ class SqliteIndexedBackend:
                 (row["run_id"], row["dataset_id"]),
             )
             conn.execute("DELETE FROM datasets WHERE dataset_id = ?", (row["dataset_id"],))
+            remaining = conn.execute(
+                "SELECT COUNT(*) FROM datasets WHERE run_id = ?",
+                (row["run_id"],),
+            ).fetchone()[0]
+            if remaining == 0:
+                self._delete_run_payloads(row["run_id"])
 
     # ------------------------------------------------------------------
     # StorageBackend protocol

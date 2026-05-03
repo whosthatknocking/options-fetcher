@@ -316,6 +316,9 @@ class FilesystemBackend:
         except (OSError, TypeError, ValueError, json.JSONDecodeError):
             return datetime.min.replace(tzinfo=timezone.utc)
 
+    def _run_has_dataset_metadata(self, run_id: str) -> bool:
+        return any(self._run_output_dir(run_id).glob("*.meta.json"))
+
     def _prune_datasets(self) -> None:
         if self._max_runs_retained <= 0:
             return
@@ -334,6 +337,8 @@ class FilesystemBackend:
             except (OSError, KeyError, json.JSONDecodeError):
                 pass
             meta_path.unlink(missing_ok=True)
+            if not self._run_has_dataset_metadata(meta_path.parent.parent.name):
+                self._delete_run_payloads(meta_path.parent.parent.name)
         try:
             self._write_dataset_index(self._scan_dataset_records())
         except OSError:
