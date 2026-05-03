@@ -340,6 +340,10 @@ class SqliteIndexedBackend:
             if artifact.exists():
                 artifact.unlink(missing_ok=True)
             self._delete_run_artifacts(conn, row["run_id"])
+            conn.execute(
+                "UPDATE runs SET dataset_id = NULL WHERE run_id = ? AND dataset_id = ?",
+                (row["run_id"], row["dataset_id"]),
+            )
             conn.execute("DELETE FROM datasets WHERE dataset_id = ?", (row["dataset_id"],))
 
     # ------------------------------------------------------------------

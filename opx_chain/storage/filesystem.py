@@ -292,6 +292,19 @@ class FilesystemBackend:
         except OSError:
             pass
 
+    def _clear_run_dataset_reference(self, run_id: str, dataset_id: str) -> None:
+        try:
+            data = self._read_run(run_id)
+        except (OSError, KeyError, json.JSONDecodeError, ValueError):
+            return
+        if data.get("dataset_id") != dataset_id:
+            return
+        data["dataset_id"] = None
+        try:
+            self._write_run(run_id, data)
+        except OSError:
+            pass
+
     def _meta_created_at_sort_key(self, meta_path: Path) -> datetime:
         try:
             data = json.loads(meta_path.read_text(encoding="utf-8"))
@@ -313,6 +326,7 @@ class FilesystemBackend:
                 if artifact.exists():
                     artifact.unlink()
                 self._delete_run_artifacts(meta_path.parent.parent.name)
+                self._clear_run_dataset_reference(data["run_id"], data["dataset_id"])
             except (OSError, KeyError, json.JSONDecodeError):
                 pass
             meta_path.unlink(missing_ok=True)

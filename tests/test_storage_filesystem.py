@@ -515,6 +515,7 @@ def test_pruning_removes_oldest_when_limit_exceeded(tmp_path: Path):
     assert r1.dataset_id not in ids
     assert r2.dataset_id in ids
     assert r3.dataset_id in ids
+    assert backend.get_run(run_id).dataset_id == r3.dataset_id
 
 
 def test_pruning_uses_created_at_not_meta_file_mtime(tmp_path: Path):
@@ -551,6 +552,20 @@ def test_pruning_selects_only_oldest_excess_meta_files(tmp_path: Path, monkeypat
     _write(backend, run_id)
 
     assert calls == [(1, 3, True)]
+
+
+def test_pruning_clears_dataset_id_for_pruned_run(tmp_path: Path):
+    """A pruned dataset must not remain advertised by its run sidecar."""
+    backend = _make_backend(tmp_path, max_runs_retained=1)
+    old_run_id = backend.create_run(_make_context())
+    old_record = _write(backend, old_run_id)
+    new_run_id = backend.create_run(_make_context(provider="marketdata"))
+    new_record = _write(backend, new_run_id, provider="marketdata")
+
+    assert backend.get_run(old_run_id).dataset_id is None
+    assert backend.get_run(new_run_id).dataset_id == new_record.dataset_id
+    with pytest.raises(KeyError, match="dataset not found"):
+        backend.get_dataset(old_record.dataset_id)
 
 
 def test_pruning_removes_artifact_file(tmp_path: Path):
