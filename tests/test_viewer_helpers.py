@@ -615,6 +615,64 @@ def test_viewer_main_env_overrides_runtime_config(monkeypatch):
     assert captured == {"host": "0.0.0.0", "port": 9100}
 
 
+@pytest.mark.parametrize(
+    ("host", "expected_url"),
+    [
+        ("0.0.0.0", "http://127.0.0.1:8000"),
+        ("::", "http://[::1]:8000"),
+        ("::1", "http://[::1]:8000"),
+        ("127.0.0.1", "http://127.0.0.1:8000"),
+        ("localhost", "http://localhost:8000"),
+    ],
+)
+def test_viewer_url_uses_browser_safe_display_host(host, expected_url):
+    """User-facing viewer URLs should never use wildcard bind destinations."""
+    assert viewer._viewer_url(host, 8000) == expected_url  # pylint: disable=protected-access
+
+
+def test_viewer_serve_prints_display_url_without_changing_bind(monkeypatch, capsys):
+    """The banner should show loopback for wildcard binds while binding wildcard."""
+    captured: dict[str, object] = {}
+
+    class FakeServer:  # pylint: disable=too-few-public-methods
+        """Capture server construction and return immediately."""
+
+        def __init__(self, server_address, request_handler):
+            captured["server_address"] = server_address
+            captured["request_handler"] = request_handler
+            captured["closed"] = False
+
+        def serve_forever(self):
+            """Return immediately instead of starting a real server."""
+
+        def server_close(self):
+            """Record that serve() closes the server."""
+            captured["closed"] = True
+
+    monkeypatch.setattr("opx_chain.viewer.ThreadingHTTPServer", FakeServer)
+
+    viewer.serve(host="0.0.0.0", port=8000)
+
+    assert captured["server_address"] == ("0.0.0.0", 8000)
+    assert captured["request_handler"] is viewer.ViewerRequestHandler
+    assert captured["closed"] is True
+    assert "http://127.0.0.1:8000" in capsys.readouterr().out
+
+
+def test_open_viewer_in_browser_uses_display_url(monkeypatch):
+    """The --open browser destination should map wildcard binds to loopback."""
+    captured: dict[str, object] = {}
+
+    monkeypatch.setattr(
+        "opx_chain.viewer.webbrowser.open",
+        lambda url, new: captured.update({"url": url, "new": new}),
+    )
+
+    viewer.open_viewer_in_browser("::", 8000)
+
+    assert captured == {"url": "http://[::1]:8000", "new": 2}
+
+
 def test_viewer_main_rejects_invalid_env_port(monkeypatch):
     """Invalid OPX_VIEWER_PORT values should fail with a clear message."""
     monkeypatch.setattr(

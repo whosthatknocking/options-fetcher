@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import csv
+import ipaddress
 import json
 import math
 import os
@@ -951,10 +952,29 @@ class ViewerRequestHandler(SimpleHTTPRequestHandler):
         super().log_message(format, *args)
 
 
+def _display_host_for_bind(host: str) -> str:
+    """Return a browser-safe destination host for a viewer bind host."""
+    stripped_host = host.strip()
+    try:
+        bind_ip = ipaddress.ip_address(stripped_host.strip("[]"))
+    except ValueError:
+        return stripped_host
+    if bind_ip.is_unspecified:
+        return "127.0.0.1" if bind_ip.version == 4 else "[::1]"
+    if bind_ip.version == 6:
+        return f"[{bind_ip.compressed}]"
+    return bind_ip.compressed
+
+
+def _viewer_url(host: str, port: int) -> str:
+    """Build the user-facing viewer URL for banners and browser launches."""
+    return f"http://{_display_host_for_bind(host)}:{port}"
+
+
 def serve(host: str = "127.0.0.1", port: int = 8000) -> None:
     """Run the local viewer HTTP server."""
     server = ThreadingHTTPServer((host, port), ViewerRequestHandler)
-    print(f"Options Screener running at http://{host}:{port}")
+    print(f"Options Screener running at {_viewer_url(host, port)}")
     try:
         server.serve_forever()
     except KeyboardInterrupt:
@@ -999,7 +1019,7 @@ def parse_args(argv=None):
 
 def open_viewer_in_browser(host: str, port: int) -> None:
     """Open the viewer URL in the default browser."""
-    webbrowser.open(f"http://{host}:{port}", new=2)
+    webbrowser.open(_viewer_url(host, port), new=2)
 
 
 def _resolve_viewer_port(config_port: int) -> int:
