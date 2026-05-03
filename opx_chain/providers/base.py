@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from datetime import date, datetime, timezone
 import json
 from pathlib import Path
+import re
 
 import numpy as np
 import pandas as pd
@@ -35,6 +36,14 @@ def is_provider_quota_error(exc: Exception) -> bool:
     if str(status_code) == "429":
         return True
     message = str(exc).lower()
+    quota_patterns = (
+        r"\bapi\s+quota\b",
+        r"\bprovider\s+quota\b",
+        r"\brequest\s+quota\b",
+        r"\bquota\s*/\s*rate\s*limit\b",
+    )
+    if any(re.search(pattern, message) for pattern in quota_patterns):
+        return True
     return any(
         token in message
         for token in (
@@ -44,7 +53,6 @@ def is_provider_quota_error(exc: Exception) -> bool:
             "rate limited",
             "request limit",
             "too many requests",
-            "quota",
         )
     )
 

@@ -5,7 +5,7 @@ from pathlib import Path
 import pandas as pd
 
 from conftest import make_runtime_config
-from opx_chain.providers.base import DataProvider, OptionChainFrames
+from opx_chain.providers.base import DataProvider, OptionChainFrames, is_provider_quota_error
 from opx_chain.storage.atomic import atomic_write_text
 
 
@@ -62,3 +62,18 @@ def test_debug_dump_payload_uses_atomic_text_writer(monkeypatch, tmp_path: Path)
     assert dump_path.exists()
     assert not list(tmp_path.glob(".*.tmp"))
     assert '"ticker": "TSLA"' in dump_path.read_text(encoding="utf-8")
+
+
+def test_provider_quota_classifier_matches_provider_rate_limits() -> None:
+    """Provider quota/rate-limit wording should still classify as terminal quota."""
+    assert is_provider_quota_error(RuntimeError("HTTP 429 Too Many Requests"))
+    assert is_provider_quota_error(RuntimeError("daily request limit reached"))
+    assert is_provider_quota_error(RuntimeError("api quota exhausted"))
+    assert is_provider_quota_error(RuntimeError("quota/rate limit from provider"))
+
+
+def test_provider_quota_classifier_ignores_local_quota_errors() -> None:
+    """Local resource-quota failures should not masquerade as provider quota errors."""
+    assert not is_provider_quota_error(OSError(122, "Disk quota exceeded"))
+    assert not is_provider_quota_error(RuntimeError("memory quota exceeded"))
+    assert not is_provider_quota_error(RuntimeError("time quota expired"))
