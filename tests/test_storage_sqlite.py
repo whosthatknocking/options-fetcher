@@ -840,6 +840,53 @@ def test_count_runs_today_returns_zero_when_no_runs(tmp_path: Path):
     assert backend.count_runs_today("marketdata") == 0
 
 
+def test_count_runs_today_uses_composite_index(tmp_path: Path):
+    """count_runs_today must use the provider/status/started_at index."""
+    _make_backend(tmp_path)
+    conn = sqlite3.connect(tmp_path / "opx-chain.db")
+    try:
+        plan = conn.execute(
+            "EXPLAIN QUERY PLAN "
+            "SELECT COUNT(*) FROM runs "
+            "WHERE provider = ? AND started_at >= ? AND status = 'complete'",
+            ("marketdata", "2026-01-01T00:00:00+00:00"),
+        ).fetchall()
+    finally:
+        conn.close()
+
+    details = " ".join(str(row[-1]) for row in plan)
+    assert "idx_runs_provider_status_started" in details
+
+
+def test_schema_migration_adds_count_runs_today_index(tmp_path: Path):
+    """v3 databases must be upgraded with the count_runs_today index."""
+    _make_backend(tmp_path)
+    conn = sqlite3.connect(tmp_path / "opx-chain.db")
+    try:
+        conn.execute("DROP INDEX IF EXISTS idx_runs_provider_status_started")
+        conn.execute("UPDATE _schema_meta SET value = '3' WHERE key = 'schema_version'")
+        conn.commit()
+    finally:
+        conn.close()
+
+    _make_backend(tmp_path)
+
+    conn = sqlite3.connect(tmp_path / "opx-chain.db")
+    try:
+        version = conn.execute(
+            "SELECT value FROM _schema_meta WHERE key = 'schema_version'"
+        ).fetchone()[0]
+        index_row = conn.execute(
+            "SELECT name FROM sqlite_master WHERE type = 'index' AND name = ?",
+            ("idx_runs_provider_status_started",),
+        ).fetchone()
+    finally:
+        conn.close()
+
+    assert version == str(sqlite_indexed_mod._SCHEMA_VERSION)  # pylint: disable=protected-access
+    assert index_row is not None
+
+
 def test_interrupt_stale_runs_marks_old_running_rows(tmp_path: Path):
     """Stale running SQLite rows should converge to interrupted."""
     backend = _make_backend(tmp_path)

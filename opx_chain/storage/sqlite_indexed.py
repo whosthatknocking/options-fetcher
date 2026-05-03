@@ -101,14 +101,20 @@ CREATE TABLE IF NOT EXISTS artifacts (
 CREATE INDEX IF NOT EXISTS idx_datasets_created_at ON datasets(created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_datasets_run_id     ON datasets(run_id);
 CREATE INDEX IF NOT EXISTS idx_runs_status         ON runs(status);
+CREATE INDEX IF NOT EXISTS idx_runs_provider_status_started
+    ON runs(provider, status, started_at);
 """
 
-_SCHEMA_VERSION = 3
+_SCHEMA_VERSION = 4
 _SCHEMA_MIGRATIONS: dict[int, str] = {
     2: "ALTER TABLE runs ADD COLUMN tickers TEXT NOT NULL DEFAULT '[]';",
     3: """
        ALTER TABLE runs ADD COLUMN script_version TEXT NOT NULL DEFAULT 'unknown';
        ALTER TABLE datasets ADD COLUMN script_version TEXT NOT NULL DEFAULT 'unknown';
+       """,
+    4: """
+       CREATE INDEX IF NOT EXISTS idx_runs_provider_status_started
+           ON runs(provider, status, started_at);
        """,
 }
 
