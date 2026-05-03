@@ -1,6 +1,9 @@
 [settings]
 tickers = ["TSLA", "NVDA", "UBER", "MSFT", "GOOGL", "ORCL", "PLTR"]
 data_provider = "yfinance"
+# Keep false to fail fast when a paid provider is selected without credentials.
+# Set true only when you intentionally want yfinance fallback for missing paid-provider credentials.
+auto_fallback_to_yfinance = false
 
 # Optional portfolio positions input:
 # Place a Fidelity-format export at $XDG_DATA_HOME/opx-chain/positions.csv

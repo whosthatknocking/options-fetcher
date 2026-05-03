@@ -9,6 +9,7 @@ from pathlib import Path
 import pytest
 
 from opx_chain.config import (
+    ConfigError,
     describe_runtime_config,
     get_runtime_config,
     load_runtime_config,
@@ -54,6 +55,7 @@ def test_load_runtime_config_uses_defaults_when_file_is_absent(tmp_path: Path):
     assert config.debug_dump_dir == get_default_debug_dump_dir()
     assert config.viewer_host == "127.0.0.1"
     assert config.viewer_port == 8000
+    assert config.auto_fallback_to_yfinance is False
     assert config.enable_filters is True
     assert config.max_spread_pct_of_mid == 0.25
     assert config.max_expiration_weeks == 34
@@ -209,7 +211,7 @@ backoff_seconds = 0.5
 
 
 def test_load_runtime_config_requires_massive_key_only_when_selected(tmp_path: Path):
-    """Missing Massive credentials should fall back to the default provider."""
+    """Missing Massive credentials should fail unless fallback is explicit."""
     yfinance_config = tmp_path / "yfinance.toml"
     yfinance_config.write_text("[settings]\ndata_provider = 'yfinance'\n", encoding="utf-8")
     assert load_runtime_config(yfinance_config).data_provider == "yfinance"
@@ -217,21 +219,37 @@ def test_load_runtime_config_requires_massive_key_only_when_selected(tmp_path: P
     massive_config = tmp_path / "massive.toml"
     massive_config.write_text("[settings]\ndata_provider = 'massive'\n", encoding="utf-8")
 
+    with pytest.raises(ConfigError, match="providers.massive.api_key"):
+        load_runtime_config(massive_config)
+
+    massive_config.write_text(
+        "[settings]\ndata_provider = 'massive'\nauto_fallback_to_yfinance = true\n",
+        encoding="utf-8",
+    )
     config = load_runtime_config(massive_config)
     assert config.data_provider == "yfinance"
+    assert config.auto_fallback_to_yfinance is True
     assert any("falling back to 'yfinance'" in warning for warning in config.config_warnings)
 
 
 def test_load_runtime_config_requires_marketdata_token_only_when_selected(tmp_path: Path):
-    """Missing Market Data credentials should fall back to the default provider."""
+    """Missing Market Data credentials should fail unless fallback is explicit."""
     marketdata_config = tmp_path / "marketdata.toml"
     marketdata_config.write_text(
         "[settings]\ndata_provider = 'marketdata'\n",
         encoding="utf-8",
     )
 
+    with pytest.raises(ConfigError, match="providers.marketdata.api_token"):
+        load_runtime_config(marketdata_config)
+
+    marketdata_config.write_text(
+        "[settings]\ndata_provider = 'marketdata'\nauto_fallback_to_yfinance = true\n",
+        encoding="utf-8",
+    )
     config = load_runtime_config(marketdata_config)
     assert config.data_provider == "yfinance"
+    assert config.auto_fallback_to_yfinance is True
     assert any("providers.marketdata.api_token" in warning for warning in config.config_warnings)
 
 
@@ -244,6 +262,7 @@ def test_load_runtime_config_defaults_invalid_marketdata_mode(tmp_path: Path):
 data_provider = "marketdata"
 
 [providers.marketdata]
+api_token = "market-token"
 mode = "fast"
 """.strip(),
         encoding="utf-8",
@@ -298,6 +317,7 @@ def test_load_runtime_config_defaults_invalid_marketdata_tuning(tmp_path: Path):
 data_provider = "marketdata"
 
 [providers.marketdata]
+api_token = "market-token"
 max_retries = -1
 """.strip(),
         encoding="utf-8",
@@ -313,6 +333,7 @@ max_retries = -1
 data_provider = "marketdata"
 
 [providers.marketdata]
+api_token = "market-token"
 request_interval_seconds = -0.5
 """.strip(),
         encoding="utf-8",
@@ -331,6 +352,7 @@ request_interval_seconds = -0.5
 data_provider = "marketdata"
 
 [providers.marketdata]
+api_token = "market-token"
 backoff_seconds = -0.5
 """.strip(),
         encoding="utf-8",
@@ -606,6 +628,9 @@ backoff_seconds = -0.5
 [settings]
 data_provider = "massive"
 debug_dump_provider_payload = "yes"
+
+[providers.massive]
+api_key = "secret"
 """.strip(),
         encoding="utf-8",
     )

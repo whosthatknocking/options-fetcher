@@ -53,6 +53,7 @@ DEFAULT_YFINANCE_MAX_RETRIES = 0
 DEFAULT_YFINANCE_BACKOFF_SECONDS = 1.0
 DEFAULT_VIEWER_HOST = "127.0.0.1"
 DEFAULT_VIEWER_PORT = 8000
+DEFAULT_AUTO_FALLBACK_TO_YFINANCE = False
 MAX_MASSIVE_SNAPSHOT_PAGE_LIMIT = 250
 DEFAULT_MASSIVE_SNAPSHOT_PAGE_LIMIT = MAX_MASSIVE_SNAPSHOT_PAGE_LIMIT
 DEFAULT_MASSIVE_REQUEST_INTERVAL_SECONDS = 12.0
@@ -116,6 +117,7 @@ class RuntimeConfig:
     storage_dataset_format: str = "csv"
     storage_also_write_csv: bool = True
     storage_dir: Path | None = None       # absolute storage base; defaults to XDG data dir
+    auto_fallback_to_yfinance: bool = DEFAULT_AUTO_FALLBACK_TO_YFINANCE
     provider_cache_backend: str = "none"
     provider_cache_dir: Path = field(default_factory=get_default_provider_cache_dir)
     provider_snapshot_ttl: int = 300
@@ -378,6 +380,13 @@ def load_runtime_config(  # pylint: disable=too-many-locals
     )
     massive_warnings = warnings if data_provider == "massive" else []
     marketdata_warnings = warnings if data_provider == "marketdata" else []
+    auto_fallback_to_yfinance = _resolve_config_value(
+        settings.get("auto_fallback_to_yfinance"),
+        field_name="settings.auto_fallback_to_yfinance",
+        default=DEFAULT_AUTO_FALLBACK_TO_YFINANCE,
+        coercer=_coerce_bool,
+        warnings=warnings,
+    )
     storage_settings = _resolve_table(
         data.get("storage", {}), field_name="storage", warnings=warnings
     )
@@ -405,13 +414,27 @@ def load_runtime_config(  # pylint: disable=too-many-locals
         constraint=f"must be one of {sorted(SUPPORTED_MARKETDATA_MODES)!r}",
     )
     if data_provider == "massive" and not massive_api_key:
+        if not auto_fallback_to_yfinance:
+            raise ConfigError(
+                "Configured settings.data_provider='massive' requires "
+                "providers.massive.api_key. Set "
+                "settings.auto_fallback_to_yfinance=true to opt into yfinance fallback."
+            )
         warnings.append(
-            "providers.massive.api_key: using default None and falling back to 'yfinance'."
+            "providers.massive.api_key: using default None and falling back to 'yfinance' "
+            "because settings.auto_fallback_to_yfinance=true."
         )
         data_provider = DEFAULT_DATA_PROVIDER
     if data_provider == "marketdata" and not marketdata_api_token:
+        if not auto_fallback_to_yfinance:
+            raise ConfigError(
+                "Configured settings.data_provider='marketdata' requires "
+                "providers.marketdata.api_token. Set "
+                "settings.auto_fallback_to_yfinance=true to opt into yfinance fallback."
+            )
         warnings.append(
-            "providers.marketdata.api_token: using default None and falling back to 'yfinance'."
+            "providers.marketdata.api_token: using default None and falling back to "
+            "'yfinance' because settings.auto_fallback_to_yfinance=true."
         )
         data_provider = DEFAULT_DATA_PROVIDER
     yfinance_warnings = warnings if data_provider == "yfinance" else []
@@ -687,6 +710,7 @@ def load_runtime_config(  # pylint: disable=too-many-locals
             constraint="must be >= 0",
         ),
         config_path=resolved_path,
+        auto_fallback_to_yfinance=auto_fallback_to_yfinance,
         storage_enabled=_resolve_config_value(
             storage_settings.get("enable"),
             field_name="storage.enable",

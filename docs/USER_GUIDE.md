@@ -186,6 +186,8 @@ Runtime configuration lives in `$XDG_CONFIG_HOME/opx-chain/config.toml` (default
 
 If individual config values are missing, malformed, or out of range, the loader applies built-in defaults for those fields and the fetcher prints the resolved values plus any fallback warnings at startup.
 
+When `data_provider` is set to a paid provider, required credentials are fail-fast by default. `data_provider = "massive"` requires `[providers.massive].api_key`, and `data_provider = "marketdata"` requires `providers.marketdata.api_token`. Set `auto_fallback_to_yfinance = true` only when you intentionally want missing paid-provider credentials to fall back to `yfinance` instead of stopping the run.
+
 Start from the tracked example at [`config/example.toml`](config/example.toml):
 
 ```
@@ -207,6 +209,7 @@ be positive.
 
 - `tickers = ["TSLA", "NVDA", "UBER", "MSFT", "GOOGL", "ORCL", "PLTR"]`: list of underlyings to fetch.
 - `data_provider = "yfinance"`: provider implementation used by the fetch pipeline.
+- `auto_fallback_to_yfinance = false`: when `false`, selecting `massive` without `providers.massive.api_key` or `marketdata` without `providers.marketdata.api_token` raises a clear config error. Set to `true` only for an intentional missing-credential fallback to `yfinance`.
 
 #### Shared Filtering Defaults
 
