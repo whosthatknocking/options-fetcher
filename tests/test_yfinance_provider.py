@@ -6,6 +6,7 @@ import json
 
 import pandas as pd
 import pytest
+from requests import exceptions as requests_exceptions
 
 from conftest import make_runtime_config
 from opx_chain.providers.base import ProviderQuotaError
@@ -256,6 +257,35 @@ def test_yfinance_provider_raises_quota_error_after_rate_limit_retries(monkeypat
     assert sleep_calls == [pytest.approx(0.25)]
 
 
+@pytest.mark.parametrize("error", [AttributeError("bad attribute"), ValueError("bad parse")])
+def test_yfinance_provider_does_not_retry_non_transient_errors(monkeypatch, error):
+    """Programmer bugs and permanent parse errors should fail without backoff."""
+
+    class BrokenTicker:  # pylint: disable=too-few-public-methods
+        """Ticker stub that raises a non-transient error."""
+
+        @property
+        def options(self):
+            """Raise the configured non-transient exception."""
+            raise error
+
+    monkeypatch.setattr(
+        "opx_chain.providers.yfinance.get_runtime_config",
+        lambda: make_runtime_config(
+            yfinance_max_retries=2,
+            yfinance_backoff_seconds=0.25,
+        ),
+    )
+    monkeypatch.setattr("opx_chain.providers.yfinance.yf.Ticker", lambda _ticker: BrokenTicker())
+    sleep_calls = []
+    monkeypatch.setattr("opx_chain.providers.yfinance.time.sleep", sleep_calls.append)
+
+    with pytest.raises(type(error), match=str(error)):
+        YFinanceProvider().list_option_expirations("TSLA")
+
+    assert not sleep_calls
+
+
 def test_yfinance_safe_metadata_paths_propagate_quota_errors():
     """Best-effort Yahoo metadata wrappers should not swallow quota failures."""
     provider = YFinanceProvider()
@@ -306,7 +336,7 @@ def test_yfinance_historical_volatility_propagates_quota_errors(monkeypatch):
 
 
 def test_yfinance_fast_info_retry_log_names_action(monkeypatch, capsys):
-    """Fast-info retries should include the action in the operator log label."""
+    """Transient fast-info retries should include the action in the operator log label."""
     attempts = {"count": 0}
 
     class FlakyFastInfoTicker(FakeTicker):  # pylint: disable=too-few-public-methods
@@ -317,7 +347,7 @@ def test_yfinance_fast_info_retry_log_names_action(monkeypatch, capsys):
             """Raise once, then return the underlying snapshot payload."""
             attempts["count"] += 1
             if attempts["count"] == 1:
-                raise RuntimeError("fast info unavailable")
+                raise requests_exceptions.ConnectionError("fast info unavailable")
             return {"lastPrice": 101.5, "previousClose": 100.0}
 
         @fast_info.setter

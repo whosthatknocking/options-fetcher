@@ -11,6 +11,13 @@ from typing import Any
 import numpy as np
 import pandas as pd
 import yfinance as yf
+from requests import exceptions as requests_exceptions
+from yfinance.exceptions import YFRateLimitError
+
+try:
+    from curl_cffi.requests import exceptions as curl_exceptions
+except ImportError:  # pragma: no cover - yfinance currently depends on curl_cffi
+    curl_exceptions = None
 
 from opx_chain.config import get_runtime_config
 from opx_chain.providers.base import (
@@ -23,6 +30,24 @@ from opx_chain.providers.base import (
 )
 from opx_chain.providers._dates import parse_event_date as _parse_event_date
 from opx_chain.utils import coerce_float, normalize_timestamp
+
+
+_transient_yfinance_exceptions: tuple[type[BaseException], ...] = (
+    YFRateLimitError,
+    TimeoutError,
+    ConnectionError,
+    requests_exceptions.RequestException,
+)
+if curl_exceptions is not None:
+    _transient_yfinance_exceptions = (
+        *_transient_yfinance_exceptions,
+        curl_exceptions.RequestException,
+    )
+
+
+def _is_retryable_yfinance_error(exc: Exception) -> bool:
+    """Return True only for transient Yahoo/yfinance failures worth retrying."""
+    return isinstance(exc, _transient_yfinance_exceptions) or is_provider_quota_error(exc)
 
 
 def _first_non_missing(*values):
@@ -153,7 +178,11 @@ class YFinanceProvider(DataProvider):
             self._sleep_for_request_interval()
             try:
                 return callback()
+            except (ProviderAuthenticationError, ProviderQuotaError):
+                raise
             except Exception as exc:  # pylint: disable=broad-exception-caught
+                if not _is_retryable_yfinance_error(exc):
+                    raise
                 if attempt == max_retries:
                     if is_provider_quota_error(exc):
                         raise ProviderQuotaError(
