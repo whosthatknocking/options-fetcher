@@ -25,17 +25,20 @@ def _ensure_lock_byte(handle: TextIO) -> None:
     handle.seek(0)
 
 
-def acquire_nonblocking_file_lock(path: Path) -> TextIO | None:
-    """Acquire an exclusive non-blocking file lock, or return None if busy."""
+def _ensure_lock_implementation() -> None:
     if fcntl is None and msvcrt is None:
         raise OSError("no file-lock implementation available")
 
+
+def acquire_nonblocking_file_lock(path: Path) -> TextIO | None:
+    """Acquire an exclusive non-blocking file lock, or return None if busy."""
+    _ensure_lock_implementation()
     path.parent.mkdir(parents=True, exist_ok=True)
     handle = path.open("a+", encoding="utf-8")
     try:
         if fcntl is not None:
             fcntl.flock(handle.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
-        elif msvcrt is not None:
+        else:
             _ensure_lock_byte(handle)
             msvcrt.locking(handle.fileno(), msvcrt.LK_NBLCK, 1)
     except OSError:
@@ -44,8 +47,25 @@ def acquire_nonblocking_file_lock(path: Path) -> TextIO | None:
     return handle
 
 
+def acquire_blocking_file_lock(path: Path) -> TextIO:
+    """Acquire an exclusive blocking file lock."""
+    _ensure_lock_implementation()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    handle = path.open("a+", encoding="utf-8")
+    try:
+        if fcntl is not None:
+            fcntl.flock(handle.fileno(), fcntl.LOCK_EX)
+        else:
+            _ensure_lock_byte(handle)
+            msvcrt.locking(handle.fileno(), msvcrt.LK_LOCK, 1)
+    except OSError:
+        handle.close()
+        raise
+    return handle
+
+
 def release_file_lock(handle: TextIO) -> None:
-    """Release a file lock acquired by acquire_nonblocking_file_lock."""
+    """Release a file lock acquired by this module."""
     try:
         if fcntl is not None:
             fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
