@@ -39,6 +39,19 @@ from opx_chain.storage._disk import (
 from opx_chain.storage.serializers import get_serializer
 
 
+def _unlink_orphaned_file(path: Path, *, remove_empty_parent: bool = False) -> None:
+    """Best-effort cleanup for files written before their SQLite row commits."""
+    try:
+        path.unlink(missing_ok=True)
+    except OSError:
+        return
+    if remove_empty_parent:
+        try:
+            path.parent.rmdir()
+        except OSError:
+            pass
+
+
 _SCHEMA_SQL = """
 CREATE TABLE IF NOT EXISTS _schema_meta (
     key   TEXT PRIMARY KEY,
@@ -449,52 +462,71 @@ class SqliteIndexedBackend:
             location=str(artifact_path),
             content_hash=content_hash,
         )
-        with self._open_connection() as conn:
-            conn.execute(
-                """INSERT INTO datasets
-                   (dataset_id, run_id, created_at, provider, script_version, schema_version,
-                    row_count, format, location, content_hash)
-                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-                (
-                    dataset_id,
-                    run_id,
-                    _dt_to_str(now),
-                    dataset.provider,
-                    dataset.script_version,
-                    dataset.schema_version,
-                    len(dataset.data),
-                    dataset.format,
-                    str(artifact_path),
-                    content_hash,
-                ),
-            )
-            conn.execute(
-                "UPDATE runs SET dataset_id = ? WHERE run_id = ?",
-                (dataset_id, run_id),
-            )
-            self._prune_datasets(conn)
-            conn.commit()
+        try:
+            with self._open_connection() as conn:
+                conn.execute(
+                    """INSERT INTO datasets
+                       (dataset_id, run_id, created_at, provider, script_version, schema_version,
+                        row_count, format, location, content_hash)
+                       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                    (
+                        dataset_id,
+                        run_id,
+                        _dt_to_str(now),
+                        dataset.provider,
+                        dataset.script_version,
+                        dataset.schema_version,
+                        len(dataset.data),
+                        dataset.format,
+                        str(artifact_path),
+                        content_hash,
+                    ),
+                )
+                conn.execute(
+                    "UPDATE runs SET dataset_id = ? WHERE run_id = ?",
+                    (dataset_id, run_id),
+                )
+                self._prune_datasets(conn)
+                conn.commit()
+        except Exception:
+            _unlink_orphaned_file(artifact_path)
+            raise
         return record
 
     def write_artifact(self, run_id: str, artifact: ArtifactWrite) -> ArtifactRecord:
         """Write artifact bytes to disk and record metadata in SQLite."""
         if artifact.artifact_type == "sidecar":
             dest = self._sidecar_path(run_id, artifact.filename)
+            existed_before_write = dest.exists()
             atomic_write_bytes(dest, artifact.content)
             artifact_id = f"{run_id}:{artifact.filename}"
             content_hash = hashlib.sha256(artifact.content).hexdigest()
+            remove_empty_parent = False
         else:
             artifact_id, dest, content_hash = write_artifact_bytes(
                 artifact.content, self._debug_dir, artifact.filename
             )
-        with self._open_connection() as conn:
-            conn.execute(
-                """INSERT INTO artifacts
-                   (artifact_id, run_id, artifact_type, location, content_hash)
-                   VALUES (?, ?, ?, ?, ?)""",
-                (artifact_id, run_id, artifact.artifact_type, str(dest.resolve()), content_hash),
-            )
-            conn.commit()
+            existed_before_write = False
+            remove_empty_parent = True
+        try:
+            with self._open_connection() as conn:
+                conn.execute(
+                    """INSERT INTO artifacts
+                       (artifact_id, run_id, artifact_type, location, content_hash)
+                       VALUES (?, ?, ?, ?, ?)""",
+                    (
+                        artifact_id,
+                        run_id,
+                        artifact.artifact_type,
+                        str(dest.resolve()),
+                        content_hash,
+                    ),
+                )
+                conn.commit()
+        except Exception:
+            if not existed_before_write:
+                _unlink_orphaned_file(dest, remove_empty_parent=remove_empty_parent)
+            raise
         return ArtifactRecord(
             artifact_id=artifact_id,
             run_id=run_id,

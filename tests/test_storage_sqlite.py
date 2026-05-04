@@ -375,6 +375,30 @@ def test_write_dataset_creates_artifact(tmp_path: Path):
     assert Path(record.location).exists()
 
 
+def test_write_dataset_removes_artifact_when_index_write_fails(
+    tmp_path: Path,
+    monkeypatch,
+):
+    """A failed dataset DB transaction must not leave an unindexed output file."""
+    backend = _make_backend(tmp_path)
+    run_id = backend.create_run(_make_context())
+
+    def fail_prune(_conn):
+        raise sqlite3.OperationalError("index write failed")
+
+    monkeypatch.setattr(backend, "_prune_datasets", fail_prune)
+
+    with pytest.raises(sqlite3.OperationalError, match="index write failed"):
+        backend.write_dataset(
+            run_id,
+            DatasetWrite(data=_make_dataframe(), provider="yfinance", schema_version=1),
+        )
+
+    assert not list((tmp_path / "runs" / run_id / "output").glob("*.csv"))
+    assert backend.get_run(run_id).dataset_id is None
+    assert backend.list_datasets() == []
+
+
 def test_write_dataset_returns_correct_record(tmp_path: Path):
     """DatasetRecord returned by write_dataset must have correct field values."""
     backend = _make_backend(tmp_path)
@@ -530,6 +554,33 @@ def test_write_artifact_creates_file(tmp_path: Path):
 
     assert Path(record.location).read_bytes() == b"payload"
     assert len(record.content_hash) == 64
+
+
+def test_write_artifact_removes_debug_file_when_index_write_fails(tmp_path: Path):
+    """A failed debug artifact DB insert must not leave an unindexed payload file."""
+    backend = _make_backend(tmp_path)
+    payload = ArtifactWrite(
+        artifact_type="debug_payload", content=b"payload", filename="data.json"
+    )
+
+    with pytest.raises(sqlite3.IntegrityError):
+        backend.write_artifact("missing-run", payload)
+
+    debug_dir = tmp_path / "debug"
+    assert not debug_dir.exists() or not list(debug_dir.rglob("*"))
+
+
+def test_write_artifact_removes_sidecar_when_index_write_fails(tmp_path: Path):
+    """A failed sidecar DB insert must not leave an unindexed run artifact file."""
+    backend = _make_backend(tmp_path)
+    payload = ArtifactWrite(
+        artifact_type="sidecar", content=b"positions", filename="positions.csv"
+    )
+
+    with pytest.raises(sqlite3.IntegrityError):
+        backend.write_artifact("missing-run", payload)
+
+    assert not (tmp_path / "runs" / "missing-run" / "positions.csv").exists()
 
 
 def test_write_sidecar_artifact_stays_under_run_dir(tmp_path: Path):
