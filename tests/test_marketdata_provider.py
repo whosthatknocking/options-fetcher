@@ -386,6 +386,39 @@ def test_marketdata_provider_retries_rate_limits(monkeypatch):
     assert sleep_calls == [0.25]
 
 
+@pytest.mark.parametrize("retry_after", ["inf", "-inf", "nan"])
+def test_marketdata_provider_ignores_non_finite_retry_after(monkeypatch, retry_after):
+    """Non-finite Retry-After values should fall back to configured backoff."""
+    patch_marketdata_client(monkeypatch)
+    monkeypatch.setattr(
+        "opx_chain.providers.marketdata.get_runtime_config",
+        lambda: make_runtime_config(
+            marketdata_max_retries=2,
+            marketdata_request_interval_seconds=0.0,
+            marketdata_backoff_seconds=0.5,
+        ),
+    )
+    sleep_calls = []
+    monkeypatch.setattr("opx_chain.providers.marketdata.time.sleep", sleep_calls.append)
+    provider = MarketDataProvider()
+    responses = iter(
+        [
+            FakeResponse(429, {"s": "error"}, headers={"Retry-After": retry_after}),
+            FakeResponse(200, {"optionSymbol": ["TSLA260417C00100000"]}),
+        ]
+    )
+
+    def fake_request(_method, _url, *_args, **_kwargs):
+        return next(responses)
+
+    wrapped = provider._wrap_logged_request(fake_request)  # pylint: disable=protected-access
+
+    response = wrapped("GET", "https://api.marketdata.app/v1/options/chain/TSLA/")
+
+    assert response.status_code == 200
+    assert sleep_calls == [0.5]
+
+
 def test_marketdata_provider_retries_rate_limits_with_http_date(monkeypatch):
     """HTTP-date Retry-After headers should also determine retry delay."""
     patch_marketdata_client(monkeypatch)

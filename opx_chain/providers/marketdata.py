@@ -8,6 +8,7 @@ from datetime import date, datetime, timezone
 from email.utils import parsedate_to_datetime
 from functools import lru_cache
 import logging
+import math
 import time
 from typing import Any
 
@@ -275,11 +276,14 @@ class MarketDataProvider(DataProvider):
         retry_after = headers.get("Retry-After")
         if retry_after is not None:
             try:
-                return max(float(retry_after), 0.0)
+                retry_delay = float(retry_after)
             except (TypeError, ValueError):
                 retry_at = self._parse_retry_after_http_date(retry_after)
-                if retry_at is not None:
+                if retry_at is not None and math.isfinite(retry_at):
                     return retry_at
+            else:
+                if math.isfinite(retry_delay):
+                    return max(retry_delay, 0.0)
         return self._backoff_seconds() * (2 ** attempt)
 
     @staticmethod
