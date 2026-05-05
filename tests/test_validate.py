@@ -6,6 +6,7 @@ import opx_chain.validate as validate_mod
 from opx_chain.export import CANONICAL_EXPORT_COLUMNS
 from opx_chain.schema import BOOLEAN_FIELDS
 from opx_chain.validate import (
+    NUMERIC_FIELDS,
     emit_validation_report,
     summarize_validation_findings,
     validate_export_frame,
@@ -79,6 +80,30 @@ def test_validate_option_rows_flags_invalid_types_and_quote_order():
     assert any(f.code == "invalid_expiration_date" for f in findings)
     assert any(f.code == "invalid_quote_order" for f in findings)
     assert any(f.code == "invalid_boolean_field" for f in findings)
+
+
+def test_validate_option_rows_flags_non_finite_numeric_fields():
+    """NaN and Infinity must be rejected at the validation boundary."""
+    rows = []
+    for field in NUMERIC_FIELDS:
+        rows.append(make_valid_row(contract_symbol=f"INF{field}", **{field: "Infinity"}))
+        rows.append(make_valid_row(contract_symbol=f"NEG_INF{field}", **{field: -float("inf")}))
+
+    findings = validate_option_rows(pd.DataFrame(rows))
+
+    invalid_fields = [
+        finding.field
+        for finding in findings
+        if finding.code == "invalid_numeric_field"
+    ]
+    assert invalid_fields.count("strike") == 2
+    assert invalid_fields.count("underlying_price") == 2
+    assert invalid_fields.count("bid") == 2
+    assert invalid_fields.count("ask") == 2
+    assert invalid_fields.count("last_trade_price") == 2
+    assert invalid_fields.count("volume") == 2
+    assert invalid_fields.count("open_interest") == 2
+    assert invalid_fields.count("implied_volatility") == 2
 
 
 def test_exported_boolean_fields_are_validated():

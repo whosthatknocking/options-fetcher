@@ -419,6 +419,8 @@ Current behavior:
 
 - controlled by `settings.enable_validation`
 - row-level validation runs after normalization/enrichment and before post-download filtering
+- row-level numeric validation rejects missing, non-numeric, and non-finite values
+  (`NaN`, `Infinity`, `-Infinity`) in canonical numeric fields
 - file-level validation runs on the combined frame before export
 - validation findings use `warning` and `error` severities
 - validation errors do not stop the run or block CSV export

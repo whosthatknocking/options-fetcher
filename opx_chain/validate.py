@@ -91,6 +91,12 @@ def _numeric_series(df: pd.DataFrame, field: str) -> pd.Series:
     return pd.to_numeric(df[field], errors="coerce")
 
 
+def _invalid_numeric_mask(df: pd.DataFrame, field: str) -> pd.Series:
+    """Return rows where a present numeric field is not finite."""
+    numeric = _numeric_series(df, field)
+    return ~_missing_mask(df, field) & (numeric.isna() | ~np.isfinite(numeric))
+
+
 def _contract_symbols(df: pd.DataFrame) -> pd.Series:
     """Return contract symbols aligned to df.index, or None when unavailable."""
     if "contract_symbol" not in df.columns:
@@ -189,14 +195,13 @@ def validate_option_rows(df: pd.DataFrame) -> list[ValidationFinding]:
     for field in NUMERIC_FIELDS:
         if field not in df.columns:
             continue
-        invalid_numeric = ~_missing_mask(df, field) & _numeric_series(df, field).isna()
         _append_row_findings(
             findings,
-            invalid_numeric,
+            _invalid_numeric_mask(df, field),
             contract_symbols,
             severity="error",
             code="invalid_numeric_field",
-            message=f"Field '{field}' must be numeric.",
+            message=f"Field '{field}' must be a finite number.",
             field=field,
         )
 
