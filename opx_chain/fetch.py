@@ -25,6 +25,7 @@ from opx_chain.providers.base import (
 )
 from opx_chain.providers import get_data_provider
 from opx_chain.storage.cache import get_provider_cache
+from opx_chain.utils import is_finite_positive_number
 from opx_chain.validate import validate_option_rows
 
 _JSON_TIMESTAMP_KEY = "__opx_pd_timestamp__"
@@ -252,7 +253,7 @@ def fetch_ticker_option_chain(  # pylint: disable=too-many-locals,too-many-branc
             logger=logger,
         )
 
-        if pd.isna(underlying_price) or underlying_price <= 0:
+        if not is_finite_positive_number(underlying_price):
             _emit_fetch_info(
                 f"{ticker}: skipped because underlying price is missing or invalid",
                 logger=logger,

@@ -9,6 +9,7 @@ from opx_chain.metrics import (
     add_quote_quality_metrics,
     add_screening_and_freshness_flags,
 )
+from opx_chain.utils import is_finite_positive_number
 
 
 def normalize_vendor_option_frame(  # pylint: disable=too-many-arguments,too-many-positional-arguments
@@ -73,7 +74,7 @@ def normalize_vendor_option_frame(  # pylint: disable=too-many-arguments,too-man
 def filter_strikes_near_spot(df, underlying_price):
     """Keep only strikes within the configured percentage band around spot."""
     config = get_runtime_config()
-    if pd.isna(underlying_price) or underlying_price <= 0:
+    if not is_finite_positive_number(underlying_price):
         return df
 
     min_strike = underlying_price * (1 - config.max_strike_distance_pct)

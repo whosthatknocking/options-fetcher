@@ -248,6 +248,40 @@ def test_fetch_ticker_option_chain_logs_raw_provider_row_counts(monkeypatch, cap
     assert "raw_provider_rows=3 raw_expirations=1" in caplog.text
 
 
+def test_fetch_ticker_option_chain_skips_non_finite_underlying_price(
+    monkeypatch,
+    caplog,
+):
+    """Non-finite snapshot prices should fail before enrichment runs."""
+
+    class InfiniteSnapshotProvider(StubProvider):
+        """Provider that returns a corrupt spot quote."""
+
+        def load_underlying_snapshot(self, ticker):
+            snapshot = super().load_underlying_snapshot(ticker)
+            snapshot["underlying_price"] = float("inf")
+            return snapshot
+
+        def list_option_expirations(self, ticker):
+            raise AssertionError("invalid snapshot should skip expiration loading")
+
+    monkeypatch.setattr(fetch, "get_data_provider", InfiniteSnapshotProvider)
+    monkeypatch.setattr(
+        fetch,
+        "get_runtime_config",
+        lambda: make_runtime_config(today=pd.Timestamp("2026-03-20").date()),
+    )
+
+    caplog.set_level("INFO", logger="opx_chain.run")
+    logger = logging.getLogger("opx_chain.run")
+
+    result = fetch.fetch_ticker_option_chain("TEST", logger=logger)
+
+    assert result.empty
+    assert result.attrs["fetch_status"] == "skipped"
+    assert "reason=invalid_underlying_price" in caplog.text
+
+
 def test_fetch_ticker_option_chain_counts_vendor_trade_aliases(monkeypatch, caplog):
     """Raw diagnostics should count vendor-specific last-trade price columns."""
 

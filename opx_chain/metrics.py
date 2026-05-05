@@ -5,6 +5,7 @@ import pandas as pd
 
 from opx_chain.config import get_runtime_config
 from opx_chain.greeks import compute_greeks
+from opx_chain.utils import finite_float, is_finite_positive_number
 
 
 def classify_days_to_expiration_bucket(days_to_expiration):
@@ -201,7 +202,7 @@ def add_option_score(df):
 
 def add_quote_quality_metrics(df, underlying_price):
     """Add quote validation and basic liquidity quality fields."""
-    df["has_valid_underlying"] = underlying_price > 0
+    df["has_valid_underlying"] = is_finite_positive_number(underlying_price)
     df["has_valid_strike"] = df["strike"] > 0
     df["bid_le_ask"] = df["bid"] <= df["ask"]
     df["has_nonzero_bid"] = df["bid"] > 0
@@ -247,16 +248,30 @@ def add_quote_quality_metrics(df, underlying_price):
 def add_derived_pricing_metrics(df, underlying_price):
     """Add premium, moneyness, break-even, and Black-Scholes-derived fields."""
     config = get_runtime_config()
-    df["strike_minus_spot"] = df["strike"] - underlying_price
+    spot_price = finite_float(underlying_price)
+    has_valid_spot = spot_price > 0
+    df["strike_minus_spot"] = np.where(
+        has_valid_spot,
+        df["strike"] - spot_price,
+        np.nan,
+    )
     df["strike_vs_spot_pct"] = np.where(
-        underlying_price > 0,
-        df["strike_minus_spot"] / underlying_price,
+        has_valid_spot,
+        df["strike_minus_spot"] / spot_price,
         np.nan,
     )
     df["strike_distance_pct"] = np.abs(df["strike_vs_spot_pct"])
 
-    call_itm_amount = np.maximum(underlying_price - df["strike"], 0)
-    put_itm_amount = np.maximum(df["strike"] - underlying_price, 0)
+    call_itm_amount = np.where(
+        has_valid_spot,
+        np.maximum(spot_price - df["strike"], 0),
+        np.nan,
+    )
+    put_itm_amount = np.where(
+        has_valid_spot,
+        np.maximum(df["strike"] - spot_price, 0),
+        np.nan,
+    )
     df["itm_amount"] = np.where(df["option_type"] == "call", call_itm_amount, put_itm_amount)
     df["otm_pct"] = np.where(
         df["option_type"] == "call",
@@ -320,16 +335,16 @@ def add_derived_pricing_metrics(df, underlying_price):
     )
     otm_amount = np.where(
         df["option_type"] == "call",
-        np.maximum(df["strike"] - underlying_price, 0),
-        np.maximum(underlying_price - df["strike"], 0),
+        np.where(has_valid_spot, np.maximum(df["strike"] - spot_price, 0), np.nan),
+        np.where(has_valid_spot, np.maximum(spot_price - df["strike"], 0), np.nan),
     )
     margin_floor = np.where(
         df["option_type"] == "call",
-        0.10 * underlying_price,
+        np.nan if not has_valid_spot else 0.10 * spot_price,
         0.10 * df["strike"],
     )
     df["estimated_margin_requirement"] = df["premium_reference_price"] + np.maximum(
-        0.20 * underlying_price - otm_amount,
+        0.20 * spot_price - otm_amount,
         margin_floor,
     )
     df["return_on_margin"] = np.where(

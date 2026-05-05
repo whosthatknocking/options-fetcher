@@ -71,6 +71,35 @@ def test_compute_greeks_does_not_substitute_missing_implied_volatility():
     assert result["has_valid_greeks"].tolist() == [False, False]
 
 
+def test_compute_greeks_rejects_non_finite_underlying_price():
+    """Non-finite spot values must not produce extreme derived Greeks."""
+    frame = pd.DataFrame(
+        [
+            {
+                "strike": 100,
+                "time_to_expiration_years": 0.5,
+                "implied_volatility": 0.25,
+                "option_type": "call",
+            },
+            {
+                "strike": 100,
+                "time_to_expiration_years": 0.5,
+                "implied_volatility": 0.25,
+                "option_type": "put",
+            },
+        ]
+    )
+
+    result = compute_greeks(
+        frame.copy(),
+        underlying_price=float("inf"),
+        risk_free_rate=0.045,
+    )
+
+    assert result[["delta", "probability_itm", "gamma", "vega", "theta"]].isna().all().all()
+    assert result["has_valid_greeks"].tolist() == [False, False]
+
+
 def test_compute_greeks_marks_provider_greeks_valid_without_iv():
     """Provider-native Greeks remain valid even when derived Greeks cannot run."""
     frame = pd.DataFrame(
@@ -296,12 +325,12 @@ def test_add_derived_pricing_metrics_falls_back_for_call_capital_required(monkey
     assert pd.notna(result.loc[0, "theta_efficiency"])
 
 
-@pytest.mark.parametrize("underlying_price", [0.0, -1.0])
+@pytest.mark.parametrize("underlying_price", [0.0, -1.0, float("inf")])
 def test_add_derived_pricing_metrics_guards_otm_pct_divisor(
     monkeypatch,
     underlying_price,
 ):
-    """Invalid spot prices should not produce inf or sign-flipped OTM percentages."""
+    """Invalid spot prices should not produce spot-derived metrics."""
     monkeypatch.setattr("opx_chain.metrics.get_runtime_config", make_score_config)
     frame = pd.DataFrame(
         [
@@ -335,8 +364,18 @@ def test_add_derived_pricing_metrics_guards_otm_pct_divisor(
     quoted = add_quote_quality_metrics(frame.copy(), underlying_price=underlying_price)
     result = add_derived_pricing_metrics(quoted, underlying_price=underlying_price)
 
-    assert result["strike_vs_spot_pct"].isna().all()
-    assert result["otm_pct"].isna().all()
+    spot_derived_columns = " ".join(
+        [
+            "strike_minus_spot strike_vs_spot_pct strike_distance_pct",
+            "itm_amount otm_pct intrinsic_value",
+            "extrinsic_value_bid extrinsic_value_mid extrinsic_value_ask",
+            "estimated_margin_requirement",
+            "return_on_margin return_on_margin_annualized",
+        ]
+    ).split()
+    assert result[spot_derived_columns].isna().all().all()
+    assert result["has_valid_underlying"].tolist() == [False, False]
+    assert result["has_valid_greeks"].tolist() == [False, False]
 
 
 def test_add_screening_and_freshness_flags_uses_prompt_spread_and_dte_tiers(monkeypatch):

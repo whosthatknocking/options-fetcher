@@ -74,6 +74,21 @@ def coerce_float(value):
     return pd.to_numeric(value, errors="coerce")
 
 
+def finite_float(value) -> float:
+    """Convert a scalar to a finite float, returning NaN for invalid values."""
+    try:
+        parsed = float(value)
+    except (TypeError, ValueError):
+        return float("nan")
+    return parsed if np.isfinite(parsed) else float("nan")
+
+
+def is_finite_positive_number(value) -> bool:
+    """Return true only for scalar values that coerce to finite positive floats."""
+    parsed = finite_float(value)
+    return bool(np.isfinite(parsed) and parsed > 0)
+
+
 def normalize_timestamp(value):
     """Convert vendor timestamps to timezone-aware UTC pandas timestamps."""
     if value is None or pd.isna(value):
