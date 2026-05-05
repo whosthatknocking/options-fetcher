@@ -116,6 +116,62 @@ def test_filesystem_cache_prunes_orphaned_payload_on_startup(tmp_path: Path):
     assert not meta_path.exists()
 
 
+def test_filesystem_cache_prunes_orphaned_metadata_on_startup(tmp_path: Path):
+    """Metadata files with no payload should not accumulate indefinitely."""
+    cache_dir = tmp_path / "cache"
+    cache_dir.mkdir()
+    bin_path, meta_path = _cache_paths(cache_dir, "orphan-meta-key")
+    meta_path.write_text(
+        json.dumps({
+            "key": "orphan-meta-key",
+            "expires_at": (datetime.now(tz=timezone.utc) + timedelta(hours=1)).isoformat(),
+        }),
+        encoding="utf-8",
+    )
+
+    FilesystemCache(cache_dir)
+
+    assert not bin_path.exists()
+    assert not meta_path.exists()
+
+
+def test_filesystem_cache_get_removes_orphaned_metadata(tmp_path: Path):
+    """A missing payload should make get clean up the corresponding metadata."""
+    cache_dir = tmp_path / "cache"
+    cache = FilesystemCache(cache_dir)
+    bin_path, meta_path = _cache_paths(cache_dir, "orphan-meta-key")
+    cache_dir.mkdir(exist_ok=True)
+    meta_path.write_text(
+        json.dumps({
+            "key": "orphan-meta-key",
+            "expires_at": (datetime.now(tz=timezone.utc) + timedelta(hours=1)).isoformat(),
+        }),
+        encoding="utf-8",
+    )
+
+    assert cache.get("orphan-meta-key") is None
+
+    assert not bin_path.exists()
+    assert not meta_path.exists()
+
+
+def test_filesystem_cache_rejects_non_standard_json_metadata(tmp_path: Path):
+    """NaN/Infinity metadata should be treated as corrupt cache state."""
+    cache_dir = tmp_path / "cache"
+    cache_dir.mkdir()
+    bin_path, meta_path = _cache_paths(cache_dir, "bad-json-key")
+    bin_path.write_bytes(b"bad")
+    meta_path.write_text(
+        '{"key":"bad-json-key","expires_at": NaN}',
+        encoding="utf-8",
+    )
+
+    FilesystemCache(cache_dir)
+
+    assert not bin_path.exists()
+    assert not meta_path.exists()
+
+
 def test_filesystem_cache_prunes_each_directory_once_per_process(tmp_path: Path, monkeypatch):
     """Repeated cache construction must not rescan the same directory per ticker."""
     prune_calls = []
