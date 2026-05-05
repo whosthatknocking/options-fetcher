@@ -458,6 +458,65 @@ def test_pick_profitable_opportunity_prefers_higher_final_score_when_rom_matches
     assert summary["final_score"] == 92.0
 
 
+def test_viewer_numeric_coercion_drops_non_finite_values():
+    """Viewer numeric helpers should not preserve inf values as sortable metrics."""
+    numbers = viewer.coerce_number(pd.Series([1.25, "inf", float("-inf"), "nan", "bad"]))
+
+    assert numbers.iloc[0] == 1.25
+    assert numbers.iloc[1:].isna().all()
+    assert viewer.coerce_scalar_number("inf") is None
+    assert viewer.coerce_scalar_number(float("-inf")) is None
+    assert viewer.coerce_scalar_number("nan") is None
+
+
+def test_pick_profitable_opportunity_does_not_promote_inf_rom():
+    """A corrupted infinite ROM should sort behind finite opportunity rows."""
+    frame = pd.DataFrame(
+        [
+            {
+                "contract_symbol": "INF_BAD",
+                "option_type": "call",
+                "strike": 100.0,
+                "expiration_date": "2026-04-17",
+                "probability_itm": 0.22,
+                "risk_level": "LOW",
+                "spread_score": 100.0,
+                "dte_score": 100.0,
+                "theta_efficiency": 10.0,
+                "bid_ask_spread_pct_of_mid": 0.08,
+                "return_on_margin_annualized": float("inf"),
+                "option_score": 99.0,
+                "final_score": 99.0,
+                "quote_quality_score": 9,
+                "passes_primary_screen": True,
+            },
+            {
+                "contract_symbol": "FINITE_GOOD",
+                "option_type": "call",
+                "strike": 105.0,
+                "expiration_date": "2026-04-17",
+                "probability_itm": 0.24,
+                "risk_level": "LOW",
+                "spread_score": 85.0,
+                "dte_score": 85.0,
+                "theta_efficiency": 8.0,
+                "bid_ask_spread_pct_of_mid": 0.09,
+                "return_on_margin_annualized": 1.0,
+                "option_score": 70.0,
+                "final_score": 70.0,
+                "quote_quality_score": 5,
+                "passes_primary_screen": True,
+            },
+        ]
+    )
+
+    summary = viewer.pick_profitable_opportunity(frame)
+
+    assert summary is not None
+    assert summary["contract_symbol"] == "FINITE_GOOD"
+    assert summary["return_on_margin_annualized_pct"] == 100.0
+
+
 def test_sort_ticker_candidates_preserves_zero_rom_as_real_value():
     """A real zero ROM should rank above missing ROM instead of being treated as absent."""
     items = [

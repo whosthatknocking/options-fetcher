@@ -314,13 +314,22 @@ def is_truthy(value: Any) -> bool:
 
 def coerce_number(series: Any) -> pd.Series:
     """Coerce an arbitrary series-like input into numeric pandas values."""
-    return pd.to_numeric(series, errors="coerce")
+    numbers = pd.to_numeric(series, errors="coerce")
+    if not isinstance(numbers, pd.Series):
+        numbers = pd.Series(numbers)
+    finite_mask = numbers.map(
+        lambda value: pd.notna(value) and math.isfinite(float(value))
+    )
+    return numbers.where(finite_mask)
 
 
 def coerce_scalar_number(value: Any) -> float | None:
     """Coerce a single scalar into a float while preserving missing values."""
     number = pd.to_numeric(pd.Series([value]), errors="coerce").iloc[0]
-    return None if pd.isna(number) else float(number)
+    if pd.isna(number):
+        return None
+    coerced = float(number)
+    return coerced if math.isfinite(coerced) else None
 
 
 def build_freshness_summary(frame: pd.DataFrame, csv_path: Path) -> FreshnessSummary:
