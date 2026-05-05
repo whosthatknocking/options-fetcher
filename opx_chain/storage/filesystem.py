@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import hashlib
-import json
 import shutil
 import threading
 import uuid
@@ -11,6 +10,7 @@ from datetime import datetime, timezone
 from heapq import nsmallest
 from pathlib import Path
 
+from opx_chain.json_utils import dumps_strict_json, loads_strict_json
 from opx_chain.storage.models import (
     ArtifactRecord,
     ArtifactWrite,
@@ -154,7 +154,7 @@ class FilesystemBackend:
     def _delete_run_artifacts(self, run_id: str) -> None:
         try:
             data = self._read_run(run_id)
-        except (OSError, json.JSONDecodeError):
+        except (OSError, ValueError):
             data = {}
         for artifact in data.get("artifacts", []):
             location = artifact.get("location")
@@ -170,13 +170,12 @@ class FilesystemBackend:
 
     def _read_run(self, run_id: str) -> dict:
         path = self._run_path(run_id)
-        with path.open() as fh:
-            return json.load(fh)
+        return loads_strict_json(path.read_text(encoding="utf-8"))
 
     def _run_has_ticker(self, run_id: str, ticker: str) -> bool:
         try:
             data = self._read_run(run_id)
-        except (OSError, json.JSONDecodeError):
+        except (OSError, ValueError):
             return False
         expected = ticker.upper()
         run_tickers = {str(symbol).upper() for symbol in data.get("tickers", [])}
@@ -189,7 +188,7 @@ class FilesystemBackend:
 
     def _write_run(self, run_id: str, data: dict) -> None:
         path = self._run_path(run_id)
-        atomic_write_text(path, json.dumps(data, indent=2))
+        atomic_write_text(path, dumps_strict_json(data, indent=2))
 
     def _find_meta_path(self, dataset_id: str) -> Path:
         """Scan all run dirs to locate a dataset meta file by dataset_id."""
@@ -204,12 +203,12 @@ class FilesystemBackend:
             if record.dataset_id == dataset_id:
                 return record
         meta_path = self._find_meta_path(dataset_id)
-        data = json.loads(meta_path.read_text(encoding="utf-8"))
+        data = loads_strict_json(meta_path.read_text(encoding="utf-8"))
         return self._meta_to_record(data)
 
     def _write_meta(self, record: DatasetRecord) -> None:
         path = self._meta_path(record.dataset_id, record.run_id)
-        atomic_write_text(path, json.dumps(self._record_to_meta(record), indent=2))
+        atomic_write_text(path, dumps_strict_json(self._record_to_meta(record), indent=2))
 
     @staticmethod
     def _record_to_meta(record: DatasetRecord) -> dict:
@@ -246,9 +245,9 @@ class FilesystemBackend:
         for meta_path in self._runs_dir.glob("*/output/*.meta.json"):
             try:
                 records.append(
-                    self._meta_to_record(json.loads(meta_path.read_text(encoding="utf-8")))
+                    self._meta_to_record(loads_strict_json(meta_path.read_text(encoding="utf-8")))
                 )
-            except (OSError, KeyError, json.JSONDecodeError, ValueError):
+            except (OSError, KeyError, ValueError):
                 continue
         records.sort(key=lambda record: _dt_sort_key(record.created_at), reverse=True)
         return records
@@ -256,16 +255,19 @@ class FilesystemBackend:
     def _write_dataset_index(self, records: list[DatasetRecord]) -> None:
         self._runs_dir.mkdir(parents=True, exist_ok=True)
         data = [self._record_to_meta(record) for record in records]
-        atomic_write_text(self._dataset_index_path(), json.dumps(data, separators=(",", ":")))
+        atomic_write_text(
+            self._dataset_index_path(),
+            dumps_strict_json(data, separators=(",", ":")),
+        )
 
     def _load_dataset_index(self) -> list[DatasetRecord] | None:
         index_path = self._dataset_index_path()
         if not index_path.exists():
             return None
         try:
-            data = json.loads(index_path.read_text(encoding="utf-8"))
+            data = loads_strict_json(index_path.read_text(encoding="utf-8"))
             records = [self._meta_to_record(item) for item in data]
-        except (OSError, TypeError, KeyError, ValueError, json.JSONDecodeError):
+        except (OSError, TypeError, KeyError, ValueError):
             return None
         records = [
             record
@@ -303,7 +305,7 @@ class FilesystemBackend:
         with self._run_sidecar_lock:
             try:
                 data = self._read_run(run_id)
-            except (OSError, KeyError, json.JSONDecodeError, ValueError):
+            except (OSError, KeyError, ValueError):
                 return
             if data.get("dataset_id") != dataset_id:
                 return
@@ -315,9 +317,9 @@ class FilesystemBackend:
 
     def _meta_created_at_sort_key(self, meta_path: Path) -> datetime:
         try:
-            data = json.loads(meta_path.read_text(encoding="utf-8"))
+            data = loads_strict_json(meta_path.read_text(encoding="utf-8"))
             return _dt_sort_key(_str_to_dt(data.get("created_at")))
-        except (OSError, TypeError, ValueError, json.JSONDecodeError):
+        except (OSError, TypeError, ValueError):
             return datetime.min.replace(tzinfo=timezone.utc)
 
     def _run_has_dataset_metadata(self, run_id: str) -> bool:
@@ -332,13 +334,13 @@ class FilesystemBackend:
             return
         for meta_path in nsmallest(excess, meta_files, key=self._meta_created_at_sort_key):
             try:
-                data = json.loads(meta_path.read_text(encoding="utf-8"))
+                data = loads_strict_json(meta_path.read_text(encoding="utf-8"))
                 artifact = meta_path.parent / Path(data["location"]).name
                 if artifact.exists():
                     artifact.unlink()
                 self._delete_run_artifacts(meta_path.parent.parent.name)
                 self._clear_run_dataset_reference(data["run_id"], data["dataset_id"])
-            except (OSError, KeyError, json.JSONDecodeError):
+            except (OSError, KeyError, ValueError):
                 pass
             meta_path.unlink(missing_ok=True)
             if not self._run_has_dataset_metadata(meta_path.parent.parent.name):
@@ -513,7 +515,7 @@ class FilesystemBackend:
         for run_path in self._runs_dir.glob("*/run.json"):
             try:
                 with self._run_sidecar_lock:
-                    data = json.loads(run_path.read_text(encoding="utf-8"))
+                    data = loads_strict_json(run_path.read_text(encoding="utf-8"))
                     started_at = _str_to_dt(data.get("started_at"))
                     if data.get("status") != "running" or started_at is None:
                         continue
@@ -524,7 +526,7 @@ class FilesystemBackend:
                     data["error_summary"] = error_summary
                     self._write_run(data["run_id"], data)
                     interrupted += 1
-            except (OSError, KeyError, json.JSONDecodeError, ValueError):
+            except (OSError, KeyError, ValueError):
                 continue
         return interrupted
 
@@ -559,7 +561,7 @@ class FilesystemBackend:
             return count
         for run_path in self._runs_dir.glob("*/run.json"):
             try:
-                data = json.loads(run_path.read_text(encoding="utf-8"))
+                data = loads_strict_json(run_path.read_text(encoding="utf-8"))
                 if data.get("provider") != provider:
                     continue
                 started_at_str = data.get("started_at", "")
@@ -568,7 +570,7 @@ class FilesystemBackend:
                 started_at = datetime.fromisoformat(started_at_str)
                 if data.get("status") == "complete" and started_at >= since_utc:
                     count += 1
-            except (OSError, json.JSONDecodeError, ValueError):
+            except (OSError, ValueError):
                 continue
         return count
 

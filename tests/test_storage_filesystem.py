@@ -1,5 +1,5 @@
 """Tests for FilesystemBackend and get_storage_backend factory."""
-# pylint: disable=duplicate-code
+# pylint: disable=duplicate-code,too-many-lines
 
 import hashlib
 import inspect
@@ -267,6 +267,46 @@ def test_record_validation_persisted(tmp_path: Path):
         "count": 1,
         "sample": '{"contract_symbol": "TSLA260620C00100000"}',
     }]
+
+
+def test_run_sidecar_rejects_non_finite_json_writes(tmp_path: Path):
+    """Run sidecar writes must not emit non-standard NaN/Infinity JSON."""
+    backend = _make_backend(tmp_path)
+    run_id = backend.create_run(_make_context())
+
+    with pytest.raises(ValueError, match="Out of range float values"):
+        backend.record_validation(ValidationRecord(
+            run_id=run_id,
+            severity="warning",
+            code="BAD_NUMERIC",
+            count=float("nan"),
+            sample=None,
+        ))
+
+    data = json.loads((tmp_path / "runs" / run_id / "run.json").read_text(encoding="utf-8"))
+    assert data["validations"] == []
+
+
+def test_run_sidecar_rejects_non_finite_json_reads(tmp_path: Path):
+    """Run sidecar reads must reject non-standard NaN/Infinity JSON."""
+    backend = _make_backend(tmp_path)
+    run_id = backend.create_run(_make_context())
+    run_path = tmp_path / "runs" / run_id / "run.json"
+    run_path.write_text('{"run_id":"bad","started_at":NaN}', encoding="utf-8")
+
+    with pytest.raises(ValueError, match="non-finite JSON value is not allowed: NaN"):
+        backend.get_run(run_id)
+
+
+def test_filesystem_backend_uses_strict_json_helpers() -> None:
+    """Filesystem metadata paths should not use permissive default JSON helpers."""
+    source = inspect.getsource(filesystem_mod.FilesystemBackend)
+
+    assert "json.load" not in source
+    assert "json.loads" not in source
+    assert "json.dumps" not in source
+    assert "loads_strict_json" in source
+    assert "dumps_strict_json" in source
 
 
 def test_record_ticker_result_serializes_concurrent_sidecar_updates(tmp_path: Path):
