@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import csv
+import math
 import re
 import sys
 from dataclasses import dataclass
@@ -62,11 +63,17 @@ def _parse_option_symbol(raw: str) -> OptionPositionKey | None:
         # Fidelity exports use a plain decimal strike; OCC uses an 8-digit
         # strike scaled by 1000, which this parser intentionally does not decode.
         return None
+    try:
+        strike = float(strike_str)
+    except ValueError:
+        return None
+    if not math.isfinite(strike):
+        return None
     return OptionPositionKey(
         ticker=ticker,
         expiration_date=f"20{yy}-{mm}-{dd}",
         option_type="call" if cp == "C" else "put",
-        strike=float(strike_str),
+        strike=strike,
     )
 
 

@@ -68,6 +68,19 @@ def test_load_positions_rejects_occ_padded_option_symbols(tmp_path):
     assert result.option_keys == frozenset()
 
 
+def test_load_positions_rejects_non_finite_option_strikes(tmp_path):
+    """Overflowed shorthand strikes must not enter position matching."""
+    huge_strike = "9" * 400
+    path = write_positions_csv(tmp_path, f"""\
+        Account Number,Account Name,Symbol,Description,Quantity,Last Price,Last Price Change,Current Value,Today's Gain/Loss Dollar,Today's Gain/Loss Percent,Total Gain/Loss Dollar,Total Gain/Loss Percent,Percent Of Account,Cost Basis Total,Average Cost Basis,Type
+        Z1,INDIVIDUAL, -TSLA260821P{huge_strike},,,,,,,,,,,,,,,
+    """)
+
+    result = load_positions(path)
+
+    assert result.option_keys == frozenset()
+
+
 def test_load_positions_excludes_cash_and_pending(tmp_path):
     """SPAXX and Pending activity rows are silently skipped."""
     path = write_positions_csv(tmp_path, """\
