@@ -47,6 +47,12 @@ def test_write_artifact_bytes_rejects_unsafe_filename(tmp_path: Path, filename: 
         write_artifact_bytes(b"x", tmp_path / "debug", filename)
 
 
+def test_write_artifact_bytes_rejects_nul_byte_filename(tmp_path: Path):
+    """NUL bytes must be rejected by the path-component validator itself."""
+    with pytest.raises(ValueError, match="invalid filename"):
+        write_artifact_bytes(b"x", tmp_path / "debug", "bad\x00name.json")
+
+
 @pytest.mark.parametrize("backend_factory", [_filesystem_backend, _sqlite_backend])
 @pytest.mark.parametrize("filename", ["../escape.txt", "nested/file.txt", "/tmp/escape.txt"])
 def test_sidecar_artifacts_reject_unsafe_filename(

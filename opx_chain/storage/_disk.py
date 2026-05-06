@@ -16,6 +16,8 @@ def validate_path_component(value: str, *, label: str = "path component") -> str
     """Return a single safe path component or raise ValueError."""
     if not isinstance(value, str) or not value:
         raise ValueError(f"invalid {label}: {value!r}")
+    if "\x00" in value:
+        raise ValueError(f"invalid {label}: {value!r}")
     path = Path(value)
     if (
         path.is_absolute()
