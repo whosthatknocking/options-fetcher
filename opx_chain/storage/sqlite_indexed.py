@@ -11,6 +11,7 @@ import sqlite3
 import threading
 import weakref
 from contextlib import contextmanager
+from dataclasses import dataclass
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
@@ -50,6 +51,15 @@ def _unlink_orphaned_file(path: Path, *, remove_empty_parent: bool = False) -> N
             path.parent.rmdir()
         except OSError:
             pass
+
+
+@dataclass(frozen=True)
+class _DeferredDelete:
+    """Filesystem path to delete only after the SQLite transaction commits."""
+
+    path: Path
+    recursive: bool = False
+    remove_empty_parent: bool = False
 
 
 _SCHEMA_SQL = """
@@ -297,60 +307,83 @@ class SqliteIndexedBackend:
     def _sidecar_path(self, run_id: str, filename: str) -> Path:
         return resolve_child_path(self._runs_dir, run_id, filename)
 
-    def _delete_sidecar_files(self, run_id: str) -> None:
+    def _stage_sidecar_file_deletes(self, run_id: str) -> list[_DeferredDelete]:
         run_dir = resolve_child_path(self._runs_dir, run_id)
         try:
             entries = list(run_dir.iterdir())
         except OSError:
-            return
-        for entry in entries:
-            if entry.is_file() and entry.name != "run.json":
-                entry.unlink(missing_ok=True)
+            return []
+        return [
+            _DeferredDelete(entry)
+            for entry in entries
+            if entry.is_file() and entry.name != "run.json"
+        ]
 
-    def _delete_run_payloads(self, run_id: str) -> None:
+    def _stage_run_payload_deletes(self, run_id: str) -> list[_DeferredDelete]:
         run_dir = resolve_child_path(self._runs_dir, run_id)
         try:
             entries = list(run_dir.iterdir())
         except OSError:
-            return
+            return []
+        pending: list[_DeferredDelete] = []
         for entry in entries:
             if entry.name == "run.json":
                 continue
             if entry.is_dir():
-                shutil.rmtree(entry, ignore_errors=True)
+                pending.append(_DeferredDelete(entry, recursive=True))
             elif entry.is_file():
-                entry.unlink(missing_ok=True)
+                pending.append(_DeferredDelete(entry))
+        return pending
 
-    def _delete_artifact_file(self, location: str) -> None:
+    def _stage_artifact_file_delete(self, location: str) -> _DeferredDelete:
         path = Path(location)
-        path.unlink(missing_ok=True)
         try:
-            if path.parent.parent.resolve() == self._debug_dir.resolve():
-                path.parent.rmdir()
+            remove_empty_parent = (
+                path.parent.parent.resolve() == self._debug_dir.resolve()
+            )
         except OSError:
-            pass
+            remove_empty_parent = False
+        return _DeferredDelete(path, remove_empty_parent=remove_empty_parent)
 
-    def _delete_run_artifacts(self, conn: sqlite3.Connection, run_id: str) -> None:
+    def _delete_deferred_paths(self, pending: list[_DeferredDelete]) -> None:
+        for item in pending:
+            if item.recursive:
+                shutil.rmtree(item.path, ignore_errors=True)
+            else:
+                _unlink_orphaned_file(
+                    item.path,
+                    remove_empty_parent=item.remove_empty_parent,
+                )
+
+    def _stage_run_artifact_deletes(
+        self,
+        conn: sqlite3.Connection,
+        run_id: str,
+    ) -> list[_DeferredDelete]:
         rows = conn.execute(
             "SELECT artifact_id, location FROM artifacts "
             "WHERE run_id = ?",
             (run_id,),
         ).fetchall()
+        pending: list[_DeferredDelete] = []
         for row in rows:
-            self._delete_artifact_file(row["location"])
+            pending.append(self._stage_artifact_file_delete(row["location"]))
             conn.execute("DELETE FROM artifacts WHERE artifact_id = ?", (row["artifact_id"],))
-        self._delete_sidecar_files(run_id)
+        pending.extend(self._stage_sidecar_file_deletes(run_id))
+        return pending
 
     def delete_run_artifacts(self, run_id: str) -> None:
         """Delete storage-managed artifacts for a run while preserving run metadata."""
+        pending: list[_DeferredDelete]
         with self._open_connection() as conn:
-            self._delete_run_artifacts(conn, run_id)
-            self._delete_run_payloads(run_id)
+            pending = self._stage_run_artifact_deletes(conn, run_id)
+            pending.extend(self._stage_run_payload_deletes(run_id))
             conn.commit()
+        self._delete_deferred_paths(pending)
 
-    def _prune_datasets(self, conn: sqlite3.Connection) -> None:
+    def _prune_datasets(self, conn: sqlite3.Connection) -> list[_DeferredDelete]:
         if self._max_runs_retained <= 0:
-            return
+            return []
         rows = conn.execute(
             "SELECT dataset_id, run_id, location "
             "FROM datasets "
@@ -358,11 +391,10 @@ class SqliteIndexedBackend:
             "LIMIT -1 OFFSET ?",
             (self._max_runs_retained,),
         ).fetchall()
+        pending: list[_DeferredDelete] = []
         for row in rows:
-            artifact = Path(row["location"])
-            if artifact.exists():
-                artifact.unlink(missing_ok=True)
-            self._delete_run_artifacts(conn, row["run_id"])
+            pending.append(_DeferredDelete(Path(row["location"])))
+            pending.extend(self._stage_run_artifact_deletes(conn, row["run_id"]))
             conn.execute(
                 "UPDATE runs SET dataset_id = NULL WHERE run_id = ? AND dataset_id = ?",
                 (row["run_id"], row["dataset_id"]),
@@ -373,7 +405,8 @@ class SqliteIndexedBackend:
                 (row["run_id"],),
             ).fetchone()[0]
             if remaining == 0:
-                self._delete_run_payloads(row["run_id"])
+                pending.extend(self._stage_run_payload_deletes(row["run_id"]))
+        return pending
 
     # ------------------------------------------------------------------
     # StorageBackend protocol
@@ -486,11 +519,12 @@ class SqliteIndexedBackend:
                     "UPDATE runs SET dataset_id = ? WHERE run_id = ?",
                     (dataset_id, run_id),
                 )
-                self._prune_datasets(conn)
+                pending_deletes = self._prune_datasets(conn)
                 conn.commit()
         except Exception:
             _unlink_orphaned_file(artifact_path)
             raise
+        self._delete_deferred_paths(pending_deletes)
         return record
 
     def write_artifact(self, run_id: str, artifact: ArtifactWrite) -> ArtifactRecord:

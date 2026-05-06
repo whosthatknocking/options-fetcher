@@ -1,5 +1,5 @@
 """Tests for SqliteIndexedBackend and factory sqlite path."""
-# pylint: disable=duplicate-code
+# pylint: disable=duplicate-code,too-many-lines
 
 import gc
 import hashlib
@@ -635,6 +635,45 @@ def test_delete_run_artifacts_preserves_run_and_removes_payloads(tmp_path: Path)
     assert count == 0
 
 
+def test_delete_run_artifacts_defers_payload_deletes_until_commit(
+    tmp_path: Path,
+    monkeypatch,
+):
+    """A rollback during cleanup must not leave DB rows pointing to missing files."""
+    backend = _make_backend(tmp_path)
+    run_id = backend.create_run(_make_context())
+    sidecar = backend.write_artifact(run_id, ArtifactWrite(
+        artifact_type="sidecar",
+        content=b"positions",
+        filename="positions.csv",
+    ))
+    debug = backend.write_artifact(run_id, ArtifactWrite(
+        artifact_type="run_log",
+        content=b"{}",
+        filename="run_log_reference.json",
+    ))
+
+    def fail_payload_staging(_run_id: str):
+        raise RuntimeError("rollback before commit")
+
+    monkeypatch.setattr(backend, "_stage_run_payload_deletes", fail_payload_staging)
+
+    with pytest.raises(RuntimeError, match="rollback before commit"):
+        backend.delete_run_artifacts(run_id)
+
+    assert Path(sidecar.location).exists()
+    assert Path(debug.location).exists()
+    conn = sqlite3.connect(tmp_path / "opx-chain.db")
+    try:
+        count = conn.execute(
+            "SELECT COUNT(*) FROM artifacts WHERE run_id = ?",
+            (run_id,),
+        ).fetchone()[0]
+    finally:
+        conn.close()
+    assert count == 2
+
+
 # ---------------------------------------------------------------------------
 # Retention pruning
 # ---------------------------------------------------------------------------
@@ -706,6 +745,29 @@ def test_pruning_removes_artifact_file(tmp_path: Path):
     _write(backend, run_id)
 
     assert not Path(r1.location).exists()
+
+
+def test_pruning_defers_file_deletes_until_commit(tmp_path: Path, monkeypatch):
+    """A rollback during pruning must preserve files still referenced by SQLite."""
+    backend = _make_backend(tmp_path, max_runs_retained=1)
+    old_run_id = backend.create_run(_make_context())
+    old_record = _write(backend, old_run_id)
+    new_run_id = backend.create_run(_make_context(provider="marketdata"))
+    original_prune = backend._prune_datasets  # pylint: disable=protected-access
+
+    def fail_after_staging(conn):
+        pending = original_prune(conn)
+        assert pending
+        assert Path(old_record.location).exists()
+        raise RuntimeError("rollback before commit")
+
+    monkeypatch.setattr(backend, "_prune_datasets", fail_after_staging)
+
+    with pytest.raises(RuntimeError, match="rollback before commit"):
+        _write(backend, new_run_id, provider="marketdata")
+
+    assert Path(old_record.location).exists()
+    assert backend.get_dataset(old_record.dataset_id).location == old_record.location
 
 
 def test_pruning_removes_positions_sidecar_for_pruned_run(tmp_path: Path):
