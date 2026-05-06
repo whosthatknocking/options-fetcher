@@ -1,4 +1,4 @@
-"""Daily-OHLCV price-context calculations for optional option-chain enrichment."""
+"""Daily-OHLCV price-context calculations for standalone artifacts."""
 
 from __future__ import annotations
 
@@ -31,11 +31,12 @@ PRICE_CONTEXT_METADATA_FIELDS: tuple[str, ...] = (
     "price_context_calculation_method",
     "price_context_staleness_status",
 )
-PRICE_CONTEXT_EXPORT_FIELDS: tuple[str, ...] = (
+PRICE_CONTEXT_RECORD_FIELDS: tuple[str, ...] = (
     *PRICE_CONTEXT_FIELDS,
     *PRICE_CONTEXT_METADATA_FIELDS,
 )
 PRICE_CONTEXT_CALCULATION_METHOD = "daily_ohlcv_v1"
+PRICE_CONTEXT_SCHEMA_VERSION = 1
 
 
 def blank_price_context(

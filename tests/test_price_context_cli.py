@@ -5,8 +5,10 @@ from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
+import pandas as pd
 
 from conftest import make_runtime_config
+from opx_chain.price_context import PRICE_CONTEXT_SCHEMA_VERSION
 from opx_chain.positions import EMPTY_POSITION_SET
 from opx_chain.storage.memory import MemoryBackend
 
@@ -112,6 +114,7 @@ def test_price_context_only_writes_json_without_option_export(tmp_path: Path, ca
     latest_path = storage_dir / "runs" / "price_context_latest.json"
     payload = json.loads(latest_path.read_text(encoding="utf-8"))
     assert payload["artifact_type"] == "price_context"
+    assert payload["schema_version"] == PRICE_CONTEXT_SCHEMA_VERSION
     assert payload["provider"] == "yfinance"
     assert payload["tickers"] == ["AAA", "BBB"]
     assert [record["ticker"] for record in payload["records"]] == ["AAA", "BBB"]
@@ -119,6 +122,70 @@ def test_price_context_only_writes_json_without_option_export(tmp_path: Path, ca
         record["price_context_staleness_status"] == "FRESH"
         for record in payload["records"]
     )
+
+
+def test_enabled_price_context_option_run_writes_independent_json(
+    tmp_path: Path,
+    capsys,
+):
+    """Normal option-chain runs should keep price context as an independent artifact."""
+    from opx_chain import fetcher  # pylint: disable=import-outside-toplevel
+
+    storage_dir = tmp_path / "data"
+    config = make_runtime_config(
+        storage_enabled=False,
+        storage_dir=storage_dir,
+        tickers=("AAA",),
+        price_context_enable=True,
+    )
+    provider = StubProvider()
+    price_fetch = PriceContextFetchStub()
+    option_frame = pd.DataFrame(
+        [
+            {
+                "underlying_symbol": "AAA",
+                "contract_symbol": "AAA260417C00100000",
+                "data_source": "stub",
+            }
+        ]
+    )
+
+    def stub_write_options_csv(_ticker_frames, output_path):
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        output_path.write_text("underlying_symbol\nAAA\n", encoding="utf-8")
+        return option_frame
+
+    with (
+        patch.object(fetcher, "FETCHER_LOCK_PATH", tmp_path / "fetcher.lock"),
+        patch.object(fetcher, "acquire_fetcher_lock", return_value=MagicMock()),
+        patch.object(fetcher, "release_fetcher_lock"),
+        patch.object(fetcher, "get_runtime_config", return_value=config),
+        patch.object(fetcher, "set_runtime_config_override"),
+        patch.object(
+            fetcher,
+            "create_run_logger",
+            return_value=(MagicMock(), tmp_path / "run.log"),
+        ),
+        patch.object(fetcher, "get_storage_backend", return_value=None),
+        patch.object(fetcher, "load_positions", return_value=EMPTY_POSITION_SET),
+        patch.object(fetcher, "get_data_provider", return_value=provider),
+        patch.object(fetcher, "fetch_ticker_price_context", side_effect=price_fetch),
+        patch.object(fetcher, "fetch_ticker_option_chain", return_value=option_frame),
+        patch.object(fetcher, "write_options_csv", side_effect=stub_write_options_csv),
+    ):
+        result = fetcher.main([])
+
+    captured = capsys.readouterr()
+    assert result == 0
+    assert "Price context:" in captured.out
+    assert "Saved:" in captured.out
+    assert price_fetch.seen_configs[0].price_context_enable is True
+
+    latest_path = storage_dir / "runs" / "price_context_latest.json"
+    payload = json.loads(latest_path.read_text(encoding="utf-8"))
+    assert payload["schema_version"] == PRICE_CONTEXT_SCHEMA_VERSION
+    assert payload["tickers"] == ["AAA"]
+    assert payload["records"][0]["ticker"] == "AAA"
 
 
 def test_price_context_only_conflicts_with_disable_flag():

@@ -5,7 +5,6 @@ from pathlib import Path
 import pandas as pd
 
 from opx_chain import SCHEMA_VERSION  # noqa: F401 pylint: disable=unused-import
-from opx_chain.price_context import PRICE_CONTEXT_EXPORT_FIELDS
 from opx_chain.schema import QUALITY_FLAG_FIELDS
 from opx_chain.storage.atomic import atomic_file_write
 
@@ -24,7 +23,6 @@ COLUMN_ORDER = [
     "underlying_price_time",
     "underlying_price_age_seconds",
     "is_stale_underlying_price",
-    *PRICE_CONTEXT_EXPORT_FIELDS,
     "next_earnings_date",
     "next_earnings_date_is_estimated",
     "days_to_earnings",
@@ -117,8 +115,6 @@ COLUMN_ORDER = [
 CANONICAL_EXPORT_COLUMNS = tuple(COLUMN_ORDER)
 INTEGER_EXPORT_COLUMNS = (
     "days_to_expiration",
-    "price_context_age_days",
-    "price_context_lookback_trading_days",
 )
 
 

@@ -20,7 +20,6 @@ from opx_chain.metrics import (
 from opx_chain.normalize import apply_post_download_filters, enrich_option_frame
 from opx_chain.positions import EMPTY_POSITION_SET, PositionSet
 from opx_chain.price_context import (
-    PRICE_CONTEXT_EXPORT_FIELDS,
     blank_price_context,
     compute_price_context,
 )
@@ -234,13 +233,6 @@ def append_ticker_event_fields(df, events, today):
     return df
 
 
-def append_price_context_fields(df, price_context):
-    """Broadcast optional per-ticker price-context fields to all option rows."""
-    for field in PRICE_CONTEXT_EXPORT_FIELDS:
-        df[field] = price_context.get(field)
-    return df
-
-
 def fetch_ticker_price_context(ticker, *, provider=None, logger=None, cache=None, config=None):
     """Fetch/cache optional daily-OHLCV price context for one ticker without failing runs."""
     config = config or get_runtime_config()
@@ -379,24 +371,6 @@ def fetch_ticker_option_chain(  # pylint: disable=too-many-locals,too-many-branc
             f"{ticker}: events  earnings={earnings}  ex_div={ex_div}",
             logger=logger,
         )
-        price_context = None
-        if config.price_context_enable:
-            price_context = fetch_ticker_price_context(
-                ticker,
-                provider=provider,
-                logger=logger,
-                cache=cache,
-                config=config,
-            )
-            _emit_fetch_info(
-                (
-                    f"{ticker}: price_context  "
-                    f"status={price_context.get('price_context_staleness_status')}"
-                    f"  as_of={price_context.get('price_context_as_of') or 'none'}"
-                ),
-                logger=logger,
-            )
-
         for expiration_date in usable_expirations:
             chain_key = f"chain:{cache_scope}:{ticker}:{expiration_date}"
             chain = _cache_get_chain(cache, chain_key)
@@ -451,11 +425,6 @@ def fetch_ticker_option_chain(  # pylint: disable=too-many-locals,too-many-branc
                 vendor_normalized = append_ticker_event_fields(
                     vendor_normalized, events, config.today
                 )
-                if price_context is not None:
-                    vendor_normalized = append_price_context_fields(
-                        vendor_normalized,
-                        price_context,
-                    )
                 normalized = enrich_option_frame(
                     df=vendor_normalized,
                     underlying_price=underlying_price,

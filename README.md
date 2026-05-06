@@ -27,8 +27,9 @@ For one-off fetch runs, you can override the shared filter toggle from the CLI w
 
 Use `opx-fetch --dry-run` to validate config, positions parsing, and storage reachability without provider API calls or output writes.
 
-Optional daily-OHLCV price context is disabled by default. Enable it for an
-option-chain run with `[price_context].enable = true` or
+Optional daily-OHLCV price context is disabled by default and is written as a
+standalone JSON artifact, not as option-chain CSV columns. Enable it alongside
+an option-chain run with `[price_context].enable = true` or
 `opx-fetch --enable-price-context`, or fetch only/cache-warm that slower-moving
 signal with `opx-fetch --price-context-only`.
 
@@ -64,7 +65,7 @@ The local viewer is organized around five primary tabs: `Dataset`, `Positions`, 
 - Filters out zero-bid and wide-spread contracts before export
 - Limits strikes to a configurable band around spot
 - Computes Greeks, delta-safety, expected move, ROM-style metrics, configurable option scoring, and volatility context
-- Optionally enriches rows with daily-OHLCV support/resistance context, moving averages, VWAP, a volume-node proxy, and gap-fill levels
+- Optionally writes a standalone daily-OHLCV price-context artifact with support/resistance context, moving averages, VWAP, a volume-node proxy, and gap-fill levels
 - Writes a timestamped CSV plus an append-only run log
 - Includes a local browser for exploring the output interactively, including dataset inspection, an optional positions browser for the default XDG data-dir positions file when that user-local file is present, per-ticker overview cards, `Most Profitable`, `Moderate Risk`, `High Conviction Call`, and `High Conviction Put` highlights, plus chain visualizations with chart tooltips and click-through row details
 - Produces normalized option-chain output for inspection, comparison, and archival

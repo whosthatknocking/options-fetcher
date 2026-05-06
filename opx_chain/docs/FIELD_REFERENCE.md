@@ -60,12 +60,14 @@ that field or apply its own default for the downstream calculation.
 - `underlying_price_age_seconds`: Age of the underlying quote at fetch time. Use it to detect stale stock prices. Lower is better; high values mean the stock snapshot may be stale.
 - `is_stale_underlying_price`: Flag showing whether the underlying quote is older than the configured staleness threshold. Use it to down-rank stale rows.
 
-## Price Context Fields
+## Standalone Price Context Artifact Fields
 
 These optional fields are fetched once per ticker from daily OHLCV history and
-broadcast to every option row for that underlying when price context is enabled.
-Missing, stale, or errored price history leaves numeric levels blank and uses
-metadata fields to explain why.
+written to `price_context_*.json` / `price_context_latest.json` when price
+context is enabled. They are not part of the canonical option-chain CSV schema.
+Consumers that need row-level price context should join the artifact to option
+rows by `ticker` / `underlying_symbol`. Missing, stale, or errored price history
+leaves numeric levels blank and uses metadata fields to explain why.
 
 - `support_1`: Nearest computed support-like level at or below spot, selected from recent range, moving-average, and volume-node proxy levels.
 - `support_2`: Next lower computed support-like level when available.
@@ -242,13 +244,13 @@ Legend:
 | `underlying_price_age_seconds` | Derived: fetch time minus `underlying_price_time` | Derived: fetch time minus `underlying_price_time` | Derived: fetch time minus `underlying_price_time` |
 | `is_stale_underlying_price` | Derived: age compared to `stale_quote_seconds` | Derived: age compared to `stale_quote_seconds` | Derived: age compared to `stale_quote_seconds` |
 
-### Price Context Mapping
+### Standalone Price Context Mapping
 
 | Field | yfinance | massive | marketdata |
 | --- | --- | --- | --- |
-| `support_1` | Derived from adjusted daily OHLCV history when `[price_context].enable = true` | Blank: daily-history adapter not implemented for this provider | Derived from daily split-adjusted stock candles when `[price_context].enable = true` |
+| `support_1` | Derived in the standalone artifact from adjusted daily OHLCV history when `[price_context].enable = true` | Blank: daily-history adapter not implemented for this provider | Derived in the standalone artifact from daily split-adjusted stock candles when `[price_context].enable = true` |
 | `support_2` | Derived from adjusted daily OHLCV history when available | Blank: daily-history adapter not implemented for this provider | Derived from daily split-adjusted stock candles when available |
-| `resistance_1` | Derived from adjusted daily OHLCV history when `[price_context].enable = true` | Blank: daily-history adapter not implemented for this provider | Derived from daily split-adjusted stock candles when `[price_context].enable = true` |
+| `resistance_1` | Derived in the standalone artifact from adjusted daily OHLCV history when `[price_context].enable = true` | Blank: daily-history adapter not implemented for this provider | Derived in the standalone artifact from daily split-adjusted stock candles when `[price_context].enable = true` |
 | `resistance_2` | Derived from adjusted daily OHLCV history when available | Blank: daily-history adapter not implemented for this provider | Derived from daily split-adjusted stock candles when available |
 | `20d_high` | Derived: trailing 20-bar daily high | Blank: daily-history adapter not implemented for this provider | Derived: trailing 20-bar daily high |
 | `20d_low` | Derived: trailing 20-bar daily low | Blank: daily-history adapter not implemented for this provider | Derived: trailing 20-bar daily low |

@@ -18,8 +18,10 @@ from opx_chain.config import (
 )
 from opx_chain.export import prepare_export_frame, write_options_csv
 from opx_chain.fetch import fetch_ticker_option_chain, fetch_ticker_price_context
+from opx_chain.json_utils import dumps_strict_json
 from opx_chain.locks import acquire_nonblocking_file_lock, release_file_lock
 from opx_chain.paths import get_runs_dir
+from opx_chain.price_context import PRICE_CONTEXT_RECORD_FIELDS, PRICE_CONTEXT_SCHEMA_VERSION
 from opx_chain.positions import (
     DEFAULT_POSITIONS_PATH,
     OptionPositionKey,
@@ -226,14 +228,14 @@ def _write_price_context_artifact(output_path: Path, payload: dict[str, object])
     atomic_file_write(
         output_path,
         lambda tmp_path: tmp_path.write_text(
-            json.dumps(payload, indent=2, sort_keys=True),
+            dumps_strict_json(payload, indent=2, sort_keys=True),
             encoding="utf-8",
         ),
     )
 
 
-def _run_price_context_only(config, effective_tickers, logger) -> Path:
-    """Fetch optional price context without loading option chains."""
+def _run_price_context_fetch(config, effective_tickers, logger) -> Path:
+    """Fetch optional price context and write the independent JSON artifact."""
     provider = get_data_provider()
     records = []
     for ticker in effective_tickers:
@@ -246,7 +248,10 @@ def _run_price_context_only(config, effective_tickers, logger) -> Path:
             logger=logger,
             config=config,
         )
-        records.append({"ticker": ticker, **context})
+        records.append({
+            "ticker": ticker,
+            **{field: context.get(field) for field in PRICE_CONTEXT_RECORD_FIELDS},
+        })
         status = context.get("price_context_staleness_status")
         as_of = context.get("price_context_as_of") or "none"
         print(f"{ticker}: price_context  status={status}  as_of={as_of}")
@@ -256,6 +261,7 @@ def _run_price_context_only(config, effective_tickers, logger) -> Path:
     output_path = runs_dir / f"price_context_{timestamp}.json"
     payload = {
         "artifact_type": "price_context",
+        "schema_version": PRICE_CONTEXT_SCHEMA_VERSION,
         "provider": config.data_provider,
         "fetched_at": datetime.now(tz=timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
         "tickers": list(effective_tickers),
@@ -477,10 +483,14 @@ def _do_fetch_with_lock_held(  # pylint: disable=too-many-branches,too-many-loca
             return
 
         if price_context_only:
-            output_path = _run_price_context_only(config, effective_tickers, logger)
+            output_path = _run_price_context_fetch(config, effective_tickers, logger)
             print()
             print(f"Saved price context: {output_path}")
             return
+
+        price_context_path = None
+        if config.price_context_enable:
+            price_context_path = _run_price_context_fetch(config, effective_tickers, logger)
 
         if storage is not None:
             run_id = storage.create_run(RunContext(
@@ -619,6 +629,8 @@ def _do_fetch_with_lock_held(  # pylint: disable=too-many-branches,too-many-loca
         print()
         if write_csv:
             print(f"Saved: {output_path}")
+        if price_context_path is not None:
+            print(f"Price context: {price_context_path}")
         if dataset_record is not None:
             artifact_path = Path(dataset_record.location)
             artifact_size = (

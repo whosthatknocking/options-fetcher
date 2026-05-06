@@ -302,11 +302,13 @@ Field-mapping rules already implemented for Market Data include:
 
 ### 5.5 Optional Price Context
 
-Price context is an optional enrichment layer below the strategy engine. It can
-run as part of an option-chain fetch or independently through
+Price context is an optional standalone signal below the strategy engine. It can
+run alongside an option-chain fetch or independently through
 `opx-fetch --price-context-only`. It uses the same active provider as the option
 chain run and keeps a separate cache TTL because daily OHLCV signals change more
-slowly than option quotes.
+slowly than option quotes. It does not alter the canonical option-chain CSV
+schema; consumers join the versioned JSON artifact by ticker when they need
+row-level price context.
 
 Current provider behavior:
 

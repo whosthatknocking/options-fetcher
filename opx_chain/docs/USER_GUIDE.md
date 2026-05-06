@@ -229,12 +229,12 @@ be positive. Non-finite TOML floats such as `inf`, `-inf`, and `nan` are invalid
 
 #### Optional Price Context Defaults
 
-- `price_context.enable = false`: daily-OHLCV support/resistance enrichment is disabled by default.
+- `price_context.enable = false`: standalone daily-OHLCV support/resistance artifact generation is disabled by default.
 - `price_context.lookback_days = 260`: provider history window used for moving averages, 20-day boundaries, VWAP, and volume-node proxy.
 - `price_context.max_age_days = 7`: maximum age for the latest daily candle. Stale history exports blank numeric price-context fields plus `price_context_staleness_status = STALE`.
 - `storage.price_context_ttl = 86400`: cache TTL for price-context payloads, separate from faster-moving option-chain and quote caches.
 
-Use `opx-fetch --enable-price-context` to enrich a normal option-chain run, or
+Use `opx-fetch --enable-price-context` to write the artifact alongside a normal option-chain run, or
 `opx-fetch --price-context-only` to fetch/cache-warm only the price-context JSON
 artifact without exporting option chains.
 
@@ -418,9 +418,10 @@ How to use it:
 
 Price context is optional and provider-backed. When enabled, `opx-chain` fetches
 daily OHLCV history once per ticker, computes deterministic flat fields, and
-broadcasts them to every option row for that underlying. Missing, stale, or
-provider-failed history never fails the option-chain run; the numeric context
-fields remain blank and `price_context_staleness_status` explains the state.
+writes a standalone versioned JSON artifact. It does not change the canonical
+option-chain CSV schema. Missing, stale, or provider-failed history never fails
+the option-chain run; the numeric context fields remain blank and
+`price_context_staleness_status` explains the state.
 
 Current fields include `support_1`, `support_2`, `resistance_1`,
 `resistance_2`, `20d_high`, `20d_low`, `50dma`, `200dma`, `vwap`,
@@ -435,6 +436,11 @@ Provider availability:
 - `marketdata`: uses `stocks.candles(..., resolution="D", adjust_splits=true)`.
 - `yfinance`: uses adjusted daily `Ticker.history(...)`.
 - `massive`: currently returns blank price-context defaults.
+
+The latest artifact is written to `price_context_latest.json` under the runs
+directory, with timestamped copies named `price_context_YYYYMMDD_HHMMSS.json`.
+Consumers that need row-level context should join artifact records to option rows
+by `ticker` / `underlying_symbol`.
 
 ## Runtime Behavior
 

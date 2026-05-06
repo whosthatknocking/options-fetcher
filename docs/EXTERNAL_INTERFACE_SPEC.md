@@ -164,6 +164,8 @@ or writing run artifacts. This is the in-process equivalent of `opx-fetch --dry-
 **`price_context_only` (optional `bool`)** — when `True`, fetches/cache-warms only
 the optional daily-OHLCV price-context payload and skips option-chain export. This
 also enables price-context fetching for the run, regardless of the config default.
+The result is written as a standalone versioned JSON artifact under the runs
+directory and does not change the option-chain dataset schema.
 
 **Errors:**
 
@@ -318,7 +320,7 @@ consumers must not construct or infer artifact paths independently — always us
 
 ```python
 # opx_chain/__init__.py
-SCHEMA_VERSION: int = 2   # incremented on every breaking schema change
+SCHEMA_VERSION: int = 1   # incremented on every breaking schema change
 ```
 
 This integer is the join key between the chain artifact and the consumer's field
@@ -346,6 +348,41 @@ current `opx-chain` version or update the consumer to support the new schema.
 
 Backward compatibility across schema versions is not guaranteed.
 
+### 5.4 `PRICE_CONTEXT_SCHEMA_VERSION` constant
+
+Optional price context is a separate artifact contract, not part of the
+option-chain CSV schema.
+
+```python
+# opx_chain.price_context
+PRICE_CONTEXT_SCHEMA_VERSION = 1
+```
+
+The latest standalone artifact is written as `price_context_latest.json` under
+the runs directory, with timestamped copies named
+`price_context_YYYYMMDD_HHMMSS.json`.
+
+```json
+{
+  "artifact_type": "price_context",
+  "schema_version": 1,
+  "provider": "marketdata",
+  "fetched_at": "2026-05-06T20:00:00Z",
+  "tickers": ["TSLA"],
+  "records": [
+    {
+      "ticker": "TSLA",
+      "support_1": 100.0,
+      "price_context_as_of": "2026-05-06",
+      "price_context_staleness_status": "FRESH"
+    }
+  ]
+}
+```
+
+Consumers join `records[].ticker` to option-chain `underlying_symbol` when they
+need row-level price context.
+
 ---
 
 ## 6. Staleness Contract
@@ -356,11 +393,11 @@ consumers.
 
 The consumer should use `DatasetHandle.created_at` as the dataset-level timestamp.
 For per-ticker freshness, the chain artifact includes `underlying_price_time` per
-row. When optional price context is enabled, it also includes
-`price_context_as_of`, `price_context_age_days`, and
-`price_context_staleness_status`; consumers should apply a separate freshness
-policy to those slower-moving daily-OHLCV fields rather than treating them like
-intraday option quotes.
+row. Optional price context is a separate JSON artifact with its own
+`PRICE_CONTEXT_SCHEMA_VERSION`, `price_context_as_of`, `price_context_age_days`,
+and `price_context_staleness_status`; consumers should apply a separate
+freshness policy to those slower-moving daily-OHLCV fields rather than treating
+them like intraday option quotes.
 
 `opx-chain` does not expose a staleness API. The consumer decides what "fresh enough"
 means and blocks its own pipeline when the threshold is exceeded.

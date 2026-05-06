@@ -471,8 +471,8 @@ def test_fetch_ticker_option_chain_reuses_serialized_snapshot_cache(monkeypatch,
     assert second["underlying_price_time"].iloc[0] == pd.Timestamp("2026-03-20T13:45:00Z")
 
 
-def test_fetch_ticker_option_chain_appends_enabled_price_context(monkeypatch, capsys):
-    """Enabled price context should broadcast daily-OHLCV levels to option rows."""
+def test_fetch_ticker_option_chain_does_not_project_price_context(monkeypatch, capsys):
+    """Enabled price context should not alter option-chain row schema."""
     monkeypatch.setattr(fetch, "get_data_provider", StubProvider)
 
     def config_factory():
@@ -490,11 +490,11 @@ def test_fetch_ticker_option_chain_appends_enabled_price_context(monkeypatch, ca
 
     stdout = capsys.readouterr().out
     assert not result.empty
-    assert "TEST: price_context  status=FRESH  as_of=2026-03-20" in stdout
-    assert result["price_context_staleness_status"].unique().tolist() == ["FRESH"]
-    assert result["price_context_source"].unique().tolist() == ["stub"]
-    assert result["support_1"].notna().all()
-    assert result["20d_high"].notna().all()
+    assert "price_context" not in stdout
+    assert "price_context_staleness_status" not in result.columns
+    assert "price_context_source" not in result.columns
+    assert "support_1" not in result.columns
+    assert "20d_high" not in result.columns
 
 
 def test_fetch_ticker_price_context_uses_separate_cache(monkeypatch, tmp_path):
@@ -528,32 +528,23 @@ def test_fetch_ticker_price_context_uses_separate_cache(monkeypatch, tmp_path):
     assert provider.history_calls == 1
 
 
-def test_fetch_ticker_option_chain_skips_price_context_errors(monkeypatch):
-    """Optional price-context failures should not fail option-chain fetches."""
+def test_fetch_ticker_price_context_returns_error_payload_on_failure():
+    """Optional price-context failures should return an ERROR payload."""
     class BrokenPriceContextProvider(StubProvider):
         """Provider with usable option data but failing price history."""
 
         def load_price_history(self, ticker, *, lookback_days):
             raise RuntimeError(f"history unavailable for {ticker}")
 
-    monkeypatch.setattr(fetch, "get_data_provider", BrokenPriceContextProvider)
+    config = make_runtime_config(today=pd.Timestamp("2026-03-20").date())
+    context = fetch.fetch_ticker_price_context(
+        "TEST",
+        provider=BrokenPriceContextProvider(),
+        config=config,
+    )
 
-    def config_factory():
-        return make_runtime_config(
-            today=pd.Timestamp("2026-03-20").date(),
-            enable_filters=False,
-            price_context_enable=True,
-        )
-
-    monkeypatch.setattr(fetch, "get_runtime_config", config_factory)
-    monkeypatch.setattr(opx_chain.normalize, "get_runtime_config", config_factory)
-    monkeypatch.setattr(opx_chain.metrics, "get_runtime_config", config_factory)
-
-    result = fetch.fetch_ticker_option_chain("TEST")
-
-    assert not result.empty
-    assert result["price_context_staleness_status"].unique().tolist() == ["ERROR"]
-    assert result["support_1"].isna().all()
+    assert context["price_context_staleness_status"] == "ERROR"
+    assert context["support_1"] is None
 
 
 def test_marketdata_cache_keys_include_mode(monkeypatch, tmp_path):
