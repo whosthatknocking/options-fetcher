@@ -171,6 +171,40 @@ def test_json_cache_round_trips_pandas_snapshot_values(tmp_path):
     assert cached["nested"]["values"] == [3, pd.Timestamp("2026-03-20T13:46:00Z")]
 
 
+def test_json_cache_sanitizes_non_finite_values(tmp_path):
+    """Snapshot cache content must never emit non-standard JSON numbers."""
+    cache = FilesystemCache(tmp_path)
+    value = {
+        "underlying_price": np.float64(np.inf),
+        "change": float("-inf"),
+        "dividend_amount": np.float64(np.nan),
+        "nested": {"values": [1.0, float("nan"), True]},
+    }
+
+    fetch._cache_put_json(cache, "snapshot:stub:INF", value, ttl=300)  # pylint: disable=protected-access
+    raw = cache.get("snapshot:stub:INF")
+    cached = fetch._cache_get_json(cache, "snapshot:stub:INF")  # pylint: disable=protected-access
+
+    assert raw is not None
+    text = raw.decode()
+    assert "Infinity" not in text
+    assert "NaN" not in text
+    assert cached == {
+        "underlying_price": None,
+        "change": None,
+        "dividend_amount": None,
+        "nested": {"values": [1.0, None, True]},
+    }
+
+
+def test_json_cache_rejects_non_standard_json_literals(tmp_path):
+    """Legacy corrupt cache content should miss instead of restoring inf/nan."""
+    cache = FilesystemCache(tmp_path)
+    cache.put("snapshot:stub:BAD", b'{"underlying_price": Infinity}', ttl_seconds=300)
+
+    assert fetch._cache_get_json(cache, "snapshot:stub:BAD") is None  # pylint: disable=protected-access
+
+
 def test_json_cache_logs_unserializable_values(tmp_path, caplog):
     """Unsupported cache values should be visible rather than silently skipped."""
     cache = FilesystemCache(tmp_path)

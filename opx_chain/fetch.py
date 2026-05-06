@@ -1,14 +1,15 @@
 """Fetch orchestration using the configured market-data provider."""
 
 from datetime import datetime, timezone
-import json
 import logging
+from numbers import Real
 import pickle
 
 import numpy as np
 import pandas as pd
 
 from opx_chain.config import get_runtime_config
+from opx_chain.json_utils import dumps_strict_json, loads_strict_json
 from opx_chain.metrics import (
     add_expected_move_by_expiration,
     add_iv_state_level,
@@ -73,15 +74,19 @@ def _cache_get_json(cache, key: str) -> dict | None:
     if data is None:
         return None
     try:
-        return _restore_cached_json_value(json.loads(data))
-    except (json.JSONDecodeError, ValueError):
+        return _restore_cached_json_value(loads_strict_json(data.decode()))
+    except (UnicodeDecodeError, ValueError):
         return None
 
 
 def _cache_put_json(cache, key: str, value: dict, ttl: int, logger=None) -> None:
     """Serialise value to JSON and store in cache."""
     try:
-        cache.put(key, json.dumps(_prepare_cached_json_value(value)).encode(), ttl)
+        cache.put(
+            key,
+            dumps_strict_json(_prepare_cached_json_value(value)).encode(),
+            ttl,
+        )
     except (TypeError, ValueError) as exc:
         message = f"cache put skipped for key={key}: {exc}"
         if logger:
@@ -103,6 +108,8 @@ def _prepare_cached_json_value(value):
         prepared = [_prepare_cached_json_value(item) for item in value]
     elif isinstance(value, np.generic):
         prepared = value.item()
+    if isinstance(prepared, Real) and not isinstance(prepared, bool):
+        return prepared if np.isfinite(float(prepared)) else None
     return {_JSON_NAT_KEY: True} if is_nat else prepared
 
 
