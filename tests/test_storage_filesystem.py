@@ -1084,6 +1084,34 @@ def test_count_runs_today_returns_zero_when_no_runs(tmp_path: Path):
     assert backend.count_runs_today("marketdata") == 0
 
 
+def test_count_runs_today_reuses_process_cache(tmp_path: Path, monkeypatch):
+    """Repeated same-day counts should not rescan every run sidecar."""
+    backend = _make_backend(tmp_path)
+    market_run = backend.create_run(_make_context(provider="marketdata"))
+    backend.finalize_run(market_run, RunSummary(status="complete"))
+
+    assert backend.count_runs_today("marketdata") == 1
+
+    def fail_read_text(*_args, **_kwargs):
+        raise AssertionError("count_runs_today should use cached count")
+
+    monkeypatch.setattr(Path, "read_text", fail_read_text)
+
+    assert backend.count_runs_today("marketdata") == 1
+
+
+def test_count_runs_today_cache_invalidates_on_run_write(tmp_path: Path):
+    """Run-sidecar writes must clear cached daily counts."""
+    backend = _make_backend(tmp_path)
+    market_run = backend.create_run(_make_context(provider="marketdata"))
+
+    assert backend.count_runs_today("marketdata") == 0
+
+    backend.finalize_run(market_run, RunSummary(status="complete"))
+
+    assert backend.count_runs_today("marketdata") == 1
+
+
 def test_interrupt_stale_runs_marks_old_running_sidecars(tmp_path: Path):
     """Stale running run sidecars should converge to interrupted."""
     backend = _make_backend(tmp_path)

@@ -80,6 +80,7 @@ class FilesystemBackend:
         self._debug_dir = debug_dir
         self._max_runs_retained = max_runs_retained
         self._run_sidecar_lock = threading.RLock()
+        self._daily_count_cache: dict[tuple[str, str], int] = {}
         get_serializer(dataset_format)
         self._sweep_orphan_dataset_artifacts()
 
@@ -192,6 +193,7 @@ class FilesystemBackend:
     def _write_run(self, run_id: str, data: dict) -> None:
         path = self._run_path(run_id)
         atomic_write_text(path, dumps_strict_json(data, indent=2))
+        self._daily_count_cache.clear()
 
     def _find_meta_path(self, dataset_id: str) -> Path:
         """Scan all run dirs to locate a dataset meta file by dataset_id."""
@@ -607,6 +609,10 @@ class FilesystemBackend:
         """Return the number of complete runs started today (US/Eastern) for the provider."""
         from opx_chain.config import US_MARKET_TIMEZONE  # pylint: disable=import-outside-toplevel
         now_et = datetime.now(tz=US_MARKET_TIMEZONE)
+        cache_key = (provider, now_et.date().isoformat())
+        cached = self._daily_count_cache.get(cache_key)
+        if cached is not None:
+            return cached
         midnight_et = now_et.replace(hour=0, minute=0, second=0, microsecond=0)
         since_utc = midnight_et.astimezone(timezone.utc)
         count = 0
@@ -625,6 +631,7 @@ class FilesystemBackend:
                     count += 1
             except (OSError, ValueError):
                 continue
+        self._daily_count_cache[cache_key] = count
         return count
 
     def get_ticker_results(self, run_id: str) -> list[TickerRunRecord]:
