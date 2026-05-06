@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass, field
 from datetime import date, datetime, timedelta
 from functools import lru_cache
@@ -183,7 +184,10 @@ def _coerce_float(value, *, field_name):
         return None
     if isinstance(value, bool) or not isinstance(value, (int, float)):
         raise ConfigError(f"Config field '{field_name}' must be numeric.")
-    return float(value)
+    resolved = float(value)
+    if not math.isfinite(resolved):
+        raise ConfigError(f"Config field '{field_name}' must be finite.")
+    return resolved
 
 
 def _coerce_path(value, *, field_name):

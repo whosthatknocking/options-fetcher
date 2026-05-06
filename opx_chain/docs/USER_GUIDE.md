@@ -203,7 +203,7 @@ These settings apply regardless of which provider is active.
 Invalid numeric values fall back to the defaults with config warnings. Values that
 represent minimums must be non-negative except `filters_min_bid`, which must be
 positive when set; percentage caps, lookback windows, and annualization days must
-be positive.
+be positive. Non-finite TOML floats such as `inf`, `-inf`, and `nan` are invalid.
 
 #### Shared Runtime Defaults
 

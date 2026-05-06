@@ -512,6 +512,42 @@ filters_min_volume = "many"
     assert "using default 10" in warning
 
 
+def test_load_runtime_config_defaults_non_finite_float_settings(tmp_path: Path):
+    """TOML inf/nan float literals should warn and fall back to safe defaults."""
+    config_path = tmp_path / "non-finite-floats.toml"
+    config_path.write_text(
+        """
+[settings]
+data_provider = "marketdata"
+filters_max_spread_pct_of_mid = inf
+risk_free_rate = nan
+
+[providers.marketdata]
+api_token = "market-token"
+request_interval_seconds = inf
+backoff_seconds = nan
+""".strip(),
+        encoding="utf-8",
+    )
+
+    config = load_runtime_config(config_path)
+
+    assert config.max_spread_pct_of_mid == 0.25
+    assert config.risk_free_rate == 0.045
+    assert config.marketdata_request_interval_seconds == 0.0
+    assert config.marketdata_backoff_seconds == 1.0
+    for field_name in (
+        "settings.filters_max_spread_pct_of_mid",
+        "settings.risk_free_rate",
+        "providers.marketdata.request_interval_seconds",
+        "providers.marketdata.backoff_seconds",
+    ):
+        warning = next(
+            warning for warning in config.config_warnings if field_name in warning
+        )
+        assert "must be finite" in warning
+
+
 def test_get_data_provider_returns_provider_from_runtime_config(monkeypatch, tmp_path: Path):
     """Provider factory should resolve yfinance and massive from config."""
     yfinance_config = tmp_path / "yfinance.toml"
