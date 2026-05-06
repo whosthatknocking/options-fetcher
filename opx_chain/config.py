@@ -39,6 +39,9 @@ DEFAULT_TRADING_DAYS_PER_YEAR = 252
 DEFAULT_STALE_QUOTE_SECONDS = 10800
 DEFAULT_ENABLE_FILTERS = True
 DEFAULT_ENABLE_VALIDATION = True
+DEFAULT_PRICE_CONTEXT_ENABLE = False
+DEFAULT_PRICE_CONTEXT_LOOKBACK_DAYS = 260
+DEFAULT_PRICE_CONTEXT_MAX_AGE_DAYS = 7
 DEFAULT_OPTION_SCORE_INCOME_WEIGHT = 0.30
 DEFAULT_OPTION_SCORE_LIQUIDITY_WEIGHT = 0.30
 DEFAULT_OPTION_SCORE_RISK_WEIGHT = 0.25
@@ -90,6 +93,9 @@ class RuntimeConfig:
     stale_quote_seconds: int
     enable_filters: bool
     enable_validation: bool
+    price_context_enable: bool
+    price_context_lookback_days: int
+    price_context_max_age_days: int
     max_strike_distance_pct: float
     max_expiration_weeks: int | None
     max_expiration: str | None
@@ -124,6 +130,7 @@ class RuntimeConfig:
     provider_snapshot_ttl: int = 300
     provider_chain_ttl: int = 300
     provider_events_ttl: int = 86400
+    provider_price_context_ttl: int = 86400
     config_warnings: tuple[str, ...] = field(default_factory=tuple)
 
 
@@ -371,6 +378,11 @@ def load_runtime_config(  # pylint: disable=too-many-locals
         field_name="providers.yfinance",
         warnings=warnings,
     )
+    price_context_settings = _resolve_table(
+        data.get("price_context", {}),
+        field_name="price_context",
+        warnings=warnings,
+    )
 
     runtime_day = today or market_calendar_today()
     data_provider = _resolve_config_value(
@@ -571,6 +583,31 @@ def load_runtime_config(  # pylint: disable=too-many-locals
             default=DEFAULT_ENABLE_VALIDATION,
             coercer=_coerce_bool,
             warnings=warnings,
+        ),
+        price_context_enable=_resolve_config_value(
+            price_context_settings.get("enable"),
+            field_name="price_context.enable",
+            default=DEFAULT_PRICE_CONTEXT_ENABLE,
+            coercer=_coerce_bool,
+            warnings=warnings,
+        ),
+        price_context_lookback_days=_resolve_config_value(
+            price_context_settings.get("lookback_days"),
+            field_name="price_context.lookback_days",
+            default=DEFAULT_PRICE_CONTEXT_LOOKBACK_DAYS,
+            coercer=_coerce_int,
+            warnings=warnings,
+            validator=lambda value: value >= 20,
+            constraint="must be >= 20",
+        ),
+        price_context_max_age_days=_resolve_config_value(
+            price_context_settings.get("max_age_days"),
+            field_name="price_context.max_age_days",
+            default=DEFAULT_PRICE_CONTEXT_MAX_AGE_DAYS,
+            coercer=_coerce_int,
+            warnings=warnings,
+            validator=lambda value: value >= 0,
+            constraint="must be >= 0",
         ),
         debug_dump_provider_payload=_resolve_config_value(
             settings.get("debug_dump_provider_payload"),
@@ -805,6 +842,15 @@ def load_runtime_config(  # pylint: disable=too-many-locals
             validator=lambda v: v > 0,
             constraint="must be > 0",
         ),
+        provider_price_context_ttl=_resolve_config_value(
+            storage_settings.get("price_context_ttl"),
+            field_name="storage.price_context_ttl",
+            default=86400,
+            coercer=_coerce_int,
+            warnings=warnings,
+            validator=lambda v: v > 0,
+            constraint="must be > 0",
+        ),
         config_warnings=tuple(warnings),
     )
     object.__setattr__(
@@ -901,6 +947,10 @@ def describe_runtime_config(config: RuntimeConfig) -> tuple[str, ...]:
         "Diagnostics:",
         f"  enable_validation: {config.enable_validation}",
         f"  debug_dump_provider_payload: {config.debug_dump_provider_payload}",
+        "Price context:",
+        f"  enable: {config.price_context_enable}",
+        f"  lookback_days: {config.price_context_lookback_days}",
+        f"  max_age_days: {config.price_context_max_age_days}",
     ]
     if config.data_provider == "marketdata":
         token_label = "set" if config.marketdata_api_token else "not set"
@@ -939,6 +989,7 @@ def describe_runtime_config(config: RuntimeConfig) -> tuple[str, ...]:
             f"  dataset_format: {config.storage_dataset_format}",
             f"  also_write_csv: {config.storage_also_write_csv}",
             f"  cache: {config.provider_cache_backend}",
+            f"  price_context_ttl: {config.provider_price_context_ttl}",
         ]
     else:
         lines += ["Storage:", "  enable: false"]

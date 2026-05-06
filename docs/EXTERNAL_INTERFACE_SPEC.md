@@ -133,6 +133,7 @@ run_fetch(
     stale_quote_seconds=86_400,
 )
 run_fetch(dry_run=True)
+run_fetch(price_context_only=True)
 ```
 
 `run_fetch()` is the in-process equivalent of invoking `opx-fetch` as a subprocess.
@@ -159,6 +160,10 @@ their own run policy without editing opx-chain config. When absent, the configur
 **`dry_run` (optional `bool`)** — when `True`, validates config loading, positions
 parsing, lock acquisition, and storage reachability without making provider API calls
 or writing run artifacts. This is the in-process equivalent of `opx-fetch --dry-run`.
+
+**`price_context_only` (optional `bool`)** — when `True`, fetches/cache-warms only
+the optional daily-OHLCV price-context payload and skips option-chain export. This
+also enables price-context fetching for the run, regardless of the config default.
 
 **Errors:**
 
@@ -313,7 +318,7 @@ consumers must not construct or infer artifact paths independently — always us
 
 ```python
 # opx_chain/__init__.py
-SCHEMA_VERSION: int = 1   # incremented on every breaking schema change
+SCHEMA_VERSION: int = 2   # incremented on every breaking schema change
 ```
 
 This integer is the join key between the chain artifact and the consumer's field
@@ -351,7 +356,11 @@ consumers.
 
 The consumer should use `DatasetHandle.created_at` as the dataset-level timestamp.
 For per-ticker freshness, the chain artifact includes `underlying_price_time` per
-row — the consumer applies its own staleness policy against that field.
+row. When optional price context is enabled, it also includes
+`price_context_as_of`, `price_context_age_days`, and
+`price_context_staleness_status`; consumers should apply a separate freshness
+policy to those slower-moving daily-OHLCV fields rather than treating them like
+intraday option quotes.
 
 `opx-chain` does not expose a staleness API. The consumer decides what "fresh enough"
 means and blocks its own pipeline when the threshold is exceeded.
@@ -365,7 +374,7 @@ dependency.
 
 ### 7.1 Add `SCHEMA_VERSION` public constant
 
-- add `SCHEMA_VERSION: int = 1` to `opx_chain/__init__.py`; this is the
+- add `SCHEMA_VERSION` to `opx_chain/__init__.py`; this is the
   canonical location — `from opx_chain import SCHEMA_VERSION` must work
 - also update `opx_chain/export.py` to reference this constant rather than
   defining its own, so there is one source of truth

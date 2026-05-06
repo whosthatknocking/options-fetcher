@@ -17,7 +17,7 @@ from opx_chain.config import (
     describe_runtime_config, get_runtime_config, set_runtime_config_override,
 )
 from opx_chain.export import prepare_export_frame, write_options_csv
-from opx_chain.fetch import fetch_ticker_option_chain
+from opx_chain.fetch import fetch_ticker_option_chain, fetch_ticker_price_context
 from opx_chain.locks import acquire_nonblocking_file_lock, release_file_lock
 from opx_chain.paths import get_runs_dir
 from opx_chain.positions import (
@@ -26,6 +26,7 @@ from opx_chain.positions import (
     PositionSet,
     load_positions,
 )
+from opx_chain.providers import get_data_provider
 from opx_chain.runlog import create_run_logger, log_run_started
 from opx_chain.storage.atomic import atomic_file_write
 from opx_chain.storage.factory import get_data_dir, get_storage_backend
@@ -92,16 +93,43 @@ def parse_args(argv=None):
             "without making any API calls or writing any output."
         ),
     )
+    price_context_group = parser.add_mutually_exclusive_group()
+    price_context_group.add_argument(
+        "--price-context-only",
+        action="store_true",
+        help="Fetch only optional daily-OHLCV price context and skip option-chain export.",
+    )
+    price_context_group.add_argument(
+        "--enable-price-context",
+        action="store_true",
+        help="Force optional price-context enrichment on for this run.",
+    )
+    price_context_group.add_argument(
+        "--disable-price-context",
+        action="store_true",
+        help="Force optional price-context enrichment off for this run.",
+    )
     return parser.parse_args(argv)
 
 
 def apply_cli_overrides(config, args):
     """Apply one-off CLI overrides on top of the resolved runtime config."""
+    override_labels = []
     if args.enable_filters:
-        return replace(config, enable_filters=True), "filters_enable=true"
-    if args.disable_filters:
-        return replace(config, enable_filters=False), "filters_enable=false"
-    return config, None
+        config = replace(config, enable_filters=True)
+        override_labels.append("filters_enable=true")
+    elif args.disable_filters:
+        config = replace(config, enable_filters=False)
+        override_labels.append("filters_enable=false")
+    if args.enable_price_context or args.price_context_only:
+        config = replace(config, price_context_enable=True)
+        override_labels.append("price_context_enable=true")
+    elif args.disable_price_context:
+        config = replace(config, price_context_enable=False)
+        override_labels.append("price_context_enable=false")
+    if args.price_context_only:
+        override_labels.append("price_context_only=true")
+    return config, ", ".join(override_labels) if override_labels else None
 
 
 def _with_max_expiration_weeks(config, max_expiration_weeks: int):
@@ -190,6 +218,60 @@ def _runtime_data_dir(config) -> Path:
 def _runs_dir(config) -> Path:
     """Return the directory for CSV side writes and latest pointers."""
     return get_runs_dir(config.storage_dir, default_runs_dir=RUNS_DIR)
+
+
+def _write_price_context_artifact(output_path: Path, payload: dict[str, object]) -> None:
+    """Atomically write a standalone price-context JSON artifact."""
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    atomic_file_write(
+        output_path,
+        lambda tmp_path: tmp_path.write_text(
+            json.dumps(payload, indent=2, sort_keys=True),
+            encoding="utf-8",
+        ),
+    )
+
+
+def _run_price_context_only(config, effective_tickers, logger) -> Path:
+    """Fetch optional price context without loading option chains."""
+    provider = get_data_provider()
+    records = []
+    for ticker in effective_tickers:
+        prepare_ticker_fetch = getattr(provider, "prepare_ticker_fetch", None)
+        if callable(prepare_ticker_fetch):
+            prepare_ticker_fetch(ticker)
+        context = fetch_ticker_price_context(
+            ticker,
+            provider=provider,
+            logger=logger,
+            config=config,
+        )
+        records.append({"ticker": ticker, **context})
+        status = context.get("price_context_staleness_status")
+        as_of = context.get("price_context_as_of") or "none"
+        print(f"{ticker}: price_context  status={status}  as_of={as_of}")
+
+    timestamp = datetime.now(tz=timezone.utc).strftime("%Y%m%d_%H%M%S")
+    runs_dir = _runs_dir(config)
+    output_path = runs_dir / f"price_context_{timestamp}.json"
+    payload = {
+        "artifact_type": "price_context",
+        "provider": config.data_provider,
+        "fetched_at": datetime.now(tz=timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "tickers": list(effective_tickers),
+        "records": records,
+    }
+    _write_price_context_artifact(output_path, payload)
+    latest_path = runs_dir / "price_context_latest.json"
+    atomic_file_write(latest_path, lambda tmp_path: shutil.copy2(output_path, tmp_path))
+    if logger:
+        logger.info(
+            "price_context_finished provider=%s tickers=%s output=%s",
+            config.data_provider,
+            len(effective_tickers),
+            output_path,
+        )
+    return output_path
 
 
 def _interrupt_stale_running_runs(storage) -> int:
@@ -326,6 +408,7 @@ def _do_fetch_with_lock_held(  # pylint: disable=too-many-branches,too-many-loca
     cli_override: str | None,
     *,
     dry_run: bool = False,
+    price_context_only: bool = False,
 ) -> None:
     """Execute the fetch pipeline. Lock must already be held by caller. Raises on failure."""
     logger = None
@@ -385,10 +468,18 @@ def _do_fetch_with_lock_held(  # pylint: disable=too-many-branches,too-many-loca
         if dry_run:
             print()
             print(f"Would fetch {len(effective_tickers)} ticker(s): {', '.join(effective_tickers)}")
+            if price_context_only:
+                print("Mode: price-context-only")
             if storage is not None:
                 print(f"Storage: {type(storage).__name__} (reachable)")
             print()
             print("Dry-run complete.")
+            return
+
+        if price_context_only:
+            output_path = _run_price_context_only(config, effective_tickers, logger)
+            print()
+            print(f"Saved price context: {output_path}")
             return
 
         if storage is not None:
@@ -579,12 +670,13 @@ def _do_fetch_with_lock_held(  # pylint: disable=too-many-branches,too-many-loca
         raise
 
 
-def run_fetch(
+def run_fetch(  # pylint: disable=too-many-arguments,too-many-positional-arguments
     positions_path: Path | None = None,
     tickers: tuple[str, ...] | None = None,
     max_expiration_weeks: int | None = None,
     stale_quote_seconds: int | None = None,
     dry_run: bool = False,
+    price_context_only: bool = False,
 ) -> None:
     """Trigger a fresh option-chain fetch and write the result to storage.
 
@@ -597,6 +689,7 @@ def run_fetch(
     max_expiration_weeks: override the expiration window from config for this run only.
     stale_quote_seconds: override the staleness threshold from config for this run only.
     dry_run: validate config, positions, and storage without API calls or writes.
+    price_context_only: fetch/cache daily-OHLCV context without option-chain export.
 
     Raises RuntimeError if another fetch run is already active.
     Raises RuntimeError if the fetch produces no data.
@@ -609,6 +702,8 @@ def run_fetch(
         config = _with_max_expiration_weeks(config, max_expiration_weeks)
     if stale_quote_seconds is not None:
         config = replace(config, stale_quote_seconds=stale_quote_seconds)
+    if price_context_only:
+        config = replace(config, price_context_enable=True)
     if dry_run:
         try:
             set_runtime_config_override(config)
@@ -618,6 +713,7 @@ def run_fetch(
                     positions_path,
                     cli_override=None,
                     dry_run=True,
+                    price_context_only=price_context_only,
                 )
         finally:
             set_runtime_config_override(None)
@@ -635,13 +731,20 @@ def run_fetch(
                 positions_path,
                 cli_override=None,
                 dry_run=dry_run,
+                price_context_only=price_context_only,
             )
     finally:
         set_runtime_config_override(None)
         release_fetcher_lock(lock_handle, lock_path)
 
 
-def _run_dry_run(config, positions_path: Path | None, cli_override) -> int:
+def _run_dry_run(
+    config,
+    positions_path: Path | None,
+    cli_override,
+    *,
+    price_context_only: bool = False,
+) -> int:
     """Run dry-run validation without acquiring the cross-process fetcher lock."""
     try:
         set_runtime_config_override(config)
@@ -651,6 +754,7 @@ def _run_dry_run(config, positions_path: Path | None, cli_override) -> int:
                 positions_path,
                 cli_override=cli_override,
                 dry_run=True,
+                price_context_only=price_context_only,
             )
         return 0
     except KeyboardInterrupt:
@@ -666,7 +770,12 @@ def main(argv=None):
     args = parse_args(argv)
     config, cli_override = apply_cli_overrides(get_runtime_config(), args)
     if args.dry_run:
-        return _run_dry_run(config, args.positions, cli_override)
+        return _run_dry_run(
+            config,
+            args.positions,
+            cli_override,
+            price_context_only=args.price_context_only,
+        )
 
     lock_path = _fetcher_lock_path(config)
     lock_handle = acquire_fetcher_lock(lock_path)
@@ -676,8 +785,13 @@ def main(argv=None):
     try:
         set_runtime_config_override(config)
         with _SigtermAsKeyboardInterrupt():
-            _do_fetch_with_lock_held(config, args.positions, cli_override=cli_override,
-                                     dry_run=args.dry_run)
+            _do_fetch_with_lock_held(
+                config,
+                args.positions,
+                cli_override=cli_override,
+                dry_run=args.dry_run,
+                price_context_only=args.price_context_only,
+            )
         return 0
     except KeyboardInterrupt:
         return 130

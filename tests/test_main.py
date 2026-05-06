@@ -300,6 +300,10 @@ def test_config_fingerprint_includes_output_affecting_settings():
         {"provider_snapshot_ttl": 900},
         {"provider_chain_ttl": 1200},
         {"provider_events_ttl": 3600},
+        {"provider_price_context_ttl": 43200},
+        {"price_context_enable": True},
+        {"price_context_lookback_days": 300},
+        {"price_context_max_age_days": 3},
     ):
         changed = make_runtime_config(**{**base_overrides, **overrides})
 

@@ -54,6 +54,7 @@ Runtime interface:
 - `DataProvider.external_logger_names`
 - `DataProvider.debug_dump_payload`
 - `DataProvider.load_ticker_events`
+- `DataProvider.load_price_history`
 - `DataProvider.load_underlying_snapshot`
 - `DataProvider.list_option_expirations`
 - `DataProvider.load_option_chain`

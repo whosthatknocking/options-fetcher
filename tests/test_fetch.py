@@ -117,6 +117,21 @@ class StubProvider:
             "dividend_amount": float("nan"),
         }
 
+    def load_price_history(self, ticker, *, lookback_days):  # pylint: disable=unused-argument
+        """Return daily OHLCV data for price-context tests."""
+        dates = pd.bdate_range(end="2026-03-20", periods=lookback_days)
+        closes = [90.0 + index * 0.05 for index in range(lookback_days)]
+        return pd.DataFrame(
+            {
+                "Date": dates,
+                "Open": [close - 0.25 for close in closes],
+                "High": [close + 0.75 for close in closes],
+                "Low": [close - 0.75 for close in closes],
+                "Close": closes,
+                "Volume": [1000 + index for index in range(lookback_days)],
+            }
+        )
+
     def normalize_option_frame(  # pylint: disable=too-many-arguments,too-many-positional-arguments
         self,
         df,
@@ -454,6 +469,91 @@ def test_fetch_ticker_option_chain_reuses_serialized_snapshot_cache(monkeypatch,
     assert not second.empty
     assert provider.snapshot_calls == 1
     assert second["underlying_price_time"].iloc[0] == pd.Timestamp("2026-03-20T13:45:00Z")
+
+
+def test_fetch_ticker_option_chain_appends_enabled_price_context(monkeypatch, capsys):
+    """Enabled price context should broadcast daily-OHLCV levels to option rows."""
+    monkeypatch.setattr(fetch, "get_data_provider", StubProvider)
+
+    def config_factory():
+        return make_runtime_config(
+            today=pd.Timestamp("2026-03-20").date(),
+            enable_filters=False,
+            price_context_enable=True,
+        )
+
+    monkeypatch.setattr(fetch, "get_runtime_config", config_factory)
+    monkeypatch.setattr(opx_chain.normalize, "get_runtime_config", config_factory)
+    monkeypatch.setattr(opx_chain.metrics, "get_runtime_config", config_factory)
+
+    result = fetch.fetch_ticker_option_chain("TEST")
+
+    stdout = capsys.readouterr().out
+    assert not result.empty
+    assert "TEST: price_context  status=FRESH  as_of=2026-03-20" in stdout
+    assert result["price_context_staleness_status"].unique().tolist() == ["FRESH"]
+    assert result["price_context_source"].unique().tolist() == ["stub"]
+    assert result["support_1"].notna().all()
+    assert result["20d_high"].notna().all()
+
+
+def test_fetch_ticker_price_context_uses_separate_cache(monkeypatch, tmp_path):
+    """Price context should have its own cache key and provider TTL."""
+    class CountingProvider(StubProvider):
+        """Provider that records price-history calls across context fetches."""
+
+        def __init__(self):
+            super().__init__()
+            self.history_calls = 0
+
+        def load_price_history(self, ticker, *, lookback_days):
+            self.history_calls += 1
+            return super().load_price_history(ticker, lookback_days=lookback_days)
+
+    provider = CountingProvider()
+    config = make_runtime_config(
+        today=pd.Timestamp("2026-03-20").date(),
+        provider_cache_backend="filesystem",
+        provider_cache_dir=tmp_path,
+        provider_price_context_ttl=86400,
+        price_context_lookback_days=260,
+    )
+    monkeypatch.setattr(fetch, "get_runtime_config", lambda: config)
+
+    first = fetch.fetch_ticker_price_context("TEST", provider=provider, config=config)
+    second = fetch.fetch_ticker_price_context("TEST", provider=provider, config=config)
+
+    assert first["price_context_staleness_status"] == "FRESH"
+    assert second["price_context_staleness_status"] == "FRESH"
+    assert provider.history_calls == 1
+
+
+def test_fetch_ticker_option_chain_skips_price_context_errors(monkeypatch):
+    """Optional price-context failures should not fail option-chain fetches."""
+    class BrokenPriceContextProvider(StubProvider):
+        """Provider with usable option data but failing price history."""
+
+        def load_price_history(self, ticker, *, lookback_days):
+            raise RuntimeError(f"history unavailable for {ticker}")
+
+    monkeypatch.setattr(fetch, "get_data_provider", BrokenPriceContextProvider)
+
+    def config_factory():
+        return make_runtime_config(
+            today=pd.Timestamp("2026-03-20").date(),
+            enable_filters=False,
+            price_context_enable=True,
+        )
+
+    monkeypatch.setattr(fetch, "get_runtime_config", config_factory)
+    monkeypatch.setattr(opx_chain.normalize, "get_runtime_config", config_factory)
+    monkeypatch.setattr(opx_chain.metrics, "get_runtime_config", config_factory)
+
+    result = fetch.fetch_ticker_option_chain("TEST")
+
+    assert not result.empty
+    assert result["price_context_staleness_status"].unique().tolist() == ["ERROR"]
+    assert result["support_1"].isna().all()
 
 
 def test_marketdata_cache_keys_include_mode(monkeypatch, tmp_path):

@@ -701,7 +701,7 @@ All seven steps are complete and shipped.
 - `opx_chain/storage/base.py` — `StorageBackend` and `ProviderCache` protocols
 - `opx_chain/storage/models.py` — all records and write payloads
 - `opx_chain/storage/serializers.py` — `DatasetSerializer` protocol and CSV implementation
-- `SCHEMA_VERSION: int = 1` in `opx_chain/__init__.py`
+- `SCHEMA_VERSION` in `opx_chain/__init__.py`
 - `MemoryBackend` in `opx_chain/storage/memory.py`
 
 ### Step 2 — Filesystem backend ✓

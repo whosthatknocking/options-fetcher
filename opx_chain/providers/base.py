@@ -143,6 +143,15 @@ class DataProvider(ABC):
             "dividend_amount": np.nan,
         }
 
+    def load_price_history(
+        self,
+        ticker: str,  # pylint: disable=unused-argument
+        *,
+        lookback_days: int,  # pylint: disable=unused-argument
+    ) -> pd.DataFrame:
+        """Return daily OHLCV history for optional price context, when supported."""
+        return pd.DataFrame()
+
     @abstractmethod
     def load_underlying_snapshot(self, ticker: str) -> dict:
         """Load the current underlying snapshot for one ticker."""

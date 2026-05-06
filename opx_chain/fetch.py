@@ -19,6 +19,11 @@ from opx_chain.metrics import (
 )
 from opx_chain.normalize import apply_post_download_filters, enrich_option_frame
 from opx_chain.positions import EMPTY_POSITION_SET, PositionSet
+from opx_chain.price_context import (
+    PRICE_CONTEXT_EXPORT_FIELDS,
+    blank_price_context,
+    compute_price_context,
+)
 from opx_chain.providers.base import (
     OptionChainFrames,
     ProviderAuthenticationError,
@@ -229,6 +234,57 @@ def append_ticker_event_fields(df, events, today):
     return df
 
 
+def append_price_context_fields(df, price_context):
+    """Broadcast optional per-ticker price-context fields to all option rows."""
+    for field in PRICE_CONTEXT_EXPORT_FIELDS:
+        df[field] = price_context.get(field)
+    return df
+
+
+def fetch_ticker_price_context(ticker, *, provider=None, logger=None, cache=None, config=None):
+    """Fetch/cache optional daily-OHLCV price context for one ticker without failing runs."""
+    config = config or get_runtime_config()
+    cache = cache or get_provider_cache(config)
+    provider = provider or get_data_provider()
+    cache_scope = _provider_cache_scope(provider.name, config)
+    cache_key = (
+        f"price_context:{cache_scope}:{ticker}:{config.today.isoformat()}:"
+        f"lookback={config.price_context_lookback_days}:"
+        f"max_age={config.price_context_max_age_days}"
+    )
+    cached = _cache_get_json(cache, cache_key)
+    if cached is not None:
+        return cached
+
+    try:
+        history = provider.load_price_history(
+            ticker,
+            lookback_days=config.price_context_lookback_days,
+        )
+        context = compute_price_context(
+            history,
+            source=provider.name,
+            today=config.today,
+            max_age_days=config.price_context_max_age_days,
+        )
+    except Exception as exc:  # pylint: disable=broad-exception-caught
+        context = blank_price_context(source=provider.name, status="ERROR")
+        message = f"{ticker}: price_context skipped  error={_exception_summary(exc)}"
+        if logger:
+            logger.warning(message)
+        else:
+            _LOGGER.warning(message)
+        print(message)
+    _cache_put_json(
+        cache,
+        cache_key,
+        context,
+        config.provider_price_context_ttl,
+        logger=logger,
+    )
+    return context
+
+
 def fetch_ticker_option_chain(  # pylint: disable=too-many-locals,too-many-branches,too-many-statements,broad-exception-caught
     ticker,
     logger=None,
@@ -323,6 +379,23 @@ def fetch_ticker_option_chain(  # pylint: disable=too-many-locals,too-many-branc
             f"{ticker}: events  earnings={earnings}  ex_div={ex_div}",
             logger=logger,
         )
+        price_context = None
+        if config.price_context_enable:
+            price_context = fetch_ticker_price_context(
+                ticker,
+                provider=provider,
+                logger=logger,
+                cache=cache,
+                config=config,
+            )
+            _emit_fetch_info(
+                (
+                    f"{ticker}: price_context  "
+                    f"status={price_context.get('price_context_staleness_status')}"
+                    f"  as_of={price_context.get('price_context_as_of') or 'none'}"
+                ),
+                logger=logger,
+            )
 
         for expiration_date in usable_expirations:
             chain_key = f"chain:{cache_scope}:{ticker}:{expiration_date}"
@@ -378,6 +451,11 @@ def fetch_ticker_option_chain(  # pylint: disable=too-many-locals,too-many-branc
                 vendor_normalized = append_ticker_event_fields(
                     vendor_normalized, events, config.today
                 )
+                if price_context is not None:
+                    vendor_normalized = append_price_context_fields(
+                        vendor_normalized,
+                        price_context,
+                    )
                 normalized = enrich_option_frame(
                     df=vendor_normalized,
                     underlying_price=underlying_price,

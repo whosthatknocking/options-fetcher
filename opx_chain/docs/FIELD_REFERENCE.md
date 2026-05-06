@@ -60,6 +60,32 @@ that field or apply its own default for the downstream calculation.
 - `underlying_price_age_seconds`: Age of the underlying quote at fetch time. Use it to detect stale stock prices. Lower is better; high values mean the stock snapshot may be stale.
 - `is_stale_underlying_price`: Flag showing whether the underlying quote is older than the configured staleness threshold. Use it to down-rank stale rows.
 
+## Price Context Fields
+
+These optional fields are fetched once per ticker from daily OHLCV history and
+broadcast to every option row for that underlying when price context is enabled.
+Missing, stale, or errored price history leaves numeric levels blank and uses
+metadata fields to explain why.
+
+- `support_1`: Nearest computed support-like level at or below spot, selected from recent range, moving-average, and volume-node proxy levels.
+- `support_2`: Next lower computed support-like level when available.
+- `resistance_1`: Nearest computed resistance-like level at or above spot, selected from recent range, moving-average, and volume-node proxy levels.
+- `resistance_2`: Next higher computed resistance-like level when available.
+- `20d_high`: Highest daily high in the trailing 20 trading bars.
+- `20d_low`: Lowest daily low in the trailing 20 trading bars.
+- `50dma`: Trailing 50-trading-day simple moving average of daily closes. Blank when fewer than 50 bars are available.
+- `200dma`: Trailing 200-trading-day simple moving average of daily closes. Blank when fewer than 200 bars are available.
+- `vwap`: Trailing 20-trading-bar volume-weighted average price approximation using daily typical price and volume.
+- `volume_profile_high_volume_node`: Daily-history proxy for the high-volume node, using the typical price of the highest-volume day in the trailing 60 trading bars.
+- `gap_fill_level`: Most recent unfilled daily gap-fill level detected in the trailing 60 trading bars.
+- `pre_earnings_move_pct`: Reserved optional event-move context. Currently blank in opx-chain's daily-OHLCV implementation.
+- `price_context_as_of`: Latest daily candle date used for the context in `YYYY-MM-DD` format.
+- `price_context_age_days`: Calendar age of `price_context_as_of` relative to runtime `today`.
+- `price_context_source`: Provider that supplied the OHLCV history.
+- `price_context_lookback_trading_days`: Number of usable trading bars in the calculation.
+- `price_context_calculation_method`: Calculation label. Current value is `daily_ohlcv_v1`.
+- `price_context_staleness_status`: `FRESH`, `STALE`, `MISSING`, or `ERROR`.
+
 ## Raw Option Quote Fields
 
 - `bid`: Current best bid. Use it as the conservative executable premium estimate for selling. Higher means more immediate sell-side premium, all else equal.
@@ -215,6 +241,24 @@ Legend:
 | `underlying_price_time` | Transformed: `info.regularMarketTime` normalized to UTC timestamp | Transformed: `underlying_asset.last_updated`, fallback day/trade/quote timestamps | Transformed: `stocks/quotes/{symbol}/ updated`, fallback latest chain row `updated`, normalized to UTC |
 | `underlying_price_age_seconds` | Derived: fetch time minus `underlying_price_time` | Derived: fetch time minus `underlying_price_time` | Derived: fetch time minus `underlying_price_time` |
 | `is_stale_underlying_price` | Derived: age compared to `stale_quote_seconds` | Derived: age compared to `stale_quote_seconds` | Derived: age compared to `stale_quote_seconds` |
+
+### Price Context Mapping
+
+| Field | yfinance | massive | marketdata |
+| --- | --- | --- | --- |
+| `support_1` | Derived from adjusted daily OHLCV history when `[price_context].enable = true` | Blank: daily-history adapter not implemented for this provider | Derived from daily split-adjusted stock candles when `[price_context].enable = true` |
+| `support_2` | Derived from adjusted daily OHLCV history when available | Blank: daily-history adapter not implemented for this provider | Derived from daily split-adjusted stock candles when available |
+| `resistance_1` | Derived from adjusted daily OHLCV history when `[price_context].enable = true` | Blank: daily-history adapter not implemented for this provider | Derived from daily split-adjusted stock candles when `[price_context].enable = true` |
+| `resistance_2` | Derived from adjusted daily OHLCV history when available | Blank: daily-history adapter not implemented for this provider | Derived from daily split-adjusted stock candles when available |
+| `20d_high` | Derived: trailing 20-bar daily high | Blank: daily-history adapter not implemented for this provider | Derived: trailing 20-bar daily high |
+| `20d_low` | Derived: trailing 20-bar daily low | Blank: daily-history adapter not implemented for this provider | Derived: trailing 20-bar daily low |
+| `50dma` | Derived: trailing 50-bar close average | Blank: daily-history adapter not implemented for this provider | Derived: trailing 50-bar close average |
+| `200dma` | Derived: trailing 200-bar close average | Blank: daily-history adapter not implemented for this provider | Derived: trailing 200-bar close average |
+| `vwap` | Derived: trailing 20-bar daily VWAP approximation | Blank: daily-history adapter not implemented for this provider | Derived: trailing 20-bar daily VWAP approximation |
+| `volume_profile_high_volume_node` | Derived: typical price of highest-volume day in trailing 60 bars | Blank: daily-history adapter not implemented for this provider | Derived: typical price of highest-volume day in trailing 60 bars |
+| `gap_fill_level` | Derived: latest unfilled daily gap level in trailing 60 bars | Blank: daily-history adapter not implemented for this provider | Derived: latest unfilled daily gap level in trailing 60 bars |
+| `pre_earnings_move_pct` | Blank: not derived in current daily-OHLCV implementation | Blank: not derived in current daily-OHLCV implementation | Blank: not derived in current daily-OHLCV implementation |
+| `price_context_*` metadata | Derived from price-context fetch/cache status | Blank/Metadata-only when unsupported | Derived from price-context fetch/cache status |
 
 ### Raw Quote and Activity Mapping
 

@@ -4,6 +4,7 @@
 
 import json
 from datetime import date, datetime, timezone
+from types import SimpleNamespace
 from typing import cast
 from zoneinfo import ZoneInfo
 
@@ -82,6 +83,15 @@ class FakeMarketDataClient:  # pylint: disable=too-few-public-methods,too-many-i
         self.options.chain = self._options_chain
         self._dividend_status_code = 200
         self._dividend_payload = {"s": "ok", "exDate": [], "amount": []}
+        self._candles_payload = {
+            "s": "ok",
+            "t": [1777593600, 1777680000],
+            "o": [100.0, 101.0],
+            "h": [102.0, 103.0],
+            "l": [99.0, 100.0],
+            "c": [101.0, 102.0],
+            "v": [1000, 1200],
+        }
         self._quote_payload = {
             "s": "ok",
             "symbol": ["TSLA"],
@@ -90,10 +100,18 @@ class FakeMarketDataClient:  # pylint: disable=too-few-public-methods,too-many-i
             "updated": [1710942020],
         }
         self.request_urls = []
-        self.stocks = type("StocksResource", (), {"earnings": self._stocks_earnings})()
+        self.last_candles_kwargs = None
+        self.stocks = SimpleNamespace(
+            earnings=self._stocks_earnings,
+            candles=self._stocks_candles,
+        )
 
     def _stocks_earnings(self, _symbol, **_kwargs):
         return type("StockEarnings", (), {"reportDate": [], "s": "ok"})()
+
+    def _stocks_candles(self, _symbol, **kwargs):
+        self.last_candles_kwargs = dict(kwargs)
+        return self._candles_payload
 
 
     def _make_request(self, _method, url, *_args, **_kwargs):
@@ -195,6 +213,26 @@ def test_marketdata_provider_builds_snapshot_and_option_chain(monkeypatch):
     assert normalized.iloc[0]["implied_volatility"] == 0.31
     assert normalized.iloc[0]["data_source"] == "marketdata"
     assert fake_client(provider).last_chain_kwargs["mode"] is None  # pylint: disable=no-member
+
+
+def test_marketdata_provider_load_price_history_uses_daily_candles(monkeypatch):
+    """Market Data price context should use stock daily candles with split adjustment."""
+    patch_marketdata_client(monkeypatch)
+    monkeypatch.setattr(
+        "opx_chain.providers.marketdata.get_runtime_config",
+        lambda: make_runtime_config(marketdata_mode="delayed"),
+    )
+    provider = MarketDataProvider()
+
+    history = provider.load_price_history("TSLA", lookback_days=260)
+    client = fake_client(provider)
+
+    assert not history.empty
+    assert history["c"].tolist() == [101.0, 102.0]
+    assert client.last_candles_kwargs["resolution"] == "D"  # pylint: disable=no-member
+    assert client.last_candles_kwargs["countback"] == 260  # pylint: disable=no-member
+    assert client.last_candles_kwargs["adjust_splits"] is True  # pylint: disable=no-member
+    assert client.last_candles_kwargs["mode"].value == "delayed"  # pylint: disable=no-member
 
 
 def test_marketdata_prepare_ticker_fetch_clears_ticker_caches(monkeypatch):

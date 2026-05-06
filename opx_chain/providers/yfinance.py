@@ -359,6 +359,20 @@ class YFinanceProvider(DataProvider):
             "dividend_amount": dividend_amount,
         }
 
+    def load_price_history(self, ticker: str, *, lookback_days: int) -> pd.DataFrame:
+        """Load daily OHLCV history for optional price-context enrichment."""
+        stock = yf.Ticker(ticker)
+        history = self._call_yahoo(
+            f"{ticker} price history",
+            lambda: stock.history(
+                period=f"{lookback_days}d",
+                interval="1d",
+                auto_adjust=True,
+            ),
+        )
+        self.debug_dump_payload(ticker, "price_history", history)
+        return history if isinstance(history, pd.DataFrame) else pd.DataFrame()
+
     def list_option_expirations(self, ticker: str) -> list[str]:
         """Return option expiration strings available from yfinance."""
         stock = yf.Ticker(ticker)

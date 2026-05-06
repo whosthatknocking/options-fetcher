@@ -45,6 +45,9 @@ def make_runtime_config(**overrides):
         "stale_quote_seconds": 21600,
         "enable_filters": True,
         "enable_validation": True,
+        "price_context_enable": False,
+        "price_context_lookback_days": 260,
+        "price_context_max_age_days": 7,
         "debug_dump_provider_payload": False,
         "debug_dump_dir": Path("/tmp/opx-provider-debug"),
         "viewer_host": "127.0.0.1",
@@ -77,6 +80,7 @@ def make_runtime_config(**overrides):
         "provider_snapshot_ttl": 300,
         "provider_chain_ttl": 300,
         "provider_events_ttl": 86400,
+        "provider_price_context_ttl": 86400,
     }
     defaults.update(overrides)
     return RuntimeConfig(**defaults)

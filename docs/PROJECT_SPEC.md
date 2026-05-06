@@ -204,6 +204,7 @@ class DataProvider(ABC):
     def external_logger_names(self) -> tuple[str, ...]: ...
     def debug_dump_payload(self, ticker: str, label: str, payload) -> Path | None: ...
     def load_ticker_events(self, ticker: str) -> dict: ...
+    def load_price_history(self, ticker: str, *, lookback_days: int) -> pd.DataFrame: ...
     def load_underlying_snapshot(self, ticker: str) -> dict: ...
     def list_option_expirations(self, ticker: str) -> list[str]: ...
     def load_option_chain(self, ticker: str, expiration_date: str) -> OptionChainFrames: ...
@@ -291,12 +292,32 @@ Field-mapping rules already implemented for Market Data include:
 - `optionSymbol -> contract_symbol`
 - `underlying -> underlying_symbol`
 - `stocks/quotes/{symbol}/ last -> underlying_price`, with `updated` and `changepct` from the same quote row supplying `underlying_price_time` and `underlying_day_change_pct`
+- optional daily price context uses `stocks.candles/{resolution}/{symbol}/` via the official SDK with `resolution="D"`, `countback=price_context.lookback_days`, and split adjustment enabled
 - `last -> last_trade_price` for the option contract itself; `underlyingPrice` is not used for `last_trade_price`
 - `updated -> option_quote_time` for option rows; if stock quotes are unavailable, the latest chain row with a usable `underlyingPrice` is used as a fallback for `underlying_price` and `underlying_price_time`
 - `bid`, `ask`, `last`, `openInterest`, `volume`, `iv`, and greeks map directly into canonical fields
 - future `stocks/earnings/{symbol}/ reportDate` values are exposed with `next_earnings_date_is_estimated = true` because Market Data documents upcoming earnings dates as estimates rather than confirmed announcements; rows whose `reportedEPS` is already populated are treated as already reported and excluded from the upcoming-event selection even if the stale estimate remains in the future
 - runtime `today` and numeric Market Data event dates are interpreted on the `America/New_York` market calendar so expiration and catalyst day-count fields do not drift on non-Eastern hosts
 - process runtime config may be cached within one market-calendar date, but long-running processes must refresh the cached config when the `America/New_York` date changes so DTE, event day counts, and expiration cutoffs do not freeze overnight
+
+### 5.5 Optional Price Context
+
+Price context is an optional enrichment layer below the strategy engine. It can
+run as part of an option-chain fetch or independently through
+`opx-fetch --price-context-only`. It uses the same active provider as the option
+chain run and keeps a separate cache TTL because daily OHLCV signals change more
+slowly than option quotes.
+
+Current provider behavior:
+
+- `marketdata`: fetches daily split-adjusted stock candles from the official SDK.
+- `yfinance`: fetches adjusted daily `Ticker.history(...)`.
+- `massive`: leaves price context blank until a Massive daily-history adapter is added.
+
+Stale or missing price history is non-fatal. The export keeps numeric
+price-context fields blank and surfaces `price_context_staleness_status` as
+`MISSING`, `STALE`, or `ERROR` so downstream consumers can warn operators without
+pretending stale levels are usable.
 
 ## 6. Output Contract
 

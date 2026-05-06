@@ -303,6 +303,8 @@ class MarketDataProvider(DataProvider):
         """Reduce SDK URL paths to a stable progress label."""
         if "options/chain/" in url:
             return "options_chain"
+        if "stocks/candles/" in url:
+            return "stocks_candles"
         if "stocks/quotes/" in url:
             return "stocks_quotes"
         if "stocks/earnings/" in url:
@@ -584,6 +586,26 @@ class MarketDataProvider(DataProvider):
             "next_ex_div_date": next_ex_div_date,
             "dividend_amount": dividend_amount,
         }
+
+    def load_price_history(self, ticker: str, *, lookback_days: int) -> pd.DataFrame:
+        """Load daily stock candles for optional price-context enrichment."""
+        self._active_debug_ticker = ticker.upper()
+        try:
+            result = self._client().stocks.candles(
+                ticker.upper(),
+                resolution="D",
+                countback=lookback_days,
+                adjust_splits=True,
+                output_format=OutputFormat.JSON,
+                mode=self._mode(),
+            )
+            candles_data = self._raise_if_error(result, context="stock candles request")
+            if not isinstance(candles_data, dict) or not candles_data:
+                return pd.DataFrame()
+            self.debug_dump_payload(ticker, "price_history", candles_data)
+            return pd.DataFrame(candles_data)
+        finally:
+            self._active_debug_ticker = None
 
     def list_option_expirations(self, ticker: str) -> list[str]:
         """Return distinct expiration dates present in the full chain payload."""

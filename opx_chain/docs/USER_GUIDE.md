@@ -227,6 +227,17 @@ be positive. Non-finite TOML floats such as `inf`, `-inf`, and `nan` are invalid
 - `stale_quote_seconds = 10800`: staleness threshold for option and underlying quotes.
 - `max_expiration_weeks = 34`: caps expirations to roughly the next eight months by default. Set it to any positive week count you want, or set it to `0` to disable the expiration cap entirely. Do not use `null`; TOML has no null literal.
 
+#### Optional Price Context Defaults
+
+- `price_context.enable = false`: daily-OHLCV support/resistance enrichment is disabled by default.
+- `price_context.lookback_days = 260`: provider history window used for moving averages, 20-day boundaries, VWAP, and volume-node proxy.
+- `price_context.max_age_days = 7`: maximum age for the latest daily candle. Stale history exports blank numeric price-context fields plus `price_context_staleness_status = STALE`.
+- `storage.price_context_ttl = 86400`: cache TTL for price-context payloads, separate from faster-moving option-chain and quote caches.
+
+Use `opx-fetch --enable-price-context` to enrich a normal option-chain run, or
+`opx-fetch --price-context-only` to fetch/cache-warm only the price-context JSON
+artifact without exporting option chains.
+
 #### Shared Viewer Defaults
 
 - `viewer_host = "127.0.0.1"`: default bind host used by `opx-view`.
@@ -403,10 +414,35 @@ How to use it:
 - Use `ex_div_within_3d` as a warning for short call positions on dividend-paying underlyings where early assignment risk is elevated near the ex-date
 - Use `event_risk_score` as a secondary ranking signal to down-weight otherwise attractive contracts that carry near-term binary event exposure
 
+## Price Context
+
+Price context is optional and provider-backed. When enabled, `opx-chain` fetches
+daily OHLCV history once per ticker, computes deterministic flat fields, and
+broadcasts them to every option row for that underlying. Missing, stale, or
+provider-failed history never fails the option-chain run; the numeric context
+fields remain blank and `price_context_staleness_status` explains the state.
+
+Current fields include `support_1`, `support_2`, `resistance_1`,
+`resistance_2`, `20d_high`, `20d_low`, `50dma`, `200dma`, `vwap`,
+`volume_profile_high_volume_node`, `gap_fill_level`, and
+`pre_earnings_move_pct`. Metadata fields include `price_context_as_of`,
+`price_context_age_days`, `price_context_source`,
+`price_context_lookback_trading_days`, `price_context_calculation_method`, and
+`price_context_staleness_status`.
+
+Provider availability:
+
+- `marketdata`: uses `stocks.candles(..., resolution="D", adjust_splits=true)`.
+- `yfinance`: uses adjusted daily `Ticker.history(...)`.
+- `massive`: currently returns blank price-context defaults.
+
 ## Runtime Behavior
 
 - The fetcher prints the config path it read, whether the file exists, and the full set of resolved runtime values it will apply.
-- When `--enable-filters` or `--disable-filters` is passed, the fetcher prints a `CLI overrides:` block before the resolved config so the one-run override is explicit.
+- When `--enable-filters`, `--disable-filters`, `--enable-price-context`,
+  `--disable-price-context`, or `--price-context-only` is passed, the fetcher
+  prints a `CLI override:` line before the resolved config so the one-run
+  override is explicit.
 - Secret values are redacted in that output. For example, the Massive API key and Market Data token are shown as `set` or `not set`, never in plaintext.
 - When a config value is invalid and a code default is used instead, the fetcher prints a `Config fallbacks:` block so the override is visible.
 - When validation is enabled, the fetcher prints a validation summary after combining ticker frames and before writing the CSV.

@@ -26,6 +26,13 @@ trading_days_per_year = 252
 stale_quote_seconds = 10800
 max_expiration_weeks = 34
 
+[price_context]
+# Optional daily-OHLCV support/resistance context. Disabled by default so
+# option-chain fetches do not spend extra provider calls unless requested.
+enable = false
+lookback_days = 260
+max_age_days = 7
+
 # Shared viewer runtime
 viewer_host = "127.0.0.1"
 viewer_port = 8000
@@ -51,6 +58,8 @@ backend = "filesystem"   # "filesystem" | "sqlite" (when enable = true)
 max_runs_retained = 0  # 0 = keep all datasets; positive integer = keep last N
 cache_backend = "none"  # "none" | "filesystem"
 cache_dir = "cache"     # resolved under $XDG_CACHE_HOME/opx-chain/
+# Daily OHLCV context changes slower than option quotes, so it has a separate TTL.
+price_context_ttl = 86400
 
 [providers.yfinance]
 # Optional client-side pacing/retry controls for Yahoo Finance traffic.

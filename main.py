@@ -9,10 +9,12 @@ get_runtime_config = _fetcher.get_runtime_config
 describe_runtime_config = _fetcher.describe_runtime_config
 create_run_logger = _fetcher.create_run_logger
 fetch_ticker_option_chain = _fetcher.fetch_ticker_option_chain
+fetch_ticker_price_context = _fetcher.fetch_ticker_price_context
 validate_export_frame = _fetcher.validate_export_frame
 emit_validation_report = _fetcher.emit_validation_report
 write_options_csv = _fetcher.write_options_csv
 get_storage_backend = _fetcher.get_storage_backend
+get_data_provider = _fetcher.get_data_provider
 pd = _fetcher.pd
 datetime = _fetcher.datetime  # pylint: disable=invalid-name
 
@@ -32,9 +34,9 @@ def release_fetcher_lock(lock_handle):
 _DELEGATED = (
     "RUNS_DIR", "FETCHER_LOCK_PATH",
     "format_file_size", "get_runtime_config", "describe_runtime_config",
-    "create_run_logger", "fetch_ticker_option_chain", "validate_export_frame",
-    "emit_validation_report", "write_options_csv", "get_storage_backend",
-    "pd", "datetime",
+    "create_run_logger", "fetch_ticker_option_chain", "fetch_ticker_price_context",
+    "validate_export_frame", "emit_validation_report", "write_options_csv",
+    "get_storage_backend", "get_data_provider", "pd", "datetime",
 )
 
 

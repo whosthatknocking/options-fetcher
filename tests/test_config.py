@@ -43,6 +43,9 @@ def test_load_runtime_config_uses_defaults_when_file_is_absent(tmp_path: Path):
     assert config.yfinance_backoff_seconds == 1.0
     assert config.stale_quote_seconds == 10800
     assert config.enable_validation is True
+    assert config.price_context_enable is False
+    assert config.price_context_lookback_days == 260
+    assert config.price_context_max_age_days == 7
     assert config.option_score_income_weight == 0.30
     assert config.option_score_liquidity_weight == 0.30
     assert config.option_score_risk_weight == 0.25
@@ -169,6 +172,11 @@ backoff_seconds = 0.25
 request_interval_seconds = 0.25
 max_retries = 2
 backoff_seconds = 0.5
+
+[price_context]
+enable = true
+lookback_days = 300
+max_age_days = 5
 """.strip(),
         encoding="utf-8",
     )
@@ -184,6 +192,9 @@ backoff_seconds = 0.5
     assert config.option_score_efficiency_weight == 0.15
     assert config.enable_filters is False
     assert config.enable_validation is False
+    assert config.price_context_enable is True
+    assert config.price_context_lookback_days == 300
+    assert config.price_context_max_age_days == 5
     assert config.debug_dump_provider_payload is True
     assert (
         config.debug_dump_dir
@@ -849,6 +860,10 @@ api_token = "market-token"
     assert all("secret" not in line for line in lines)
     assert all("market-token" not in line for line in lines)
     assert any("debug_dump_provider_payload" in line for line in lines)
+    assert "Price context:" in lines
+    assert "  enable: False" in lines
+    assert "  lookback_days: 260" in lines
+    assert "  max_age_days: 7" in lines
     assert not any("providers.marketdata" in line for line in lines)
     assert "General:" in lines
     assert "Filters:" in lines

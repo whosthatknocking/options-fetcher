@@ -145,6 +145,34 @@ def test_yfinance_provider_load_ticker_events_parses_earnings_and_dividends(monk
     assert events["dividend_amount"] == pytest.approx(0.88)
 
 
+def test_yfinance_provider_load_price_history_uses_daily_adjusted_history(monkeypatch):
+    """Price-context history should use the provider's paced Yahoo history call."""
+    calls = []
+
+    class PriceHistoryTicker(FakeTicker):  # pylint: disable=too-few-public-methods
+        """Ticker stub that records history kwargs."""
+
+        def history(self, **kwargs):
+            calls.append(kwargs)
+            return pd.DataFrame(
+                {
+                    "Open": [100.0],
+                    "High": [101.0],
+                    "Low": [99.0],
+                    "Close": [100.5],
+                    "Volume": [1000],
+                },
+                index=pd.to_datetime(["2026-05-01"]),
+            )
+
+    monkeypatch.setattr("opx_chain.providers.yfinance.yf.Ticker", PriceHistoryTicker)
+
+    history = YFinanceProvider().load_price_history("TSLA", lookback_days=260)
+
+    assert not history.empty
+    assert calls == [{"period": "260d", "interval": "1d", "auto_adjust": True}]
+
+
 def test_yfinance_provider_load_ticker_events_returns_blanks_on_missing_data(monkeypatch):
     """Yahoo event loading should degrade to blank canonical fields when data is absent."""
     class BlankEventTicker(FakeTicker):  # pylint: disable=too-few-public-methods

@@ -7,6 +7,7 @@ from dataclasses import dataclass
 import numpy as np
 import pandas as pd
 
+from opx_chain.price_context import PRICE_CONTEXT_FIELDS
 from opx_chain.schema import BOOLEAN_FIELDS
 
 
@@ -30,6 +31,9 @@ NUMERIC_FIELDS = (
     "volume",
     "open_interest",
     "implied_volatility",
+    *PRICE_CONTEXT_FIELDS,
+    "price_context_age_days",
+    "price_context_lookback_trading_days",
 )
 TIMESTAMP_FIELDS = (
     "option_quote_time",
