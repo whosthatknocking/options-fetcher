@@ -409,6 +409,46 @@ def test_write_dataset_hashes_serialized_bytes_without_readback(monkeypatch, tmp
     assert len(record.content_hash) == 64
 
 
+def test_write_dataset_removes_artifact_when_meta_write_fails(monkeypatch, tmp_path: Path):
+    """A partial dataset publish must not leave an orphaned artifact file."""
+    backend = _make_backend(tmp_path)
+    run_id = backend.create_run(_make_context())
+
+    def fail_write_meta(_record: DatasetRecord) -> None:
+        raise OSError("meta write failed")
+
+    monkeypatch.setattr(backend, "_write_meta", fail_write_meta)
+
+    with pytest.raises(OSError, match="meta write failed"):
+        _write(backend, run_id)
+
+    output_dir = tmp_path / "runs" / run_id / "output"
+    assert not list(output_dir.glob("*.csv"))
+    assert not list(output_dir.glob("*.meta.json"))
+    assert backend.get_run(run_id).dataset_id is None
+    assert not backend.list_datasets()
+
+
+def test_write_dataset_rolls_back_late_publish_failure(monkeypatch, tmp_path: Path):
+    """Rollback must clear metadata and run references after later publish failures."""
+    backend = _make_backend(tmp_path)
+    run_id = backend.create_run(_make_context())
+
+    def fail_prune() -> None:
+        raise OSError("prune failed")
+
+    monkeypatch.setattr(backend, "_prune_datasets", fail_prune)
+
+    with pytest.raises(OSError, match="prune failed"):
+        _write(backend, run_id)
+
+    output_dir = tmp_path / "runs" / run_id / "output"
+    assert not list(output_dir.glob("*.csv"))
+    assert not list(output_dir.glob("*.meta.json"))
+    assert backend.get_run(run_id).dataset_id is None
+    assert not backend.list_datasets()
+
+
 def test_get_dataset_returns_handle(tmp_path: Path):
     """get_dataset must return a DatasetHandle matching the written record."""
     backend = _make_backend(tmp_path)
@@ -782,6 +822,33 @@ def test_no_pruning_when_max_runs_retained_zero(tmp_path: Path):
         _write(backend, run_id)
 
     assert len(backend.list_datasets()) == 5
+
+
+def test_orphan_dataset_artifacts_are_swept_on_backend_init(tmp_path: Path):
+    """Startup cleanup must remove dataset artifacts that lack metadata."""
+    run_id = "orphan-run"
+    output_dir = tmp_path / "runs" / run_id / "output"
+    output_dir.mkdir(parents=True)
+    orphan = output_dir / "orphan.csv"
+    orphan.write_text("ticker,strike\nTSLA,100\n", encoding="utf-8")
+
+    _make_backend(tmp_path)
+
+    assert not orphan.exists()
+
+
+def test_orphan_dataset_artifacts_are_swept_after_successful_write(tmp_path: Path):
+    """Retention cleanup must sweep orphan artifacts even with retention disabled."""
+    backend = _make_backend(tmp_path, max_runs_retained=0)
+    run_id = backend.create_run(_make_context())
+    output_dir = tmp_path / "runs" / run_id / "output"
+    output_dir.mkdir(parents=True)
+    orphan = output_dir / "orphan.csv"
+    orphan.write_text("ticker,strike\nTSLA,100\n", encoding="utf-8")
+
+    _write(backend, run_id)
+
+    assert not orphan.exists()
 
 
 # ---------------------------------------------------------------------------

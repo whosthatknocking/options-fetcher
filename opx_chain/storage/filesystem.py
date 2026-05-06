@@ -34,6 +34,8 @@ from opx_chain.storage._disk import (
 )
 from opx_chain.storage.serializers import get_serializer
 
+_DATASET_ARTIFACT_SUFFIXES = {".csv", ".parquet"}
+
 
 def _now() -> datetime:
     return datetime.now(tz=timezone.utc)
@@ -79,6 +81,7 @@ class FilesystemBackend:
         self._max_runs_retained = max_runs_retained
         self._run_sidecar_lock = threading.RLock()
         get_serializer(dataset_format)
+        self._sweep_orphan_dataset_artifacts()
 
     # ------------------------------------------------------------------
     # Internal helpers
@@ -315,6 +318,49 @@ class FilesystemBackend:
             except OSError:
                 pass
 
+    def _sweep_orphan_dataset_artifacts(self) -> int:
+        """Remove dataset artifacts that have no matching metadata sidecar."""
+        if not self._runs_dir.exists():
+            return 0
+        removed = 0
+        for artifact_path in self._runs_dir.glob("*/output/*"):
+            if (
+                not artifact_path.is_file()
+                or artifact_path.name.endswith(".meta.json")
+                or artifact_path.suffix not in _DATASET_ARTIFACT_SUFFIXES
+                or artifact_path.with_suffix(".meta.json").exists()
+            ):
+                continue
+            try:
+                artifact_path.unlink(missing_ok=True)
+                removed += 1
+            except OSError:
+                pass
+        return removed
+
+    def _rollback_dataset_write(
+        self,
+        record: DatasetRecord | None,
+        artifact_path: Path | None,
+    ) -> None:
+        """Best-effort cleanup for partial dataset publish failures."""
+        if artifact_path is not None:
+            try:
+                artifact_path.unlink(missing_ok=True)
+            except OSError:
+                pass
+        if record is None:
+            return
+        try:
+            self._meta_path(record.dataset_id, record.run_id).unlink(missing_ok=True)
+        except OSError:
+            pass
+        self._clear_run_dataset_reference(record.run_id, record.dataset_id)
+        try:
+            self._write_dataset_index(self._scan_dataset_records())
+        except OSError:
+            pass
+
     def _meta_created_at_sort_key(self, meta_path: Path) -> datetime:
         try:
             data = loads_strict_json(meta_path.read_text(encoding="utf-8"))
@@ -326,6 +372,7 @@ class FilesystemBackend:
         return any(self._run_output_dir(run_id).glob("*.meta.json"))
 
     def _prune_datasets(self) -> None:
+        self._sweep_orphan_dataset_artifacts()
         if self._max_runs_retained <= 0:
             return
         meta_files = list(self._runs_dir.glob("*/output/*.meta.json"))
@@ -408,29 +455,35 @@ class FilesystemBackend:
         output_dir = self._run_output_dir(run_id)
         output_dir.mkdir(parents=True, exist_ok=True)
         serializer = get_serializer(dataset.format)
-        dataset_id, artifact_path, content_hash = write_dataset_artifact(
-            dataset.data, output_dir, dataset.format, serializer
-        )
-        record = DatasetRecord(
-            dataset_id=dataset_id,
-            run_id=run_id,
-            created_at=_now(),
-            provider=dataset.provider,
-            schema_version=dataset.schema_version,
-            row_count=len(dataset.data),
-            format=dataset.format,
-            location=str(artifact_path),
-            content_hash=content_hash,
-            script_version=dataset.script_version,
-        )
-        self._write_meta(record)
-        with self._run_sidecar_lock:
-            data = self._read_run(run_id)
-            data["dataset_id"] = dataset_id
-            self._write_run(run_id, data)
-        self._append_dataset_index(record)
-        self._prune_datasets()
-        return record
+        record = None
+        artifact_path = None
+        try:
+            dataset_id, artifact_path, content_hash = write_dataset_artifact(
+                dataset.data, output_dir, dataset.format, serializer
+            )
+            record = DatasetRecord(
+                dataset_id=dataset_id,
+                run_id=run_id,
+                created_at=_now(),
+                provider=dataset.provider,
+                schema_version=dataset.schema_version,
+                row_count=len(dataset.data),
+                format=dataset.format,
+                location=str(artifact_path),
+                content_hash=content_hash,
+                script_version=dataset.script_version,
+            )
+            self._write_meta(record)
+            with self._run_sidecar_lock:
+                data = self._read_run(run_id)
+                data["dataset_id"] = dataset_id
+                self._write_run(run_id, data)
+            self._append_dataset_index(record)
+            self._prune_datasets()
+            return record
+        except Exception:  # pylint: disable=broad-exception-caught
+            self._rollback_dataset_write(record, artifact_path)
+            raise
 
     def write_artifact(self, run_id: str, artifact: ArtifactWrite) -> ArtifactRecord:
         """Write artifact bytes to disk and return an ArtifactRecord."""
