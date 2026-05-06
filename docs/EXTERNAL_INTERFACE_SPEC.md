@@ -161,9 +161,10 @@ their own run policy without editing opx-chain config. When absent, the configur
 parsing, lock acquisition, and storage reachability without making provider API calls
 or writing run artifacts. This is the in-process equivalent of `opx-fetch --dry-run`.
 
-**`price_context_only` (optional `bool`)** — when `True`, fetches/cache-warms only
-the optional daily-OHLCV price-context payload and skips option-chain export. This
-also enables price-context fetching for the run, regardless of the config default.
+**`price_context_only` (optional `bool`)** — when `True`, reconciles only the
+optional daily-OHLCV price-history store, writes the derived price-context
+artifact, and skips option-chain export. This also enables price-context fetching
+for the run, regardless of the config default.
 The result is written as a standalone versioned JSON artifact under the runs
 directory and does not change the option-chain dataset schema.
 
@@ -361,6 +362,9 @@ PRICE_CONTEXT_SCHEMA_VERSION = 1
 The latest standalone artifact is written as `price_context_latest.json` under
 the runs directory, with timestamped copies named
 `price_context_YYYYMMDD_HHMMSS.json`.
+It is derived from the local daily-bar history store (`price-history.db`) after
+incremental reconciliation with the active provider; old stored bars are reused
+and only missing/backfill/tail history is fetched.
 
 ```json
 {

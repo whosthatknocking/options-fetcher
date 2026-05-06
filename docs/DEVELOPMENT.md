@@ -38,7 +38,8 @@ This guide is for people changing the codebase, adding providers, or working on 
 Runtime-generated files live under the XDG base directories rather than the repository root:
 
 - `$XDG_CONFIG_HOME/opx-chain/` for `config.toml`
-- `$XDG_DATA_HOME/opx-chain/` for `runs/`, `debug/`, `positions.csv`, and `fetcher.lock`
+- `$XDG_DATA_HOME/opx-chain/` for `runs/`, `debug/`, `positions.csv`,
+  `price-history.db`, and `fetcher.lock`
 - `[storage].dir` overrides the data directory for fetcher locks, CSV side writes,
   and storage-managed run artifacts when configured.
 - `$XDG_STATE_HOME/opx-chain/` for run logs

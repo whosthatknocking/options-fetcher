@@ -497,8 +497,8 @@ def test_fetch_ticker_option_chain_does_not_project_price_context(monkeypatch, c
     assert "20d_high" not in result.columns
 
 
-def test_fetch_ticker_price_context_uses_separate_cache(monkeypatch, tmp_path):
-    """Price context should have its own cache key and provider TTL."""
+def test_fetch_ticker_price_context_uses_price_history_store(monkeypatch, tmp_path):
+    """Price context should derive from stored daily bars after first reconciliation."""
     class CountingProvider(StubProvider):
         """Provider that records price-history calls across context fetches."""
 
@@ -513,8 +513,7 @@ def test_fetch_ticker_price_context_uses_separate_cache(monkeypatch, tmp_path):
     provider = CountingProvider()
     config = make_runtime_config(
         today=pd.Timestamp("2026-03-20").date(),
-        provider_cache_backend="filesystem",
-        provider_cache_dir=tmp_path,
+        storage_dir=tmp_path / "data",
         provider_price_context_ttl=86400,
         price_context_lookback_days=260,
     )

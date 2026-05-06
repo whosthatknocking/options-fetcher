@@ -58,7 +58,7 @@ backend = "filesystem"   # "filesystem" | "sqlite" (when enable = true)
 max_runs_retained = 0  # 0 = keep all datasets; positive integer = keep last N
 cache_backend = "none"  # "none" | "filesystem"
 cache_dir = "cache"     # resolved under $XDG_CACHE_HOME/opx-chain/
-# Daily OHLCV context changes slower than option quotes, so it has a separate TTL.
+# Daily OHLCV bars are stored durably; this TTL controls reconciliation retries.
 price_context_ttl = 86400
 
 [providers.yfinance]

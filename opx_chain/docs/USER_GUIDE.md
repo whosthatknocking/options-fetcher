@@ -232,11 +232,11 @@ be positive. Non-finite TOML floats such as `inf`, `-inf`, and `nan` are invalid
 - `price_context.enable = false`: standalone daily-OHLCV support/resistance artifact generation is disabled by default.
 - `price_context.lookback_days = 260`: provider history window used for moving averages, 20-day boundaries, VWAP, and volume-node proxy.
 - `price_context.max_age_days = 7`: maximum age for the latest daily candle. Stale history exports blank numeric price-context fields plus `price_context_staleness_status = STALE`.
-- `storage.price_context_ttl = 86400`: cache TTL for price-context payloads, separate from faster-moving option-chain and quote caches.
+- `storage.price_context_ttl = 86400`: minimum age before retrying provider reconciliation for daily price-history bars, separate from faster-moving option-chain and quote caches.
 
 Use `opx-fetch --enable-price-context` to write the artifact alongside a normal option-chain run, or
-`opx-fetch --price-context-only` to fetch/cache-warm only the price-context JSON
-artifact without exporting option chains.
+`opx-fetch --price-context-only` to reconcile the local price-history store and
+write only the price-context JSON artifact without exporting option chains.
 
 #### Shared Viewer Defaults
 
@@ -416,12 +416,18 @@ How to use it:
 
 ## Price Context
 
-Price context is optional and provider-backed. When enabled, `opx-chain` fetches
-daily OHLCV history once per ticker, computes deterministic flat fields, and
-writes a standalone versioned JSON artifact. It does not change the canonical
-option-chain CSV schema. Missing, stale, or provider-failed history never fails
-the option-chain run; the numeric context fields remain blank and
-`price_context_staleness_status` explains the state.
+Price context is optional and provider-backed. When enabled, `opx-chain`
+reconciles a durable daily-OHLCV history store, computes deterministic flat
+fields from the stored bars, and writes a standalone versioned JSON artifact. It
+does not change the canonical option-chain CSV schema. Missing, stale, or
+provider-failed history never fails the option-chain run; the numeric context
+fields remain blank and `price_context_staleness_status` explains the state.
+
+The local history store lives at `price-history.db` under the opx-chain data
+directory, or under `[storage].dir` when that base directory is configured. New
+tickers fetch the configured lookback. Existing tickers reuse stored historical
+bars and fetch only required backfill or recent tail data after
+`storage.price_context_ttl` expires.
 
 Current fields include `support_1`, `support_2`, `resistance_1`,
 `resistance_2`, `20d_high`, `20d_low`, `50dma`, `200dma`, `vwap`,

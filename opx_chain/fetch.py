@@ -23,6 +23,7 @@ from opx_chain.price_context import (
     blank_price_context,
     compute_price_context,
 )
+from opx_chain.price_history import reconcile_price_history
 from opx_chain.providers.base import (
     OptionChainFrames,
     ProviderAuthenticationError,
@@ -233,28 +234,32 @@ def append_ticker_event_fields(df, events, today):
     return df
 
 
-def fetch_ticker_price_context(ticker, *, provider=None, logger=None, cache=None, config=None):
-    """Fetch/cache optional daily-OHLCV price context for one ticker without failing runs."""
+def fetch_ticker_price_context(  # pylint: disable=too-many-arguments
+    ticker,
+    *,
+    provider=None,
+    logger=None,
+    cache=None,
+    config=None,
+    store=None,
+):
+    """Reconcile stored daily OHLCV history and compute optional price context."""
+    del cache  # Price context is derived from the durable price-history store.
     config = config or get_runtime_config()
-    cache = cache or get_provider_cache(config)
     provider = provider or get_data_provider()
-    cache_scope = _provider_cache_scope(provider.name, config)
-    cache_key = (
-        f"price_context:{cache_scope}:{ticker}:{config.today.isoformat()}:"
-        f"lookback={config.price_context_lookback_days}:"
-        f"max_age={config.price_context_max_age_days}"
-    )
-    cached = _cache_get_json(cache, cache_key)
-    if cached is not None:
-        return cached
 
     try:
-        history = provider.load_price_history(
-            ticker,
-            lookback_days=config.price_context_lookback_days,
+        result = reconcile_price_history(
+            ticker=ticker,
+            provider=provider,
+            config=config,
+            logger=logger,
+            store=store,
         )
+        if result.error_summary is not None and result.history.empty:
+            return blank_price_context(source=provider.name, status="ERROR")
         context = compute_price_context(
-            history,
+            result.history,
             source=provider.name,
             today=config.today,
             max_age_days=config.price_context_max_age_days,
@@ -267,13 +272,6 @@ def fetch_ticker_price_context(ticker, *, provider=None, logger=None, cache=None
         else:
             _LOGGER.warning(message)
         print(message)
-    _cache_put_json(
-        cache,
-        cache_key,
-        context,
-        config.provider_price_context_ttl,
-        logger=logger,
-    )
     return context
 
 

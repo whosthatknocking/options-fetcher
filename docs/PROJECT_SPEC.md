@@ -305,10 +305,12 @@ Field-mapping rules already implemented for Market Data include:
 Price context is an optional standalone signal below the strategy engine. It can
 run alongside an option-chain fetch or independently through
 `opx-fetch --price-context-only`. It uses the same active provider as the option
-chain run and keeps a separate cache TTL because daily OHLCV signals change more
-slowly than option quotes. It does not alter the canonical option-chain CSV
-schema; consumers join the versioned JSON artifact by ticker when they need
-row-level price context.
+chain run and reconciles daily OHLCV bars into the durable local
+`price-history.db` store before deriving the JSON artifact. New tickers backfill
+the configured lookback; existing tickers fetch only required backfill or recent
+tail data after the price-context TTL expires. It does not alter the canonical
+option-chain CSV schema; consumers join the versioned JSON artifact by ticker
+when they need row-level price context.
 
 Current provider behavior:
 
@@ -316,9 +318,9 @@ Current provider behavior:
 - `yfinance`: fetches adjusted daily `Ticker.history(...)`.
 - `massive`: leaves price context blank until a Massive daily-history adapter is added.
 
-Stale or missing price history is non-fatal. The export keeps numeric
-price-context fields blank and surfaces `price_context_staleness_status` as
-`MISSING`, `STALE`, or `ERROR` so downstream consumers can warn operators without
+Stale or missing price history is non-fatal. The price-context artifact keeps
+numeric fields blank and surfaces `price_context_staleness_status` as `MISSING`,
+`STALE`, or `ERROR` so downstream consumers can warn operators without
 pretending stale levels are usable.
 
 ## 6. Output Contract

@@ -62,7 +62,7 @@ that field or apply its own default for the downstream calculation.
 
 ## Standalone Price Context Artifact Fields
 
-These optional fields are fetched once per ticker from daily OHLCV history and
+These optional fields are computed from the local daily-OHLCV history store and
 written to `price_context_*.json` / `price_context_latest.json` when price
 context is enabled. They are not part of the canonical option-chain CSV schema.
 Consumers that need row-level price context should join the artifact to option

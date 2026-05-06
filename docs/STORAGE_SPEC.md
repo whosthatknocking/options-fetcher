@@ -105,6 +105,7 @@ cache_dir = "cache"            # relative paths resolve under $XDG_CACHE_HOME/op
 snapshot_ttl = 300             # TTL in seconds for underlying snapshot cache entries
 chain_ttl = 300                # TTL in seconds for option chain cache entries
 events_ttl = 86400             # TTL in seconds for ticker events cache entries
+price_context_ttl = 86400      # TTL in seconds before retrying daily price-history reconciliation
 ```
 
 Behavior:
@@ -115,6 +116,8 @@ Behavior:
   is omitted, the configured data dir is the XDG data dir
 - `dir` overrides the fetcher lock location, timestamped CSV side-write
   location, `_latest` copy, and storage backend run/artifact location together
+- `dir` also controls the base directory for `price-history.db`, the durable
+  daily-OHLCV store used to derive price-context artifacts
 - the `_latest` CSV pointer is a same-directory atomic file copy named
   `options_engine_output_latest.csv`, not a symlink; it remains readable even
   if the original timestamped CSV artifact is later removed
@@ -215,6 +218,12 @@ Responsibilities:
 This is a separate interface from `StorageBackend`. It must not be mixed into
 the run or dataset stores. Provider cache concerns — TTL, invalidation, and
 staleness — are distinct from run-lifecycle concerns.
+
+Daily price-context history is stored durably in `price-history.db` under the
+configured opx-chain data directory. It is not a provider response cache entry:
+the store is keyed by provider, ticker, and trading date so old bars can be
+reused across runs while reconciliation fetches only missing backfill or recent
+tail data.
 
 ### 5.5 Viewer Preference Store
 
@@ -742,12 +751,15 @@ All seven steps are complete and shipped.
 - `NullCache` and `FilesystemCache` in `opx_chain/storage/cache.py`
 - wired in `fetch.py` at the fetch-orchestration level; caches snapshot, chain,
   and events responses with configurable TTLs
+- price context uses the separate durable `price-history.db` daily-bar store;
+  `price_context_ttl` controls reconciliation attempts, not artifact retention
 - Market Data cache keys include the configured `[providers.marketdata].mode`
   (`live`, `cached`, `delayed`, or provider default) so changing mode does not
   reuse responses from a different recency mode
 - filesystem cache prunes expired/corrupt entries on startup and deletes an
   expired entry on read
-- config keys: `cache_backend`, `cache_dir`, `snapshot_ttl`, `chain_ttl`, `events_ttl`
+- config keys: `cache_backend`, `cache_dir`, `snapshot_ttl`, `chain_ttl`,
+  `events_ttl`, `price_context_ttl`
 
 ### Step 7 — Viewer enhancements ✓
 

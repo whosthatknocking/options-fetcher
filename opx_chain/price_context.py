@@ -147,6 +147,11 @@ def _normalize_history_frame(history: pd.DataFrame) -> pd.DataFrame:
     return normalized.sort_values("date").drop_duplicates(subset=["date"], keep="last")
 
 
+def normalize_price_history_frame(history: pd.DataFrame) -> pd.DataFrame:
+    """Normalize provider-specific daily OHLCV history for storage and calculations."""
+    return _normalize_history_frame(history)
+
+
 def _unique_levels(levels: list[float]) -> list[float]:
     """Deduplicate nearby levels while preserving sorted priority."""
     unique: list[float] = []

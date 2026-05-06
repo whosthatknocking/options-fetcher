@@ -30,8 +30,8 @@ Use `opx-fetch --dry-run` to validate config, positions parsing, and storage rea
 Optional daily-OHLCV price context is disabled by default and is written as a
 standalone JSON artifact, not as option-chain CSV columns. Enable it alongside
 an option-chain run with `[price_context].enable = true` or
-`opx-fetch --enable-price-context`, or fetch only/cache-warm that slower-moving
-signal with `opx-fetch --price-context-only`.
+`opx-fetch --enable-price-context`, or reconcile only that slower-moving signal
+with `opx-fetch --price-context-only`.
 
 After a fetch run, `opx-check` verifies that every option contract in the default positions file appears in the latest output CSV and reports coverage gaps:
 
@@ -75,10 +75,11 @@ Generated datasets and data artifacts are written under `$XDG_DATA_HOME/opx-chai
 - `$XDG_DATA_HOME/opx-chain/runs/` for exported datasets
 - `$XDG_DATA_HOME/opx-chain/debug/` for default raw provider payload dumps
 - `$XDG_DATA_HOME/opx-chain/positions.csv` for the default positions import file
+- `$XDG_DATA_HOME/opx-chain/price-history.db` for the incremental daily-OHLCV history store
 
 Run logs are written under `$XDG_STATE_HOME/opx-chain/logs/` (default `~/.local/state/opx-chain/logs/`).
 
-Provider response cache files are written under `$XDG_CACHE_HOME/opx-chain/cache/` (default `~/.cache/opx-chain/cache/`) when `[storage].cache_backend = "filesystem"`. Daily price-context history has a separate `price_context_ttl` because it changes more slowly than option quotes.
+Provider response cache files are written under `$XDG_CACHE_HOME/opx-chain/cache/` (default `~/.cache/opx-chain/cache/`) when `[storage].cache_backend = "filesystem"`. Daily price-context reconciliation has a separate `price_context_ttl` because historical bars change more slowly than option quotes; old bars are stored durably and only missing/backfill/tail data is fetched.
 
 Override the base path with `dir` in the `[storage]` config section. Relative
 values resolve under `$XDG_DATA_HOME/opx-chain/`.

@@ -20,10 +20,22 @@ class StubProvider:  # pylint: disable=too-few-public-methods
 
     def __init__(self):
         self.prepared_tickers = []
+        self.history_calls = []
 
     def prepare_ticker_fetch(self, ticker):
         """Record ticker preparation before a standalone context fetch."""
         self.prepared_tickers.append(ticker)
+
+    def load_price_history(self, ticker, *, lookback_days):
+        """Return deterministic daily OHLCV history for standalone context fetches."""
+        self.history_calls.append((ticker, lookback_days))
+        frame = pd.DataFrame({"date": pd.bdate_range(end="2026-03-20", periods=lookback_days)})
+        frame["close"] = 90.0 + frame.index.to_series(index=frame.index) * 0.05
+        frame["open"] = frame["close"] - 0.25
+        frame["high"] = frame["close"] + 0.75
+        frame["low"] = frame["close"] - 0.75
+        frame["volume"] = 1000 + frame.index
+        return frame
 
 
 class PriceContextFetchStub:  # pylint: disable=too-few-public-methods
@@ -32,9 +44,17 @@ class PriceContextFetchStub:  # pylint: disable=too-few-public-methods
     def __init__(self):
         self.seen_configs = []
 
-    def __call__(self, ticker, *, provider=None, logger=None, config=None):
+    def __call__(  # pylint: disable=too-many-arguments
+        self,
+        ticker,
+        *,
+        provider=None,
+        logger=None,
+        config=None,
+        store=None,
+    ):
         """Return deterministic price context for the requested ticker."""
-        del provider, logger
+        del provider, logger, store
         self.seen_configs.append(config)
         return {
             "support_1": 90.0,
@@ -72,7 +92,6 @@ def test_price_context_only_writes_json_without_option_export(tmp_path: Path, ca
         price_context_enable=False,
     )
     provider = StubProvider()
-    price_fetch = PriceContextFetchStub()
 
     with (
         patch.object(fetcher, "FETCHER_LOCK_PATH", tmp_path / "fetcher.lock"),
@@ -88,11 +107,6 @@ def test_price_context_only_writes_json_without_option_export(tmp_path: Path, ca
         patch.object(fetcher, "get_storage_backend", return_value=backend),
         patch.object(fetcher, "load_positions", return_value=EMPTY_POSITION_SET),
         patch.object(fetcher, "get_data_provider", return_value=provider),
-        patch.object(
-            fetcher,
-            "fetch_ticker_price_context",
-            side_effect=price_fetch,
-        ) as mock_price_context,
         patch.object(fetcher, "fetch_ticker_option_chain") as mock_option_chain,
         patch.object(fetcher, "write_options_csv") as mock_write_csv,
     ):
@@ -105,11 +119,11 @@ def test_price_context_only_writes_json_without_option_export(tmp_path: Path, ca
     assert "AAA: price_context  status=FRESH  as_of=2026-03-20" in captured.out
     assert "BBB: price_context  status=FRESH  as_of=2026-03-20" in captured.out
     assert provider.prepared_tickers == ["AAA", "BBB"]
-    assert [call.args[0] for call in mock_price_context.call_args_list] == ["AAA", "BBB"]
-    assert all(config.price_context_enable is True for config in price_fetch.seen_configs)
+    assert provider.history_calls == [("AAA", 260), ("BBB", 260)]
     mock_option_chain.assert_not_called()
     mock_write_csv.assert_not_called()
     assert not backend.list_datasets()
+    assert (storage_dir / "price-history.db").exists()
 
     latest_path = storage_dir / "runs" / "price_context_latest.json"
     payload = json.loads(latest_path.read_text(encoding="utf-8"))

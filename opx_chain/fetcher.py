@@ -22,6 +22,7 @@ from opx_chain.json_utils import dumps_strict_json
 from opx_chain.locks import acquire_nonblocking_file_lock, release_file_lock
 from opx_chain.paths import get_runs_dir
 from opx_chain.price_context import PRICE_CONTEXT_RECORD_FIELDS, PRICE_CONTEXT_SCHEMA_VERSION
+from opx_chain.price_history import get_price_history_store
 from opx_chain.positions import (
     DEFAULT_POSITIONS_PATH,
     OptionPositionKey,
@@ -235,26 +236,32 @@ def _write_price_context_artifact(output_path: Path, payload: dict[str, object])
 
 
 def _run_price_context_fetch(config, effective_tickers, logger) -> Path:
+    # pylint: disable=too-many-locals
     """Fetch optional price context and write the independent JSON artifact."""
     provider = get_data_provider()
     records = []
-    for ticker in effective_tickers:
-        prepare_ticker_fetch = getattr(provider, "prepare_ticker_fetch", None)
-        if callable(prepare_ticker_fetch):
-            prepare_ticker_fetch(ticker)
-        context = fetch_ticker_price_context(
-            ticker,
-            provider=provider,
-            logger=logger,
-            config=config,
-        )
-        records.append({
-            "ticker": ticker,
-            **{field: context.get(field) for field in PRICE_CONTEXT_RECORD_FIELDS},
-        })
-        status = context.get("price_context_staleness_status")
-        as_of = context.get("price_context_as_of") or "none"
-        print(f"{ticker}: price_context  status={status}  as_of={as_of}")
+    store = get_price_history_store(config)
+    try:
+        for ticker in effective_tickers:
+            prepare_ticker_fetch = getattr(provider, "prepare_ticker_fetch", None)
+            if callable(prepare_ticker_fetch):
+                prepare_ticker_fetch(ticker)
+            context = fetch_ticker_price_context(
+                ticker,
+                provider=provider,
+                logger=logger,
+                config=config,
+                store=store,
+            )
+            records.append({
+                "ticker": ticker,
+                **{field: context.get(field) for field in PRICE_CONTEXT_RECORD_FIELDS},
+            })
+            status = context.get("price_context_staleness_status")
+            as_of = context.get("price_context_as_of") or "none"
+            print(f"{ticker}: price_context  status={status}  as_of={as_of}")
+    finally:
+        store.close()
 
     timestamp = datetime.now(tz=timezone.utc).strftime("%Y%m%d_%H%M%S")
     runs_dir = _runs_dir(config)
