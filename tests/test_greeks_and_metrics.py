@@ -256,6 +256,55 @@ def make_score_config():
     )()
 
 
+def test_add_quote_quality_metrics_rejects_infinite_row_values():
+    """Quote-quality booleans should require finite numeric inputs."""
+    frame = pd.DataFrame(
+        [
+            {
+                "strike": float("inf"),
+                "bid": 1.00,
+                "ask": 1.20,
+                "implied_volatility": 0.30,
+                "volume": 20,
+                "open_interest": 100,
+            },
+            {
+                "strike": 100.0,
+                "bid": float("inf"),
+                "ask": 2.00,
+                "implied_volatility": 0.30,
+                "volume": 20,
+                "open_interest": 100,
+            },
+            {
+                "strike": 100.0,
+                "bid": 1.00,
+                "ask": float("inf"),
+                "implied_volatility": 0.30,
+                "volume": 20,
+                "open_interest": 100,
+            },
+            {
+                "strike": 100.0,
+                "bid": 1.00,
+                "ask": 1.20,
+                "implied_volatility": float("inf"),
+                "volume": 20,
+                "open_interest": 100,
+            },
+        ]
+    )
+
+    quoted = add_quote_quality_metrics(frame.copy(), underlying_price=100.0)
+
+    assert quoted["has_valid_strike"].tolist() == [False, True, True, True]
+    assert quoted["has_nonzero_bid"].tolist() == [True, False, True, True]
+    assert quoted["has_nonzero_ask"].tolist() == [True, True, False, True]
+    assert quoted["has_valid_iv"].tolist() == [True, True, True, False]
+    assert quoted["has_valid_quote"].tolist() == [True, False, False, True]
+    assert quoted.loc[[1, 2], ["mark_price_mid", "bid_ask_spread"]].isna().all().all()
+
+
 def test_add_derived_pricing_metrics_uses_expected_fill_rule_by_spread_threshold(monkeypatch):
     """Expected fill should switch from midpoint to bid-plus-quarter-spread above 10%."""
     monkeypatch.setattr("opx_chain.metrics.get_runtime_config", make_score_config)

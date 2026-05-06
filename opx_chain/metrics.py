@@ -90,6 +90,18 @@ def _compute_theta_efficiency_score(theta_efficiency):
     return _clip_zero_to_one(theta_efficiency / 15.0)
 
 
+def _series_finite_positive(series):
+    """Return True only for finite numeric values greater than zero."""
+    numeric = pd.to_numeric(series, errors="coerce")
+    return numeric.notna() & np.isfinite(numeric) & (numeric > 0)
+
+
+def _series_finite_nonnegative(series):
+    """Return True only for finite numeric values greater than or equal to zero."""
+    numeric = pd.to_numeric(series, errors="coerce")
+    return numeric.notna() & np.isfinite(numeric) & (numeric >= 0)
+
+
 def _compute_risk_level(df):
     """Classify row-level risk using delta as the score driver and ITM probability as validation."""
     return np.select(
@@ -203,21 +215,23 @@ def add_option_score(df):
 def add_quote_quality_metrics(df, underlying_price):
     """Add quote validation and basic liquidity quality fields."""
     df["has_valid_underlying"] = is_finite_positive_number(underlying_price)
-    df["has_valid_strike"] = df["strike"] > 0
+    df["has_valid_strike"] = _series_finite_positive(df["strike"])
     df["bid_le_ask"] = df["bid"] <= df["ask"]
-    df["has_nonzero_bid"] = df["bid"] > 0
-    df["has_nonzero_ask"] = df["ask"] > 0
+    df["has_nonzero_bid"] = _series_finite_positive(df["bid"])
+    df["has_nonzero_ask"] = _series_finite_positive(df["ask"])
+    has_valid_bid = _series_finite_nonnegative(df["bid"])
+    has_valid_ask = _series_finite_nonnegative(df["ask"])
     df["has_crossed_or_locked_market"] = (
         df["bid"].notna() & df["ask"].notna() & (df["bid"] >= df["ask"])
     )
     df["has_valid_quote"] = (
-        df["bid"].notna()
-        & df["ask"].notna()
+        has_valid_bid
+        & has_valid_ask
         & (df["bid"] >= 0)
         & (df["ask"] >= 0)
         & df["bid_le_ask"]
     )
-    df["has_valid_iv"] = df["implied_volatility"] > 0
+    df["has_valid_iv"] = _series_finite_positive(df["implied_volatility"])
 
     df["mark_price_mid"] = np.where(df["has_valid_quote"], (df["bid"] + df["ask"]) / 2, np.nan)
     df["bid_ask_spread"] = np.where(df["has_valid_quote"], df["ask"] - df["bid"], np.nan)
@@ -227,12 +241,12 @@ def add_quote_quality_metrics(df, underlying_price):
         np.nan,
     )
     df["spread_to_strike_pct"] = np.where(
-        df["strike"] > 0,
+        df["has_valid_strike"],
         df["bid_ask_spread"] / df["strike"],
         np.nan,
     )
     df["spread_to_bid_pct"] = np.where(
-        df["bid"] > 0,
+        df["has_nonzero_bid"],
         df["bid_ask_spread"] / df["bid"],
         np.nan,
     )
