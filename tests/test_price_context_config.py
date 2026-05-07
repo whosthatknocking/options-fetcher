@@ -11,7 +11,7 @@ def test_load_runtime_config_defaults_invalid_price_context_settings(tmp_path: P
     config_path.write_text(
         """
 [price_context]
-enable = "yes"
+enable = "maybe"
 lookback_days = 5
 max_age_days = -1
 """.strip(),

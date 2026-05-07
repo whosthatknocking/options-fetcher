@@ -2,9 +2,10 @@
 
 from pathlib import Path
 
-import pandas as pd
 import numpy as np
+import pandas as pd
 
+from opx_chain.coerce import coerce_bool_or_default
 from opx_chain.schema import BOOLEAN_FIELDS
 
 
@@ -14,24 +15,8 @@ TIMESTAMP_DATASET_COLUMNS = ("option_quote_time", "underlying_price_time")
 
 def _coerce_boolean_value(value):
     """Coerce common persisted boolean representations to nullable booleans."""
-    result = pd.NA
-    if value is None or pd.isna(value):
-        pass
-    elif isinstance(value, (bool, np.bool_)):
-        result = bool(value)
-    elif isinstance(value, str):
-        normalized = value.strip().lower()
-        if normalized in {"true", "1", "yes"}:
-            result = True
-        elif normalized in {"false", "0", "no"}:
-            result = False
-    elif isinstance(value, (int, float, np.integer, np.floating)):
-        numeric_value = float(value)
-        if numeric_value == 1.0:
-            result = True
-        elif numeric_value == 0.0:
-            result = False
-    return result
+    result = coerce_bool_or_default(value, default=None)
+    return pd.NA if result is None else result
 
 
 def _normalize_boolean_series(series: pd.Series) -> pd.Series:

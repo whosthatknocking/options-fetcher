@@ -14,7 +14,7 @@ try:
 except ImportError:  # pragma: no cover
     import tomli as tomllib
 
-from opx_chain.version import __version__
+from opx_chain.coerce import coerce_bool_or_default
 from opx_chain.paths import (
     get_cache_dir,
     get_data_dir,
@@ -23,6 +23,7 @@ from opx_chain.paths import (
     get_default_provider_cache_dir,
     resolve_relative_path,
 )
+from opx_chain.version import __version__
 
 SUPPORTED_PROVIDERS = frozenset({"yfinance", "massive", "marketdata"})
 SCRIPT_VERSION = __version__
@@ -181,9 +182,10 @@ def _coerce_int(value, *, field_name):
 def _coerce_bool(value, *, field_name):
     if value is None:
         return None
-    if not isinstance(value, bool):
+    resolved = coerce_bool_or_default(value, default=None)
+    if resolved is None:
         raise ConfigError(f"Config field '{field_name}' must be true or false.")
-    return value
+    return resolved
 
 
 def _coerce_float(value, *, field_name):

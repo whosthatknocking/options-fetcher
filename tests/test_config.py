@@ -10,6 +10,7 @@ import pytest
 
 from opx_chain.config import (
     ConfigError,
+    _coerce_bool,
     describe_runtime_config,
     get_runtime_config,
     load_runtime_config,
@@ -131,6 +132,17 @@ def test_get_runtime_config_refreshes_after_market_day_boundary(monkeypatch):
     assert first.today == date(2026, 4, 19)
     assert second.today == date(2026, 4, 20)
     assert first is not second
+
+
+def test_config_bool_coercion_uses_shared_bool_policy():
+    """Config fields should share the same truthy/falsy policy as dataset reads."""
+    assert _coerce_bool("on", field_name="settings.enable_validation") is True
+    assert _coerce_bool("off", field_name="settings.enable_validation") is False
+    assert _coerce_bool(1, field_name="settings.enable_validation") is True
+    assert _coerce_bool(0, field_name="settings.enable_validation") is False
+
+    with pytest.raises(ConfigError, match="settings.enable_validation"):
+        _coerce_bool("garbage", field_name="settings.enable_validation")
 
 
 def test_load_runtime_config_reads_user_config_file(tmp_path: Path):
@@ -674,7 +686,7 @@ backoff_seconds = -0.5
         """
 [settings]
 data_provider = "massive"
-debug_dump_provider_payload = "yes"
+debug_dump_provider_payload = "maybe"
 
 [providers.massive]
 api_key = "secret"

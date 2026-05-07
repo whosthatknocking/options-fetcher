@@ -1,9 +1,65 @@
 """Tests for shared scalar and timestamp utilities."""
 
-import pandas as pd
+import math
 
+import numpy as np
+import pandas as pd
+import pytest
+
+from opx_chain.coerce import coerce_bool_or_default
 from opx_chain.storage.serializers import get_serializer
 from opx_chain.utils import normalize_timestamp, read_dataset_file
+
+
+@pytest.mark.parametrize(
+    "value",
+    [
+        True,
+        np.bool_(True),
+        1,
+        1.0,
+        np.int64(1),
+        np.float64(1.0),
+        "1",
+        "true",
+        "yes",
+        "y",
+        "on",
+        " TRUE ",
+    ],
+)
+def test_coerce_bool_or_default_accepts_truthy_values(value):
+    """Shared bool coercion should accept the canonical truthy set."""
+    assert coerce_bool_or_default(value, default=None) is True
+
+
+@pytest.mark.parametrize(
+    "value",
+    [
+        False,
+        np.bool_(False),
+        0,
+        0.0,
+        np.int64(0),
+        np.float64(0.0),
+        "0",
+        "false",
+        "no",
+        "n",
+        "off",
+        " FALSE ",
+    ],
+)
+def test_coerce_bool_or_default_accepts_falsy_values(value):
+    """Shared bool coercion should accept the canonical falsy set."""
+    assert coerce_bool_or_default(value, default=None) is False
+
+
+@pytest.mark.parametrize("value", [None, "", "random", 2, 2.0, math.inf, math.nan, pd.NA])
+def test_coerce_bool_or_default_returns_default_for_unknown_values(value):
+    """Unknown bool inputs should resolve through the caller-provided default."""
+    assert coerce_bool_or_default(value, default=None) is None
+    assert coerce_bool_or_default(value, default=False) is False
 
 
 def test_normalize_timestamp_infers_numeric_epoch_units():
@@ -57,3 +113,18 @@ def test_read_dataset_file_normalizes_csv_and_parquet_dtypes(tmp_path):
     assert not bool(parquet_result.loc[0, "is_stale_quote"])
     assert pd.isna(csv_result.loc[1, "is_stale_quote"])
     assert pd.isna(parquet_result.loc[1, "is_stale_quote"])
+
+
+def test_read_dataset_file_normalizes_extended_boolean_strings(tmp_path):
+    """CSV boolean normalization should share the config bool policy."""
+    path = tmp_path / "dataset.csv"
+    pd.DataFrame(
+        {
+            "underlying_symbol": ["A", "B", "C", "D", "E"],
+            "is_stale_quote": ["on", "off", "y", "n", "garbage"],
+        }
+    ).to_csv(path, index=False)
+
+    result = read_dataset_file(path)
+
+    assert result["is_stale_quote"].tolist() == [True, False, True, False, pd.NA]
