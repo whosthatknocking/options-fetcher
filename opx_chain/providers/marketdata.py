@@ -7,7 +7,6 @@ from __future__ import annotations
 from datetime import date, datetime, timezone
 from email.utils import parsedate_to_datetime
 from functools import lru_cache
-import logging
 import math
 import time
 from typing import Any
@@ -34,9 +33,12 @@ from opx_chain.providers.base import (
     normalize_provider_frame,
 )
 from opx_chain.providers._dates import parse_event_date as _parse_event_date
+from opx_chain.runlog import get_logger, logger_name
 from opx_chain.utils import coerce_float, normalize_timestamp
 
 CALLER_USER_AGENT = f"opx-chain/{SCRIPT_VERSION}"
+_SDK_LOGGER_SUFFIX = "providers.marketdata.sdk"
+_SDK_LOGGER_NAME = logger_name(_SDK_LOGGER_SUFFIX)
 TRANSIENT_REQUEST_EXCEPTIONS = (
     httpx.TimeoutException,
     httpx.NetworkError,
@@ -114,7 +116,7 @@ class MarketDataProvider(DataProvider):
     @property
     def external_logger_names(self) -> tuple[str, ...]:
         """Expose SDK logs so the run log can capture provider-library messages."""
-        return ("marketdata.logger",)
+        return (_SDK_LOGGER_NAME,)
 
     def prepare_ticker_fetch(self, ticker: str) -> None:  # pylint: disable=unused-argument
         """Clear process-local ticker caches before a new fetch pipeline call."""
@@ -159,7 +161,7 @@ class MarketDataProvider(DataProvider):
 
         client = OpxMarketDataClient(
             token=cache_key[0],
-            logger=logging.getLogger("marketdata.logger"),
+            logger=get_logger(_SDK_LOGGER_SUFFIX),
         )
         client.headers["User-Agent"] = CALLER_USER_AGENT
         client.client.headers["User-Agent"] = CALLER_USER_AGENT

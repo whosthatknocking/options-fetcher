@@ -1,7 +1,6 @@
 """Fetch orchestration using the configured market-data provider."""
 
 from datetime import datetime, timezone
-import logging
 from numbers import Real
 import pickle
 
@@ -30,13 +29,14 @@ from opx_chain.providers.base import (
     ProviderQuotaError,
 )
 from opx_chain.providers import get_data_provider
+from opx_chain.runlog import get_logger
 from opx_chain.storage.cache import get_provider_cache
 from opx_chain.utils import is_finite_positive_number
 from opx_chain.validate import validate_option_rows
 
 _JSON_TIMESTAMP_KEY = "__opx_pd_timestamp__"
 _JSON_NAT_KEY = "__opx_pd_nat__"
-_LOGGER = logging.getLogger(__name__)
+_LOGGER = get_logger("fetch")
 
 
 def _with_fetch_counts(

@@ -11,6 +11,25 @@ from opx_chain.storage.factory import get_data_dir
 
 _RUNLOG_HANDLER_ATTR = "_opx_chain_runlog_handler"
 _MANAGED_EXTERNAL_LOGGER_NAMES: set[str] = set()
+LOG_NAME = "opx_chain"
+
+
+def logger_name(name_suffix: str = "") -> str:
+    """Return the canonical opx-chain logger name or a child logger name."""
+    suffix = name_suffix.strip(".")
+    if not suffix:
+        return LOG_NAME
+    return f"{LOG_NAME}.{suffix}"
+
+
+def get_logger(name_suffix: str = "") -> logging.Logger:
+    """Return the canonical opx-chain logger or one of its children."""
+    return logging.getLogger(logger_name(name_suffix))
+
+
+def get_external_logger(name: str) -> logging.Logger:
+    """Return a non-opx-chain logger exposed by a provider dependency."""
+    return logging.getLogger(name)
 
 
 def _mark_runlog_handler(handler):
@@ -31,16 +50,16 @@ def configure_external_loggers(file_handler):
     """Route configured provider-library errors into the same append-only run log."""
     provider = get_data_provider()
     external_logger_names = set(provider.external_logger_names)
-    for logger_name in _MANAGED_EXTERNAL_LOGGER_NAMES | external_logger_names:
-        provider_logger = logging.getLogger(logger_name)
+    for external_logger_name in _MANAGED_EXTERNAL_LOGGER_NAMES | external_logger_names:
+        provider_logger = get_external_logger(external_logger_name)
         _close_logger_handlers(provider_logger, only_managed=True)
     _MANAGED_EXTERNAL_LOGGER_NAMES.clear()
-    for logger_name in provider.external_logger_names:
-        provider_logger = logging.getLogger(logger_name)
+    for external_logger_name in provider.external_logger_names:
+        provider_logger = get_external_logger(external_logger_name)
         provider_logger.setLevel(logging.ERROR)
         provider_logger.propagate = False
         provider_logger.addHandler(file_handler)
-        _MANAGED_EXTERNAL_LOGGER_NAMES.add(logger_name)
+        _MANAGED_EXTERNAL_LOGGER_NAMES.add(external_logger_name)
 
 
 def _migrate_legacy_shared_log(src, dst):
@@ -62,7 +81,7 @@ def create_run_logger():
     log_path = logs_dir / "opx_runs.log"
     _migrate_legacy_shared_log(get_data_dir() / "logs" / "opx_runs.log", log_path)
 
-    logger = logging.getLogger("opx_chain.run")
+    logger = get_logger("run")
     logger.setLevel(logging.INFO)
     _close_logger_handlers(logger)
     logger.propagate = False

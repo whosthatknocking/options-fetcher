@@ -177,6 +177,16 @@ def fake_client(provider: MarketDataProvider) -> FakeMarketDataClient:
     return cast(FakeMarketDataClient, provider._client())  # pylint: disable=protected-access
 
 
+def test_marketdata_provider_uses_namespaced_sdk_logger(monkeypatch):
+    """The SDK logger constructed by opx-chain should stay under the package namespace."""
+    patch_marketdata_client(monkeypatch)
+    provider = MarketDataProvider()
+    client = fake_client(provider)
+
+    assert provider.external_logger_names == ("opx_chain.providers.marketdata.sdk",)
+    assert client.logger.name == "opx_chain.providers.marketdata.sdk"
+
+
 def test_marketdata_provider_builds_snapshot_and_option_chain(monkeypatch):
     """Market Data provider should derive expirations, chains, and underlying snapshot."""
     patch_marketdata_client(monkeypatch)

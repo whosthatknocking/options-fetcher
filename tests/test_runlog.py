@@ -6,7 +6,7 @@ from pathlib import Path
 import pytest
 
 from conftest import make_runtime_config
-from opx_chain.runlog import create_run_logger, log_run_started
+from opx_chain.runlog import LOG_NAME, create_run_logger, get_logger, log_run_started
 
 
 class TrackingHandler(logging.Handler):
@@ -63,6 +63,13 @@ def _stub_runlog_dependencies(monkeypatch, tmp_path):
         "opx_chain.runlog.get_data_provider",
         stub_provider,
     )
+
+
+def test_get_logger_uses_canonical_opx_chain_namespace():
+    """opx-chain package loggers should all live under one root namespace."""
+    assert get_logger().name == LOG_NAME
+    assert get_logger("fetch").name == "opx_chain.fetch"
+    assert get_logger(".providers.marketdata.sdk.").name == "opx_chain.providers.marketdata.sdk"
 
 
 def test_create_run_logger_routes_yfinance_errors_to_run_log(monkeypatch, tmp_path):
