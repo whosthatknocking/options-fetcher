@@ -42,6 +42,19 @@ def test_filesystem_cache_roundtrip(tmp_path: Path):
     assert cache.get("mykey") == b"hello"
 
 
+def test_filesystem_cache_reads_trailing_z_expiry_metadata(tmp_path: Path):
+    """Legacy/API-style Zulu expiry timestamps should not invalidate cache entries."""
+    cache_dir = tmp_path / "cache"
+    cache = FilesystemCache(cache_dir)
+    cache.put("zulu-key", b"hello", ttl_seconds=60)
+    _, meta_path = _cache_paths(cache_dir, "zulu-key")
+    metadata = json.loads(meta_path.read_text(encoding="utf-8"))
+    metadata["expires_at"] = metadata["expires_at"].replace("+00:00", "Z")
+    meta_path.write_text(json.dumps(metadata), encoding="utf-8")
+
+    assert cache.get("zulu-key") == b"hello"
+
+
 def test_filesystem_cache_miss_returns_none(tmp_path: Path):
     """get must return None for keys that were never put."""
     cache = FilesystemCache(tmp_path / "cache")

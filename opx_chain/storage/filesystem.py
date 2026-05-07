@@ -11,6 +11,7 @@ from heapq import nsmallest
 from pathlib import Path
 
 from opx_chain.json_utils import dumps_strict_json, loads_strict_json
+from opx_chain.timestamps import parse_iso_datetime
 from opx_chain.storage.models import (
     ArtifactRecord,
     ArtifactWrite,
@@ -46,7 +47,7 @@ def _dt_to_str(dt: datetime | None) -> str | None:
 
 
 def _str_to_dt(value: str | None) -> datetime | None:
-    return datetime.fromisoformat(value) if value is not None else None
+    return parse_iso_datetime(value) if value is not None else None
 
 
 def _dt_sort_key(value: datetime | None) -> datetime:
@@ -626,7 +627,7 @@ class FilesystemBackend:
                 started_at_str = data.get("started_at", "")
                 if not started_at_str:
                     continue
-                started_at = datetime.fromisoformat(started_at_str)
+                started_at = parse_iso_datetime(started_at_str)
                 if data.get("status") == "complete" and started_at >= since_utc:
                     count += 1
             except (OSError, ValueError):

@@ -16,6 +16,7 @@ import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 
+from opx_chain.timestamps import parse_iso_datetime
 from opx_chain.storage.models import (
     ArtifactRecord,
     ArtifactWrite,
@@ -161,7 +162,7 @@ def _dt_to_str(dt: datetime | None) -> str | None:
 
 
 def _str_to_dt(value: str | None) -> datetime | None:
-    return datetime.fromisoformat(value) if value is not None else None
+    return parse_iso_datetime(value) if value is not None else None
 
 
 class SqliteIndexedBackend:

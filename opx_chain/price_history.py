@@ -14,6 +14,7 @@ import pandas as pd
 
 from opx_chain.paths import get_data_dir
 from opx_chain.price_context import normalize_price_history_frame
+from opx_chain.timestamps import parse_iso_datetime
 
 
 PRICE_HISTORY_SCHEMA_VERSION = 1
@@ -364,7 +365,7 @@ class PriceHistoryStore:
         if row is None:
             return None
         return PriceHistorySync(
-            checked_at=datetime.fromisoformat(row["checked_at"]),
+            checked_at=parse_iso_datetime(row["checked_at"]),
             status=str(row["status"]),
             requested_lookback_days=row["requested_lookback_days"],
             latest_trading_date=_parse_date(row["latest_trading_date"]),

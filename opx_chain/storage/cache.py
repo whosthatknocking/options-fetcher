@@ -19,6 +19,7 @@ except ImportError:  # pragma: no cover - Windows fallback.
 
 from opx_chain.json_utils import dumps_strict_json, loads_strict_json
 from opx_chain.storage.atomic import atomic_write_bytes, atomic_write_text
+from opx_chain.timestamps import parse_iso_datetime
 
 
 class NullCache:  # pylint: disable=too-few-public-methods
@@ -95,7 +96,7 @@ class FilesystemCache:
                 return None
             try:
                 meta = loads_strict_json(meta_path.read_text(encoding="utf-8"))
-                expires_at = datetime.fromisoformat(meta["expires_at"])
+                expires_at = parse_iso_datetime(meta["expires_at"])
                 if datetime.now(tz=timezone.utc) > expires_at:
                     self._unlink_entry(bin_path, meta_path)
                     return None
@@ -140,7 +141,7 @@ class FilesystemCache:
                     continue
                 try:
                     meta = loads_strict_json(meta_path.read_text(encoding="utf-8"))
-                    expires_at = datetime.fromisoformat(meta["expires_at"])
+                    expires_at = parse_iso_datetime(meta["expires_at"])
                 except (OSError, KeyError, TypeError, ValueError):
                     meta_path.unlink(missing_ok=True)
                     bin_path.unlink(missing_ok=True)
