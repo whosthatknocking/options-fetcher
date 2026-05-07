@@ -187,8 +187,13 @@ def _config_fingerprint_payload(config) -> dict[str, object]:
 
 def _config_fingerprint(config) -> str:
     """Return a SHA-256 hex digest of the config fields that affect fetch output."""
-    fields = _config_fingerprint_payload(config)
-    return hashlib.sha256(json.dumps(fields, sort_keys=True).encode()).hexdigest()
+    return _canonical_json_fingerprint(_config_fingerprint_payload(config))
+
+
+def _canonical_json_fingerprint(payload: dict[str, object]) -> str:
+    """Return a SHA-256 hex digest for a strict canonical JSON payload."""
+    serialized = dumps_strict_json(payload, sort_keys=True)
+    return hashlib.sha256(serialized.encode()).hexdigest()
 
 
 def _option_key_fingerprint_value(key: OptionPositionKey) -> list[object]:
@@ -210,7 +215,7 @@ def _positions_fingerprint(
             for key in positions.option_keys
         ),
     }
-    return hashlib.sha256(json.dumps(payload, sort_keys=True).encode()).hexdigest()
+    return _canonical_json_fingerprint(payload)
 
 
 def _runtime_data_dir(config) -> Path:

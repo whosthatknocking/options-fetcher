@@ -7,12 +7,14 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import pandas as pd
+import pytest
 
 from conftest import make_runtime_config
 import main
 from opx_chain.config import RuntimeConfig, get_runtime_config as get_process_runtime_config
 from opx_chain.fetcher import (
     _CONFIG_FINGERPRINT_EXCLUDED_FIELDS,
+    _canonical_json_fingerprint,
     _config_fingerprint,
     _config_fingerprint_payload,
     _positions_fingerprint,
@@ -129,6 +131,12 @@ def test_positions_fingerprint_changes_when_parsed_positions_change(tmp_path: Pa
     )
 
     assert _positions_fingerprint(base_positions) != _positions_fingerprint(changed_positions)
+
+
+def test_canonical_json_fingerprint_rejects_non_finite_values():
+    """Fetcher fingerprints must not admit NaN/Infinity JSON literals."""
+    with pytest.raises(ValueError, match="Out of range float values"):
+        _canonical_json_fingerprint({"value": float("nan")})
 
 
 def test_main_prints_rows_written_after_saved(monkeypatch, capsys, tmp_path: Path):
