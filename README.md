@@ -55,7 +55,7 @@ For a full coverage report with missing lines plus HTML/XML/JSON artifacts, run:
 
 Runtime configuration defaults live in [config/example.toml](config/example.toml). Copy it to `$XDG_CONFIG_HOME/opx-chain/config.toml` (default `~/.config/opx-chain/config.toml`) and replace provider placeholders as needed.
 
-The local viewer is organized around five primary tabs: `Dataset`, `Positions`, `Overview`, `Chain View`, and `Reference`.
+The local viewer is organized around four primary tabs: `Dataset`, `Overview`, `Chain View`, and `Reference`.
 
 ![Options Screener viewer](docs/images/viewer-option-chain.png)
 
@@ -67,7 +67,7 @@ The local viewer is organized around five primary tabs: `Dataset`, `Positions`, 
 - Computes Greeks, delta-safety, expected move, ROM-style metrics, configurable option scoring, and volatility context
 - Optionally writes a standalone daily-OHLCV price-context artifact with support/resistance context, moving averages, VWAP, a volume-node proxy, and gap-fill levels
 - Writes a timestamped CSV plus an append-only run log
-- Includes a local browser for exploring the output interactively, including dataset inspection, a positions browser for the selected run's positions snapshot with default XDG positions fallback, per-ticker overview cards, `Most Profitable`, `Moderate Risk`, `High Conviction Call`, and `High Conviction Put` highlights, plus chain visualizations with chart tooltips and click-through row details
+- Includes a local browser for exploring the output interactively, including dataset inspection, lightweight positions counts/fingerprint/coverage metadata for the selected run snapshot, per-ticker overview cards, `Most Profitable`, `Moderate Risk`, `High Conviction Call`, and `High Conviction Put` highlights, plus chain visualizations with chart tooltips and click-through row details
 - Produces normalized option-chain output for inspection, comparison, and archival
 
 Generated datasets and data artifacts are written under `$XDG_DATA_HOME/opx-chain/` (default `~/.local/share/opx-chain/`):

@@ -114,7 +114,8 @@ Keep those files aligned with the implementation. If you change canonical fields
 
 - Keep exported CSVs under `$XDG_DATA_HOME/opx-chain/runs/`, logs under `$XDG_STATE_HOME/opx-chain/logs/`, optional provider payload dumps under `$XDG_DATA_HOME/opx-chain/debug/`, and filesystem provider cache files under `$XDG_CACHE_HOME/opx-chain/cache/`.
 - If you change exported columns, also update the viewer serialization assumptions and field-reference docs.
-- Keep viewer endpoints and payloads aligned with the current tab model: `Dataset`, `Positions`, `Overview`, `Chain View`, and `Reference`.
+- Keep viewer endpoints and payloads aligned with the current tab model: `Dataset`, `Overview`, `Chain View`, and `Reference`.
+- Do not reintroduce rich portfolio/positions browsing in opx-chain. The viewer may show only lightweight positions counts, parsed-position fingerprint, and chain coverage metadata; portfolio-specific browsing belongs in opx-strategy.
 - Use JSON-serializable payloads only when sending data to the browser.
 
 ## Error Handling and Stability

@@ -6,7 +6,6 @@ from importlib import resources
 import json
 import os
 from pathlib import Path
-import textwrap
 
 import pandas as pd
 import pytest
@@ -87,8 +86,8 @@ def test_viewer_has_no_dead_user_guide_loader():
     assert not hasattr(viewer, "USER_GUIDE_PATH")
 
 
-def test_viewer_has_no_unused_preferences_api_scaffold():
-    """The viewer should not expose preference endpoints without a UI consumer."""
+def test_viewer_has_no_unused_or_out_of_scope_api_scaffold():
+    """The viewer should not expose endpoints without an in-scope UI consumer."""
     source = (Path(__file__).resolve().parents[1] / "opx_chain" / "viewer.py").read_text(
         encoding="utf-8"
     )
@@ -98,6 +97,7 @@ def test_viewer_has_no_unused_preferences_api_scaffold():
     assert "save_viewer_prefs" not in source
     assert '"/api/prefs"' not in source
     assert '"/api/readme"' not in source
+    assert '"/api/positions"' not in source
 
 
 def test_build_dataset_cards_only_promotes_dataset_wide_constant_values():
@@ -244,82 +244,73 @@ def test_api_reference_returns_structured_not_found_json(monkeypatch):
     }
 
 
-def test_load_positions_payload_reads_rows_and_stops_before_footer(tmp_path: Path):
-    """Positions payloads should include table rows but ignore trailing broker footer text."""
-    positions_path = tmp_path / "positions.csv"
-    positions_path.write_text(
-        textwrap.dedent(
-            """\
-            Account Number,Account Name,Symbol,Description,Quantity,Last Price,Type
-            Z1,INDIVIDUAL,TSLA,TESLA INC,100,$391.00,Margin
-            Z1,INDIVIDUAL, -TSLA260821P360,TSLA AUG 21 2026 $360 PUT,-2,$25.00,Margin
-
-            "Footer notice"
-            """
-        ),
-        encoding="utf-8",
-    )
-
-    payload = viewer.load_positions_payload(positions_path)
-
-    assert payload["selected_file"] == "positions.csv"
-    assert payload["row_count"] == 2
-    assert payload["rows"][0]["Symbol"] == "TSLA"
-    assert payload["rows"][1]["Symbol"] == "-TSLA260821P360"
-    assert "Footer notice" not in str(payload["rows"])
-
-
-def test_load_positions_payload_prefers_latest_dataset_sidecar(
+def test_build_positions_dataset_cards_reports_counts_fingerprint_and_coverage(
     tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
 ):
-    """Positions should load from the latest run snapshot when default positions are absent."""
+    """The viewer should expose positions metadata without browsing positions rows."""
     run_dir = tmp_path / "runs" / "run-123"
     output_dir = run_dir / "output"
     output_dir.mkdir(parents=True)
     dataset_path = output_dir / "options_engine_output_20260421_120000.csv"
-    dataset_path.write_text("underlying_symbol\nTSLA\n", encoding="utf-8")
+    frame = pd.DataFrame(
+        [
+            {
+                "underlying_symbol": "TSLA",
+                "expiration_date": "2026-08-21",
+                "option_type": "put",
+                "strike": 360.0,
+            },
+            {
+                "underlying_symbol": "NVDA",
+                "expiration_date": "2026-06-05",
+                "option_type": "put",
+                "strike": 200.0,
+            },
+        ]
+    )
+    frame.to_csv(dataset_path, index=False)
     (run_dir / "positions.csv").write_text(
-        "Symbol,Description,Quantity\nTSLA,TESLA INC,100\n",
+        "Symbol,Description,Quantity\n"
+        "TSLA,TESLA INC,100\n"
+        "-NVDA260605P200,NVDA JUN 05 2026 $200 PUT,-1\n"
+        "-ORCL260605P120,ORCL JUN 05 2026 $120 PUT,-1\n",
         encoding="utf-8",
     )
 
-    monkeypatch.setattr(viewer, "discover_dataset_paths", lambda: [dataset_path])
-    monkeypatch.setattr(viewer, "POSITIONS_PATH", tmp_path / "missing_positions.csv")
+    cards = viewer.build_positions_dataset_cards(frame, dataset_path)
+    by_name = {card["name"]: card for card in cards}
 
-    payload = viewer.load_positions_payload()
+    assert by_name["Positions"]["value"] == "1 stocks / 2 options"
+    assert by_name["Position Fingerprint"]["value"] != "none"
+    assert "Full parsed-position fingerprint" in by_name["Position Fingerprint"]["description"]
+    assert by_name["Position Coverage"]["value"] == "1/1 stocks / 1/2 options"
 
-    assert payload["selected_file"] == "run-123/positions.csv"
-    assert payload["row_count"] == 1
-    assert payload["rows"][0]["Symbol"] == "TSLA"
 
-
-def test_api_positions_accepts_dataset_file_query(
+def test_load_csv_payload_includes_run_positions_summary_cards(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ):
-    """The Positions endpoint should load the sidecar for the selected dataset."""
+    """Dataset payloads should include lightweight positions metadata cards."""
     run_dir = tmp_path / "runs" / "run-456"
     output_dir = run_dir / "output"
     output_dir.mkdir(parents=True)
     dataset_path = output_dir / "options_engine_output_20260422_120000.csv"
-    dataset_path.write_text("underlying_symbol\nNVDA\n", encoding="utf-8")
+    dataset_path.write_text(
+        "underlying_symbol,expiration_date,option_type,strike\n"
+        "NVDA,2026-06-05,put,200\n",
+        encoding="utf-8",
+    )
     (run_dir / "positions.csv").write_text(
         "Symbol,Description,Quantity\nNVDA,NVIDIA CORP,200\n",
         encoding="utf-8",
     )
 
     monkeypatch.setattr(viewer, "discover_dataset_paths", lambda: [dataset_path])
-    monkeypatch.setattr(viewer, "POSITIONS_PATH", tmp_path / "missing_positions.csv")
-    handler = object.__new__(viewer.ViewerRequestHandler)
-    handler.path = f"/api/positions?file={dataset_path.name}"
-    captured = _capture_api_response(handler)
 
-    handler.do_GET()
+    payload = viewer.load_csv_payload(dataset_path.name)
+    card_names = {card["name"] for card in payload["dataset_cards"]}
 
-    assert captured["status"] == HTTPStatus.OK
-    assert captured["payload"]["selected_file"] == "run-456/positions.csv"
-    assert captured["payload"]["rows"][0]["Symbol"] == "NVDA"
+    assert {"Positions", "Position Fingerprint", "Position Coverage"} <= card_names
 
 
 def test_resolve_csv_path_rejects_undiscovered_dataset_names(tmp_path: Path, monkeypatch):

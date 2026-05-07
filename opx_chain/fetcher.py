@@ -25,9 +25,9 @@ from opx_chain.price_context import PRICE_CONTEXT_RECORD_FIELDS, PRICE_CONTEXT_S
 from opx_chain.price_history import get_price_history_store
 from opx_chain.positions import (
     DEFAULT_POSITIONS_PATH,
-    OptionPositionKey,
     PositionSet,
     load_positions,
+    positions_fingerprint,
 )
 from opx_chain.providers import get_data_provider
 from opx_chain.runlog import create_run_logger, log_run_started
@@ -196,26 +196,12 @@ def _canonical_json_fingerprint(payload: dict[str, object]) -> str:
     return hashlib.sha256(serialized.encode()).hexdigest()
 
 
-def _option_key_fingerprint_value(key: OptionPositionKey) -> list[object]:
-    return [key.ticker, key.expiration_date, key.option_type, key.strike]
-
-
 def _positions_fingerprint(
     positions_path: Path,
     position_set: PositionSet | None = None,
 ) -> str:
     """Return SHA-256 of canonical parsed positions, or empty string if absent."""
-    if not positions_path.exists():
-        return ""
-    positions = position_set or load_positions(positions_path)
-    payload = {
-        "stock_tickers": sorted(positions.stock_tickers),
-        "option_keys": sorted(
-            _option_key_fingerprint_value(key)
-            for key in positions.option_keys
-        ),
-    }
-    return _canonical_json_fingerprint(payload)
+    return positions_fingerprint(positions_path, position_set)
 
 
 def _runtime_data_dir(config) -> Path:

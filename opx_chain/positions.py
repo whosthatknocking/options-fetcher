@@ -3,12 +3,14 @@
 from __future__ import annotations
 
 import csv
+import hashlib
 import math
 import re
 import sys
 from dataclasses import dataclass
 from pathlib import Path
 
+from opx_chain.json_utils import dumps_strict_json
 from opx_chain.paths import get_default_positions_path
 
 
@@ -50,6 +52,34 @@ class PositionSet:
 
 
 EMPTY_POSITION_SET = PositionSet(frozenset(), frozenset())
+
+
+def _option_key_fingerprint_value(key: OptionPositionKey) -> list[object]:
+    """Return the canonical JSON representation for one parsed option position."""
+    return [key.ticker, key.expiration_date, key.option_type, key.strike]
+
+
+def position_set_fingerprint(position_set: PositionSet) -> str:
+    """Return a stable SHA-256 fingerprint for parsed positions."""
+    payload = {
+        "stock_tickers": sorted(position_set.stock_tickers),
+        "option_keys": sorted(
+            _option_key_fingerprint_value(key)
+            for key in position_set.option_keys
+        ),
+    }
+    serialized = dumps_strict_json(payload, sort_keys=True)
+    return hashlib.sha256(serialized.encode()).hexdigest()
+
+
+def positions_fingerprint(
+    positions_path: Path,
+    position_set: PositionSet | None = None,
+) -> str:
+    """Return SHA-256 of canonical parsed positions, or empty string if absent."""
+    if not positions_path.exists():
+        return ""
+    return position_set_fingerprint(position_set or load_positions(positions_path))
 
 
 def _parse_option_symbol(raw: str) -> OptionPositionKey | None:

@@ -4,7 +4,6 @@
 from __future__ import annotations
 
 import argparse
-import csv
 import ipaddress
 import json
 import math
@@ -26,7 +25,12 @@ from pandas.api.types import is_bool_dtype, is_numeric_dtype
 from opx_chain.config import get_runtime_config
 from opx_chain.export import CANONICAL_EXPORT_COLUMNS
 from opx_chain.paths import get_runs_dir
-from opx_chain.positions import DEFAULT_POSITIONS_PATH
+from opx_chain.positions import (
+    STRIKE_MATCH_TOLERANCE,
+    PositionSet,
+    load_positions,
+    positions_fingerprint,
+)
 from opx_chain.storage.factory import get_data_dir, get_storage_backend
 from opx_chain.utils import read_dataset_file
 
@@ -35,7 +39,6 @@ _PKG_ROOT = Path(__file__).resolve().parent
 STATIC_ROOT = _PKG_ROOT / "viewer_static"
 FIELD_REFERENCE_PATH = _PKG_ROOT.parent / "docs" / "FIELD_REFERENCE.md"
 RUNS_DIR = get_data_dir() / "runs"
-POSITIONS_PATH = DEFAULT_POSITIONS_PATH
 CSV_PATTERN = "options_engine_output_*.csv"
 VIEWER_DATASET_DISCOVERY_LIMIT = 10_000
 _HOST_LABEL_RE = re.compile(r"^[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?$")
@@ -53,24 +56,6 @@ INTEGER_VIEWER_COLUMNS = frozenset({
     "event_risk_score",
 })
 REFERENCE_MISSING_DESCRIPTION = "No reference description available for this field."
-POSITIONS_FIELD_DESCRIPTIONS = {
-    "Account Number": "Broker-provided account identifier for the holding row.",
-    "Account Name": "Broker-provided account label for the position row.",
-    "Symbol": "Ticker symbol or broker-formatted option contract symbol from the positions export.",
-    "Description": "Broker-supplied security description for the position row.",
-    "Quantity": "Position size reported by the broker export.",
-    "Last Price": "Most recent broker-supplied mark or last price shown in the positions export.",
-    "Last Price Change": "Session price change shown in the positions export.",
-    "Current Value": "Current market value reported for the position row.",
-    "Today's Gain/Loss Dollar": "Session gain or loss in dollars from the positions export.",
-    "Today's Gain/Loss Percent": "Session gain or loss in percent from the positions export.",
-    "Total Gain/Loss Dollar": "Total unrealized gain or loss in dollars from the positions export.",
-    "Total Gain/Loss Percent": "Total unrealized gain or loss in percent from the positions export.",  # pylint: disable=line-too-long
-    "Percent Of Account": "Portfolio weight reported for the position row.",
-    "Cost Basis Total": "Total cost basis reported by the broker export.",
-    "Average Cost Basis": "Average cost basis per unit reported by the broker export.",
-    "Type": "Broker account or position type label for the holding row.",
-}
 
 
 class FreshnessSummary(TypedDict):
@@ -146,15 +131,6 @@ class TickerSummary(TypedDict):
     moderate_risk_opportunity: OpportunitySummary | None
     high_conviction_call: OpportunitySummary | None
     high_conviction_put: OpportunitySummary | None
-
-
-class TablePayload(TypedDict):
-    """Serialized table payload returned by a viewer table endpoint."""
-
-    selected_file: str
-    row_count: int
-    columns: list[ColumnDefinition]
-    rows: list[dict[str, Any]]
 
 
 class CsvPayload(TypedDict):
@@ -246,46 +222,13 @@ def _positions_sidecar_for_dataset(dataset_path: Path) -> Path | None:
     return None
 
 
-def _resolve_dataset_positions_path(csv_name: str | None = None) -> Path | None:
-    """Resolve the positions sidecar for a selected or latest dataset."""
-    if csv_name is not None:
-        dataset_path = resolve_csv_path(csv_name)
-        return _positions_sidecar_for_dataset(dataset_path)
-    try:
-        dataset_path = resolve_csv_path(None)
-    except FileNotFoundError:
-        return None
-    return _positions_sidecar_for_dataset(dataset_path)
-
-
-def resolve_positions_path(
-    path: Path | None = None,
-    *,
-    csv_name: str | None = None,
-) -> Path:
-    """Resolve the positions CSV path and require that it exists.
-
-    Dataset run snapshots are preferred because they match the option-chain
-    artifact being viewed. The mutable default positions file remains a
-    fallback for older artifacts that do not have a run sidecar.
-    """
-    if path is not None:
-        candidate = path.expanduser()
-        if candidate.exists() and candidate.is_file():
-            return candidate
-        raise FileNotFoundError(f"Positions CSV file not found: {candidate}")
-
-    sidecar = _resolve_dataset_positions_path(csv_name)
-    if sidecar is not None:
-        return sidecar
-
-    candidate = POSITIONS_PATH.expanduser()
-    if candidate.exists() and candidate.is_file():
-        return candidate
-    raise FileNotFoundError(
-        f"Positions CSV file not found: {candidate}; "
-        "no selected dataset positions sidecar was found."
-    )
+def _positions_source_label(positions_path: Path) -> str:
+    """Return a non-local-path label for a positions sidecar."""
+    if positions_path.name == "positions.csv" and positions_path.parent.name:
+        output_dir = positions_path.parent / "output"
+        if output_dir.exists() and output_dir.is_dir():
+            return f"{positions_path.parent.name}/positions.csv"
+    return positions_path.name
 
 
 def load_field_reference_markdown() -> str:
@@ -435,6 +378,102 @@ def build_dataset_cards(frame: pd.DataFrame, descriptions: dict[str, str]) -> li
             }
         )
     return cards
+
+
+def _short_fingerprint(value: str) -> str:
+    """Return a readable fingerprint label while preserving the full value in card details."""
+    return f"{value[:12]}..." if value else "none"
+
+
+def _covered_stock_ticker_count(frame: pd.DataFrame, position_set: PositionSet) -> int:
+    """Return how many stock tickers have rows in the selected dataset."""
+    if "underlying_symbol" not in frame.columns:
+        return 0
+    dataset_tickers = set(frame["underlying_symbol"].dropna().astype(str).str.upper())
+    return len(position_set.stock_tickers & dataset_tickers)
+
+
+def _covered_option_contract_count(frame: pd.DataFrame, position_set: PositionSet) -> int:
+    """Return how many held option contracts are present in the selected dataset."""
+    required_columns = {"underlying_symbol", "expiration_date", "option_type", "strike"}
+    if not required_columns.issubset(frame.columns):
+        return 0
+
+    underlying = frame["underlying_symbol"].astype(str).str.upper()
+    expirations = frame["expiration_date"].astype(str)
+    option_types = frame["option_type"].astype(str).str.lower()
+    strikes = pd.to_numeric(frame["strike"], errors="coerce")
+
+    covered = 0
+    for key in position_set.option_keys:
+        mask = (
+            (underlying == key.ticker)
+            & (expirations == key.expiration_date)
+            & (option_types == key.option_type)
+            & ((strikes - key.strike).abs() < STRIKE_MATCH_TOLERANCE)
+        )
+        if bool(mask.any()):
+            covered += 1
+    return covered
+
+
+def build_positions_dataset_cards(frame: pd.DataFrame, dataset_path: Path) -> list[DatasetCard]:
+    """Build lightweight positions metadata cards for the selected dataset."""
+    positions_path = _positions_sidecar_for_dataset(dataset_path)
+    if positions_path is None:
+        return [
+            {
+                "name": "Positions",
+                "value": "not captured",
+                "description": (
+                    "No run positions sidecar was found for this dataset. "
+                    "opx-chain intentionally does not browse portfolio rows."
+                ),
+            },
+            {
+                "name": "Position Fingerprint",
+                "value": "none",
+                "description": "No parsed-position fingerprint is available without a run sidecar.",
+            },
+            {
+                "name": "Position Coverage",
+                "value": "not available",
+                "description": "Coverage cannot be computed without a run positions sidecar.",
+            },
+        ]
+
+    position_set = load_positions(positions_path)
+    stock_count = len(position_set.stock_tickers)
+    option_count = len(position_set.option_keys)
+    fingerprint = positions_fingerprint(positions_path, position_set)
+    stock_covered = _covered_stock_ticker_count(frame, position_set)
+    option_covered = _covered_option_contract_count(frame, position_set)
+    source_label = _positions_source_label(positions_path)
+    return [
+        {
+            "name": "Positions",
+            "value": f"{stock_count} stocks / {option_count} options",
+            "description": (
+                f"Parsed from {source_label}. Rich positions browsing belongs in opx-strategy."
+            ),
+        },
+        {
+            "name": "Position Fingerprint",
+            "value": _short_fingerprint(fingerprint),
+            "description": f"Full parsed-position fingerprint: {fingerprint or 'none'}.",
+        },
+        {
+            "name": "Position Coverage",
+            "value": (
+                f"{stock_covered}/{stock_count} stocks / "
+                f"{option_covered}/{option_count} options"
+            ),
+            "description": (
+                "Coverage is limited to whether the selected chain artifact includes "
+                "rows for parsed stock tickers and exact held option contracts."
+            ),
+        },
+    ]
 
 
 def format_percent(value: float | None) -> float | None:
@@ -840,50 +879,16 @@ def build_column_definitions(
     ]
 
 
-def read_positions_rows(
-    path: Path | None = None,
-    *,
-    csv_name: str | None = None,
-) -> tuple[Path, pd.DataFrame]:
-    """Load the positions CSV into a table-shaped frame without footer notices."""
-    positions_path = resolve_positions_path(path, csv_name=csv_name)
-    with positions_path.open(newline="", encoding="utf-8-sig") as fh:
-        reader = csv.reader(fh)
-        header: list[str] | None = None
-        records: list[dict[str, str]] = []
-        saw_data_row = False
-        for raw_row in reader:
-            values = [cell.strip() for cell in raw_row]
-            if header is None:
-                if any(values):
-                    header = values
-                continue
-            if not any(values):
-                if saw_data_row:
-                    break
-                continue
-            saw_data_row = True
-            padded = values + [""] * max(0, len(header) - len(values))
-            records.append(
-                {
-                    column: padded[index] if index < len(padded) else ""
-                    for index, column in enumerate(header)
-                }
-            )
-
-    if header is None:
-        return positions_path, pd.DataFrame()
-
-    return positions_path, pd.DataFrame(records, columns=header)
-
-
 def load_csv_payload(csv_name: str | None = None) -> CsvPayload:
     """Load the current dataset and serialize the table payload consumed by the browser."""
     csv_path = resolve_csv_path(csv_name)
     frame = read_dataset_file(csv_path)
     freshness_summary = build_freshness_summary(frame, csv_path)
     descriptions = extract_field_descriptions()
-    dataset_cards = build_dataset_cards(frame, descriptions)
+    dataset_cards = [
+        *build_dataset_cards(frame, descriptions),
+        *build_positions_dataset_cards(frame, csv_path),
+    ]
     rows = [
         {column: normalize_row_value(column, value) for column, value in record.items()}
         for record in frame.to_dict(orient="records")
@@ -896,39 +901,6 @@ def load_csv_payload(csv_name: str | None = None) -> CsvPayload:
         "rows": rows,
         "freshness_summary": freshness_summary,
         "dataset_cards": dataset_cards,
-    }
-
-
-def _positions_selected_file_label(positions_path: Path) -> str:
-    """Return a non-local-path label for a positions source."""
-    if positions_path.name == "positions.csv" and positions_path.parent.name:
-        output_dir = positions_path.parent / "output"
-        if output_dir.exists() and output_dir.is_dir():
-            return f"{positions_path.parent.name}/positions.csv"
-    return positions_path.name
-
-
-def load_positions_payload(
-    path: Path | None = None,
-    *,
-    csv_name: str | None = None,
-) -> TablePayload:
-    """Load the local positions CSV and serialize it for the viewer table."""
-    positions_path, frame = read_positions_rows(path, csv_name=csv_name)
-    descriptions = {
-        **POSITIONS_FIELD_DESCRIPTIONS,
-        **extract_field_descriptions(),
-    }
-    rows = [
-        {column: normalize_row_value(column, value) for column, value in record.items()}
-        for record in frame.to_dict(orient="records")
-    ]
-    columns = build_column_definitions(frame, descriptions)
-    return {
-        "selected_file": _positions_selected_file_label(positions_path),
-        "row_count": len(rows),
-        "columns": columns,
-        "rows": rows,
     }
 
 
@@ -990,14 +962,6 @@ class ViewerRequestHandler(SimpleHTTPRequestHandler):
             self._respond_payload(
                 lambda _csv_name: {"files": make_file_listing()},
                 error_label="file listing",
-            )
-            return
-        if parsed.path == "/api/positions":
-            query = parse_qs(parsed.query)
-            csv_name = query.get("file", [None])[0]
-            self._respond_payload(
-                lambda _csv_name: load_positions_payload(csv_name=csv_name),
-                error_label="positions",
             )
             return
         if parsed.path == "/api/data":

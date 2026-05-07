@@ -18,7 +18,6 @@ function createTableState() {
 const state = {
   files: [],
   dataset: createTableState(),
-  positions: createTableState(),
   summary: null,
   selectedRow: null,
   selectedRowTableKey: 'dataset',
@@ -32,7 +31,7 @@ const state = {
   },
 };
 
-const VALID_TABS = new Set(['table', 'positions', 'summary', 'chain', 'readme']);
+const VALID_TABS = new Set(['table', 'summary', 'chain', 'readme']);
 
 const elements = {
   fileSelect: document.getElementById('fileSelect'),
@@ -56,7 +55,6 @@ const elements = {
   summaryStatus: document.getElementById('summaryStatus'),
   summaryTickerGrid: document.getElementById('summaryTickerGrid'),
   tableTab: document.getElementById('tableTab'),
-  positionsTab: document.getElementById('positionsTab'),
   chainTab: document.getElementById('chainTab'),
   chainTickerSelect: document.getElementById('chainTickerSelect'),
   chainExpirationSelect: document.getElementById('chainExpirationSelect'),
@@ -84,19 +82,6 @@ const elements = {
       nextPageButton: document.getElementById('nextPageButton'),
       pageInfo: document.getElementById('pageInfo'),
     },
-    positions: {
-      rowCount: document.getElementById('positionsRowCount'),
-      pageSizeSelect: document.getElementById('positionsPageSizeSelect'),
-      freshnessSummary: null,
-      datasetCards: null,
-      dataTable: document.getElementById('positionsDataTable'),
-      tableHead: document.querySelector('#positionsDataTable thead'),
-      tableBody: document.querySelector('#positionsDataTable tbody'),
-      tableStatus: document.getElementById('positionsTableStatus'),
-      prevPageButton: document.getElementById('positionsPrevPageButton'),
-      nextPageButton: document.getElementById('positionsNextPageButton'),
-      pageInfo: document.getElementById('positionsPageInfo'),
-    },
   },
 };
 
@@ -120,7 +105,7 @@ const WHOLE_NUMBER_COLUMNS = new Set([
 ]);
 
 function getActiveTableKey() {
-  return state.activeTab === 'positions' ? 'positions' : 'dataset';
+  return 'dataset';
 }
 
 function getTableState(tableKey = getActiveTableKey()) {
@@ -1703,43 +1688,6 @@ async function loadData(fileName) {
   scheduleChainRender(false);
 }
 
-async function loadPositionsData(csvName = null) {
-  const tableState = state.positions;
-  try {
-    const url = csvName
-      ? `/api/positions?file=${encodeURIComponent(csvName)}`
-      : '/api/positions';
-    const payload = await fetchJson(url);
-    tableState.selectedFile = payload.selected_file;
-    tableState.rows = payload.rows;
-    tableState.columns = payload.columns;
-    tableState.sortColumn = null;
-    tableState.sortDirection = 'asc';
-    tableState.columnFilters = {};
-    tableState.activeFilterColumn = null;
-    tableState.filterSearchTerm = '';
-    tableState.currentPage = 1;
-    tableState.pageSize = tableState.pageSize || 100;
-    tableState.columnWidths = {};
-    tableState.emptyMessage = payload.row_count === 0
-      ? `${payload.selected_file} does not contain any position rows.`
-      : null;
-  } catch (error) {
-    tableState.selectedFile = 'positions.csv';
-    tableState.rows = [];
-    tableState.columns = [];
-    tableState.sortColumn = null;
-    tableState.sortDirection = 'asc';
-    tableState.columnFilters = {};
-    tableState.activeFilterColumn = null;
-    tableState.filterSearchTerm = '';
-    tableState.currentPage = 1;
-    tableState.columnWidths = {};
-    tableState.emptyMessage = `Positions unavailable: ${error.message}`;
-  }
-  renderTable('positions');
-}
-
 async function loadReference() {
   const payload = await fetchJson('/api/reference');
   elements.readmeContent.innerHTML = renderMarkdown(payload.markdown);
@@ -1748,14 +1696,12 @@ async function loadReference() {
 function activateTab(tabName) {
   const nextTab = VALID_TABS.has(tabName) ? tabName : 'table';
   closeFilterPopover('dataset');
-  closeFilterPopover('positions');
   state.activeTab = nextTab;
   elements.tabButtons.forEach((button) => {
     button.classList.toggle('active', button.dataset.tab === nextTab);
   });
   elements.summaryTab.classList.toggle('active', nextTab === 'summary');
   elements.tableTab.classList.toggle('active', nextTab === 'table');
-  elements.positionsTab.classList.toggle('active', nextTab === 'positions');
   elements.chainTab.classList.toggle('active', nextTab === 'chain');
   elements.readmeTab.classList.toggle('active', nextTab === 'readme');
   syncTabUrl(nextTab);
@@ -1787,9 +1733,7 @@ async function initialize() {
   await Promise.all([loadFiles(), loadReference()]);
   if (state.files.length > 0) {
     await loadData(state.files[0].name);
-    await loadPositionsData(state.dataset.selectedFile);
   } else {
-    await loadPositionsData();
     state.dataset.rows = [];
     state.dataset.columns = [];
     state.dataset.selectedFile = null;
@@ -1804,10 +1748,9 @@ async function initialize() {
 
   elements.fileSelect.addEventListener('change', async (event) => {
     await loadData(event.target.value);
-    await loadPositionsData(state.dataset.selectedFile);
   });
 
-  ['dataset', 'positions'].forEach((tableKey) => {
+  ['dataset'].forEach((tableKey) => {
     const tableState = getTableState(tableKey);
     const tableElements = getTableElements(tableKey);
     tableElements.pageSizeSelect.addEventListener('change', (event) => {

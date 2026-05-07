@@ -33,14 +33,6 @@ def test_viewer_index_contains_critical_dom_hooks():
     assert {
         "dataTable",
         "tableStatus",
-        "positionsTab",
-        "positionsDataTable",
-        "positionsTableStatus",
-        "positionsRowCount",
-        "positionsPageSizeSelect",
-        "positionsPrevPageButton",
-        "positionsNextPageButton",
-        "positionsPageInfo",
         "filterPopover",
         "filterPopoverTitle",
         "filterValueSearch",
@@ -54,6 +46,14 @@ def test_viewer_index_contains_critical_dom_hooks():
         "readmeTab",
         "themeToggle",
     }.issubset(parser.ids)
+
+
+def test_viewer_index_does_not_expose_positions_tab():
+    """opx-chain viewer should not become a rich portfolio browser."""
+    html = STATIC_INDEX_PATH.read_text(encoding="utf-8")
+
+    assert 'data-tab="positions"' not in html
+    assert "positionsDataTable" not in html
 
 
 def test_viewer_header_theme_tokens_are_mode_specific():

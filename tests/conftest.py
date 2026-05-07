@@ -137,7 +137,6 @@ def isolate_xdg_dirs(tmp_path: Path, monkeypatch):
 
     viewer_mod = sys.modules.get("opx_chain.viewer")
     if viewer_mod is not None:
-        monkeypatch.setattr(viewer_mod, "POSITIONS_PATH", paths["positions_path"])
         monkeypatch.setattr(viewer_mod, "RUNS_DIR", paths["app_data_dir"] / "runs")
     yield
     if storage_factory_mod is not None:

@@ -116,8 +116,8 @@ The viewer binds to `settings.viewer_host` and `settings.viewer_port` from `$XDG
 The viewer includes:
 
 - a sortable table for the exported CSV
-- a sortable `Positions` table for the selected dataset's run-level positions snapshot, falling back to the default XDG data-dir positions file for older artifacts without a snapshot
-- shareable tab URLs using `?tab=table`, `?tab=positions`, `?tab=summary`, `?tab=chain`, or `?tab=readme`
+- lightweight positions counts, parsed-position fingerprint, and chain coverage metadata on the `Dataset` tab when the selected dataset has a run-level positions snapshot
+- shareable tab URLs using `?tab=table`, `?tab=summary`, `?tab=chain`, or `?tab=readme`
 - hover descriptions on column headers pulled from this guide
 - a file selector for available CSV exports
 - a `Reference` tab that shows the CSV field documentation
@@ -291,6 +291,8 @@ At the start of every run, `opx-fetch` reads `$XDG_DATA_HOME/opx-chain/positions
 - **Option filter bypass** _(active only when filters are enabled)_: any option contract that matches a row in the file (by ticker, expiration date, option type, and strike) bypasses all post-download quality filters. These rows are always included in the output regardless of bid, spread, or strike-distance settings. When `filters_enable = false` or `--disable-filters` is used, all rows are already kept unconditionally so the bypass has no effect.
 
 The file is re-read on every run. If the file does not exist, the run continues with normal behavior. If the file exists but cannot be parsed, the run prints a warning and continues without position-aware behavior.
+
+The opx-chain viewer does not browse full portfolio rows. When a selected dataset has a run-level `positions.csv` sidecar, the `Dataset` tab surfaces only parsed stock/option counts, the parsed-position fingerprint, and whether the selected chain artifact covers those parsed holdings. Rich positions browsing and portfolio-specific workflows belong in opx-strategy.
 
 If you need a one-off override, pass `opx-fetch --positions /path/to/positions.csv`. That changes only the file path used for that process; it does not change `filters_enable`, and it does not affect later runs.
 
