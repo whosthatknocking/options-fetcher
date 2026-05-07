@@ -1214,12 +1214,12 @@ body[data-theme="dark"] #readmeContent {
   --surface-fill-soft: var(--panel);
   --tooltip-underline: rgba(15, 23, 42, 0.24);
   --danger: #ef4444;
-  --header-chip-shell: #111a2e;
-  --header-chip-border: rgba(148, 163, 184, 0.22);
-  --header-chip-separator: rgba(148, 163, 184, 0.16);
-  --header-chip-active: #1c2942;
-  --header-chip-text: #93a2bb;
-  --header-chip-text-active: #f8fafc;
+  --header-chip-shell: #ffffff;
+  --header-chip-border: #cbd5e1;
+  --header-chip-separator: #e2e8f0;
+  --header-chip-active: #e2e8f0;
+  --header-chip-text: #475569;
+  --header-chip-text-active: #0f172a;
 }
 
 :root[data-theme="dark"],
