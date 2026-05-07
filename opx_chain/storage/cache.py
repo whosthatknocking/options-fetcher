@@ -12,12 +12,8 @@ from pathlib import Path
 from threading import Lock
 from typing import ClassVar, Iterator
 
-try:
-    import fcntl
-except ImportError:  # pragma: no cover - Windows fallback.
-    fcntl = None  # type: ignore[assignment]
-
 from opx_chain.json_utils import dumps_strict_json, loads_strict_json
+from opx_chain.locks import acquire_blocking_file_lock, release_file_lock
 from opx_chain.storage.atomic import atomic_write_bytes, atomic_write_text
 from opx_chain.timestamps import parse_iso_datetime
 
@@ -72,16 +68,11 @@ class FilesystemCache:
         with self._io_lock:
             if create:
                 self._dir.mkdir(parents=True, exist_ok=True)
-            lock_file = None
-            if fcntl is not None:
-                lock_file = (self._dir / ".cache.lock").open("a+b")
-                fcntl.flock(lock_file.fileno(), fcntl.LOCK_EX)
+            lock_file = acquire_blocking_file_lock(self._dir / ".cache.lock")
             try:
                 yield
             finally:
-                if lock_file is not None:
-                    fcntl.flock(lock_file.fileno(), fcntl.LOCK_UN)
-                    lock_file.close()
+                release_file_lock(lock_file)
 
     def get(self, key: str) -> bytes | None:
         """Return cached bytes if present and unexpired, else None."""

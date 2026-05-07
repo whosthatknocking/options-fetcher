@@ -211,6 +211,30 @@ def test_filesystem_cache_creates_directory(tmp_path: Path):
     assert cache_dir.exists()
 
 
+def test_filesystem_cache_uses_shared_blocking_lock(tmp_path: Path, monkeypatch):
+    """FilesystemCache locking must route through the cross-platform helper."""
+    cache_dir = tmp_path / "cache"
+    cache = FilesystemCache(cache_dir)
+    lock_handle = object()
+    acquired_paths = []
+    released_handles = []
+
+    def fake_acquire(path: Path):
+        acquired_paths.append(path)
+        return lock_handle
+
+    def fake_release(handle):
+        released_handles.append(handle)
+
+    monkeypatch.setattr("opx_chain.storage.cache.acquire_blocking_file_lock", fake_acquire)
+    monkeypatch.setattr("opx_chain.storage.cache.release_file_lock", fake_release)
+
+    cache.put("k", b"v", ttl_seconds=10)
+
+    assert acquired_paths == [cache_dir / ".cache.lock"]
+    assert released_handles == [lock_handle]
+
+
 def test_filesystem_cache_invalidate_nonexistent_is_safe(tmp_path: Path):
     """invalidate must not raise when the key does not exist."""
     FilesystemCache(tmp_path / "cache").invalidate("ghost")
