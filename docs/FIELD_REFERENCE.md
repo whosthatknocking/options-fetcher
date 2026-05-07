@@ -40,6 +40,18 @@ A consumer must not assume an empty cell means zero for a numeric field or
 `false` for a boolean field. When a field is absent, the consumer should skip
 that field or apply its own default for the downstream calculation.
 
+## Viewer-Only Dataset Metadata Cards
+
+These cards appear in the local viewer's `Dataset` tab. They are derived from
+the selected run's `positions.csv` sidecar when that sidecar exists. They are
+not exported CSV columns and are not part of the option-chain schema. opx-chain
+does not expose a rich positions browser; portfolio row browsing belongs in
+opx-strategy.
+
+- `Positions`: Parsed count of stock tickers and held option contracts from the selected run sidecar. When no sidecar exists, the card reports `not captured` instead of falling back to the mutable default positions file.
+- `Position Fingerprint`: Short display form of the SHA-256 fingerprint over parsed stock tickers and held option contract keys. The card tooltip includes the full fingerprint. Cosmetic CSV rewrites do not change it; semantic position changes do.
+- `Position Coverage`: Counts how many parsed stock tickers and exact held option contracts are present in the selected chain artifact. This is a coverage check only; it does not show portfolio rows, quantities, cost basis, P/L, or account-level data.
+
 ## Contract and Expiration Fields
 
 - `underlying_symbol`: Stock ticker for the option contract. Use it to group rows by underlying.

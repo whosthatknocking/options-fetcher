@@ -71,6 +71,19 @@ def test_field_reference_yfinance_event_booleans_match_runtime_support():
         assert "event fetching is not implemented" not in yfinance_cell
 
 
+def test_field_reference_documents_viewer_only_positions_metadata():
+    """Viewer-only positions cards should be documented outside the CSV schema."""
+    field_reference_path = Path(__file__).resolve().parents[1] / "docs" / "FIELD_REFERENCE.md"
+    field_reference = field_reference_path.read_text(encoding="utf-8")
+
+    assert "## Viewer-Only Dataset Metadata Cards" in field_reference
+    assert "`Positions`" in field_reference
+    assert "`Position Fingerprint`" in field_reference
+    assert "`Position Coverage`" in field_reference
+    assert "not exported CSV columns" in field_reference
+    assert "portfolio row browsing belongs in\nopx-strategy" in field_reference
+
+
 def test_viewer_markdown_loader_falls_back_to_packaged_docs(tmp_path: Path):
     """Non-editable installs should not require a sibling source-tree docs directory."""
     missing_source_doc = tmp_path / "missing" / "FIELD_REFERENCE.md"
