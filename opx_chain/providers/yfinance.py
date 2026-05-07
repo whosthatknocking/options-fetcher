@@ -199,32 +199,49 @@ class YFinanceProvider(DataProvider):
 
     def _safe_info(self, ticker: str, stock) -> dict[str, Any]:
         """Return the yfinance info payload or an empty dict on failure."""
+        return self._safe_yfinance_attr(
+            f"{ticker} info",
+            lambda: stock.info,
+            default={},
+            expected_type=dict,
+        )
+
+    def _safe_yfinance_attr(
+        self,
+        label: str,
+        callback,
+        *,
+        default,
+        expected_type=None,
+    ):
+        """Return a best-effort yfinance attribute value with optional type validation."""
         try:
-            info = self._call_yahoo(f"{ticker} info", lambda: stock.info)
+            result = self._call_yahoo(label, callback)
         except (ProviderAuthenticationError, ProviderQuotaError):
             raise
         except Exception:  # pylint: disable=broad-exception-caught
-            return {}
-        return info if isinstance(info, dict) else {}
+            return default
+        if expected_type is None or isinstance(result, expected_type):
+            return result
+        return default
 
     def _safe_calendar(self, ticker: str, stock):
         """Return the yfinance calendar payload or None on failure."""
-        try:
-            return self._call_yahoo(f"{ticker} calendar", lambda: stock.calendar)
-        except (ProviderAuthenticationError, ProviderQuotaError):
-            raise
-        except Exception:  # pylint: disable=broad-exception-caught
-            return None
+        return self._safe_yfinance_attr(
+            f"{ticker} calendar",
+            lambda: stock.calendar,
+            default=None,
+            expected_type=(dict, pd.DataFrame, pd.Series),
+        )
 
     def _safe_dividends(self, ticker: str, stock) -> pd.Series:
         """Return the yfinance dividends series or an empty series on failure."""
-        try:
-            dividends = self._call_yahoo(f"{ticker} dividends", lambda: stock.dividends)
-        except (ProviderAuthenticationError, ProviderQuotaError):
-            raise
-        except Exception:  # pylint: disable=broad-exception-caught
-            return pd.Series(dtype="float64")
-        return dividends if isinstance(dividends, pd.Series) else pd.Series(dtype="float64")
+        return self._safe_yfinance_attr(
+            f"{ticker} dividends",
+            lambda: stock.dividends,
+            default=pd.Series(dtype="float64"),
+            expected_type=pd.Series,
+        )
 
     @staticmethod
     def _next_earnings_event(info: dict[str, Any], calendar_payload, today: date):

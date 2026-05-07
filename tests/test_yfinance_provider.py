@@ -346,6 +346,26 @@ def test_yfinance_safe_metadata_paths_propagate_quota_errors():
         provider._safe_dividends("TSLA", stock)  # pylint: disable=protected-access
 
 
+def test_yfinance_safe_metadata_paths_default_invalid_payload_types():
+    """Best-effort Yahoo metadata wrappers should reject unexpected payload shapes."""
+    provider = YFinanceProvider()
+
+    class WeirdTicker:  # pylint: disable=too-few-public-methods
+        """Ticker stub whose metadata properties return mismatched types."""
+
+        info = []
+        calendar = []
+        dividends = {}
+
+    stock = WeirdTicker()
+
+    assert provider._safe_info("TSLA", stock) == {}  # pylint: disable=protected-access
+    assert provider._safe_calendar("TSLA", stock) is None  # pylint: disable=protected-access
+    dividends = provider._safe_dividends("TSLA", stock)  # pylint: disable=protected-access
+    assert isinstance(dividends, pd.Series)
+    assert dividends.empty
+
+
 def test_yfinance_historical_volatility_propagates_quota_errors(monkeypatch):
     """Historical-volatility fallback should not hide typed quota failures."""
     monkeypatch.setattr(
