@@ -67,7 +67,7 @@ The local viewer is organized around five primary tabs: `Dataset`, `Positions`, 
 - Computes Greeks, delta-safety, expected move, ROM-style metrics, configurable option scoring, and volatility context
 - Optionally writes a standalone daily-OHLCV price-context artifact with support/resistance context, moving averages, VWAP, a volume-node proxy, and gap-fill levels
 - Writes a timestamped CSV plus an append-only run log
-- Includes a local browser for exploring the output interactively, including dataset inspection, an optional positions browser for the default XDG data-dir positions file when that user-local file is present, per-ticker overview cards, `Most Profitable`, `Moderate Risk`, `High Conviction Call`, and `High Conviction Put` highlights, plus chain visualizations with chart tooltips and click-through row details
+- Includes a local browser for exploring the output interactively, including dataset inspection, a positions browser for the selected run's positions snapshot with default XDG positions fallback, per-ticker overview cards, `Most Profitable`, `Moderate Risk`, `High Conviction Call`, and `High Conviction Put` highlights, plus chain visualizations with chart tooltips and click-through row details
 - Produces normalized option-chain output for inspection, comparison, and archival
 
 Generated datasets and data artifacts are written under `$XDG_DATA_HOME/opx-chain/` (default `~/.local/share/opx-chain/`):

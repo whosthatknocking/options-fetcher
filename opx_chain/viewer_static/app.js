@@ -154,7 +154,16 @@ function syncTabUrl(tabName) {
 async function fetchJson(url) {
   const response = await fetch(url);
   if (!response.ok) {
-    throw new Error(`Request failed: ${response.status}`);
+    let message = `Request failed: ${response.status}`;
+    try {
+      const payload = await response.json();
+      if (payload && payload.error) {
+        message = payload.error;
+      }
+    } catch (_error) {
+      // Keep the HTTP status fallback when the response is not JSON.
+    }
+    throw new Error(message);
   }
   return response.json();
 }
@@ -1694,10 +1703,13 @@ async function loadData(fileName) {
   scheduleChainRender(false);
 }
 
-async function loadPositionsData() {
+async function loadPositionsData(csvName = null) {
   const tableState = state.positions;
   try {
-    const payload = await fetchJson('/api/positions');
+    const url = csvName
+      ? `/api/positions?file=${encodeURIComponent(csvName)}`
+      : '/api/positions';
+    const payload = await fetchJson(url);
     tableState.selectedFile = payload.selected_file;
     tableState.rows = payload.rows;
     tableState.columns = payload.columns;
@@ -1772,10 +1784,12 @@ function initializeTheme() {
 async function initialize() {
   initializeTheme();
   activateTab(getTabFromUrl());
-  await Promise.all([loadFiles(), loadReference(), loadPositionsData()]);
+  await Promise.all([loadFiles(), loadReference()]);
   if (state.files.length > 0) {
     await loadData(state.files[0].name);
+    await loadPositionsData(state.dataset.selectedFile);
   } else {
+    await loadPositionsData();
     state.dataset.rows = [];
     state.dataset.columns = [];
     state.dataset.selectedFile = null;
@@ -1790,6 +1804,7 @@ async function initialize() {
 
   elements.fileSelect.addEventListener('change', async (event) => {
     await loadData(event.target.value);
+    await loadPositionsData(state.dataset.selectedFile);
   });
 
   ['dataset', 'positions'].forEach((tableKey) => {

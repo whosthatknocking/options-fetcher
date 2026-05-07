@@ -269,6 +269,59 @@ def test_load_positions_payload_reads_rows_and_stops_before_footer(tmp_path: Pat
     assert "Footer notice" not in str(payload["rows"])
 
 
+def test_load_positions_payload_prefers_latest_dataset_sidecar(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    """Positions should load from the latest run snapshot when default positions are absent."""
+    run_dir = tmp_path / "runs" / "run-123"
+    output_dir = run_dir / "output"
+    output_dir.mkdir(parents=True)
+    dataset_path = output_dir / "options_engine_output_20260421_120000.csv"
+    dataset_path.write_text("underlying_symbol\nTSLA\n", encoding="utf-8")
+    (run_dir / "positions.csv").write_text(
+        "Symbol,Description,Quantity\nTSLA,TESLA INC,100\n",
+        encoding="utf-8",
+    )
+
+    monkeypatch.setattr(viewer, "discover_dataset_paths", lambda: [dataset_path])
+    monkeypatch.setattr(viewer, "POSITIONS_PATH", tmp_path / "missing_positions.csv")
+
+    payload = viewer.load_positions_payload()
+
+    assert payload["selected_file"] == "run-123/positions.csv"
+    assert payload["row_count"] == 1
+    assert payload["rows"][0]["Symbol"] == "TSLA"
+
+
+def test_api_positions_accepts_dataset_file_query(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    """The Positions endpoint should load the sidecar for the selected dataset."""
+    run_dir = tmp_path / "runs" / "run-456"
+    output_dir = run_dir / "output"
+    output_dir.mkdir(parents=True)
+    dataset_path = output_dir / "options_engine_output_20260422_120000.csv"
+    dataset_path.write_text("underlying_symbol\nNVDA\n", encoding="utf-8")
+    (run_dir / "positions.csv").write_text(
+        "Symbol,Description,Quantity\nNVDA,NVIDIA CORP,200\n",
+        encoding="utf-8",
+    )
+
+    monkeypatch.setattr(viewer, "discover_dataset_paths", lambda: [dataset_path])
+    monkeypatch.setattr(viewer, "POSITIONS_PATH", tmp_path / "missing_positions.csv")
+    handler = object.__new__(viewer.ViewerRequestHandler)
+    handler.path = f"/api/positions?file={dataset_path.name}"
+    captured = _capture_api_response(handler)
+
+    handler.do_GET()
+
+    assert captured["status"] == HTTPStatus.OK
+    assert captured["payload"]["selected_file"] == "run-456/positions.csv"
+    assert captured["payload"]["rows"][0]["Symbol"] == "NVDA"
+
+
 def test_resolve_csv_path_rejects_undiscovered_dataset_names(tmp_path: Path, monkeypatch):
     """Viewer dataset selection should only accept discovered dataset basenames."""
     output_dir = tmp_path / "output"

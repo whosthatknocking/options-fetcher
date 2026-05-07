@@ -236,12 +236,56 @@ def resolve_csv_path(csv_name: str | None = None) -> Path:
     raise FileNotFoundError(f"Dataset file not found: {csv_name}")
 
 
-def resolve_positions_path(path: Path | None = None) -> Path:
-    """Resolve the positions CSV path and require that it exists."""
-    candidate = (path or POSITIONS_PATH).expanduser()
+def _positions_sidecar_for_dataset(dataset_path: Path) -> Path | None:
+    """Return the run positions sidecar associated with a dataset path."""
+    if dataset_path.parent.name != "output":
+        return None
+    candidate = dataset_path.parent.parent / "positions.csv"
     if candidate.exists() and candidate.is_file():
         return candidate
-    raise FileNotFoundError(f"Positions CSV file not found: {candidate}")
+    return None
+
+
+def _resolve_dataset_positions_path(csv_name: str | None = None) -> Path | None:
+    """Resolve the positions sidecar for a selected or latest dataset."""
+    if csv_name is not None:
+        dataset_path = resolve_csv_path(csv_name)
+        return _positions_sidecar_for_dataset(dataset_path)
+    try:
+        dataset_path = resolve_csv_path(None)
+    except FileNotFoundError:
+        return None
+    return _positions_sidecar_for_dataset(dataset_path)
+
+
+def resolve_positions_path(
+    path: Path | None = None,
+    *,
+    csv_name: str | None = None,
+) -> Path:
+    """Resolve the positions CSV path and require that it exists.
+
+    Dataset run snapshots are preferred because they match the option-chain
+    artifact being viewed. The mutable default positions file remains a
+    fallback for older artifacts that do not have a run sidecar.
+    """
+    if path is not None:
+        candidate = path.expanduser()
+        if candidate.exists() and candidate.is_file():
+            return candidate
+        raise FileNotFoundError(f"Positions CSV file not found: {candidate}")
+
+    sidecar = _resolve_dataset_positions_path(csv_name)
+    if sidecar is not None:
+        return sidecar
+
+    candidate = POSITIONS_PATH.expanduser()
+    if candidate.exists() and candidate.is_file():
+        return candidate
+    raise FileNotFoundError(
+        f"Positions CSV file not found: {candidate}; "
+        "no selected dataset positions sidecar was found."
+    )
 
 
 def load_field_reference_markdown() -> str:
@@ -796,9 +840,13 @@ def build_column_definitions(
     ]
 
 
-def read_positions_rows(path: Path | None = None) -> tuple[Path, pd.DataFrame]:
+def read_positions_rows(
+    path: Path | None = None,
+    *,
+    csv_name: str | None = None,
+) -> tuple[Path, pd.DataFrame]:
     """Load the positions CSV into a table-shaped frame without footer notices."""
-    positions_path = resolve_positions_path(path)
+    positions_path = resolve_positions_path(path, csv_name=csv_name)
     with positions_path.open(newline="", encoding="utf-8-sig") as fh:
         reader = csv.reader(fh)
         header: list[str] | None = None
@@ -851,9 +899,22 @@ def load_csv_payload(csv_name: str | None = None) -> CsvPayload:
     }
 
 
-def load_positions_payload(path: Path | None = None) -> TablePayload:
+def _positions_selected_file_label(positions_path: Path) -> str:
+    """Return a non-local-path label for a positions source."""
+    if positions_path.name == "positions.csv" and positions_path.parent.name:
+        output_dir = positions_path.parent / "output"
+        if output_dir.exists() and output_dir.is_dir():
+            return f"{positions_path.parent.name}/positions.csv"
+    return positions_path.name
+
+
+def load_positions_payload(
+    path: Path | None = None,
+    *,
+    csv_name: str | None = None,
+) -> TablePayload:
     """Load the local positions CSV and serialize it for the viewer table."""
-    positions_path, frame = read_positions_rows(path)
+    positions_path, frame = read_positions_rows(path, csv_name=csv_name)
     descriptions = {
         **POSITIONS_FIELD_DESCRIPTIONS,
         **extract_field_descriptions(),
@@ -863,12 +924,8 @@ def load_positions_payload(path: Path | None = None) -> TablePayload:
         for record in frame.to_dict(orient="records")
     ]
     columns = build_column_definitions(frame, descriptions)
-    try:
-        selected_file = str(positions_path.relative_to(Path.cwd()))
-    except ValueError:
-        selected_file = positions_path.name
     return {
-        "selected_file": selected_file,
+        "selected_file": _positions_selected_file_label(positions_path),
         "row_count": len(rows),
         "columns": columns,
         "rows": rows,
@@ -936,8 +993,10 @@ class ViewerRequestHandler(SimpleHTTPRequestHandler):
             )
             return
         if parsed.path == "/api/positions":
+            query = parse_qs(parsed.query)
+            csv_name = query.get("file", [None])[0]
             self._respond_payload(
-                lambda _csv_name: load_positions_payload(),
+                lambda _csv_name: load_positions_payload(csv_name=csv_name),
                 error_label="positions",
             )
             return

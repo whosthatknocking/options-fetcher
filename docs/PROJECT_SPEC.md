@@ -510,7 +510,7 @@ Current viewer behavior includes:
 
 - dataset summary cards
 - active provider surfaced through dataset metadata when constant across the file
-- a `Positions` tab backed by `$XDG_DATA_HOME/opx-chain/positions.csv` with the same sortable/filterable table behavior and row-detail modal pattern used for exported datasets
+- a `Positions` tab backed first by the selected dataset's run-level `positions.csv` sidecar, then by `$XDG_DATA_HOME/opx-chain/positions.csv` for older artifacts without a sidecar, with the same sortable/filterable table behavior and row-detail modal pattern used for exported datasets
 - a `Reference` tab backed by the field-reference document
 - a `Chain View` tab that derives per-ticker/per-expiration visualizations directly from the exported CSV rows
 - sortable/filterable table view

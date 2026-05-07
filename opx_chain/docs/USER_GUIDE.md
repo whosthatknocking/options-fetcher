@@ -116,7 +116,7 @@ The viewer binds to `settings.viewer_host` and `settings.viewer_port` from `$XDG
 The viewer includes:
 
 - a sortable table for the exported CSV
-- a sortable `Positions` table for the default XDG data-dir positions file with the same row-detail modal used by the dataset table
+- a sortable `Positions` table for the selected dataset's run-level positions snapshot, falling back to the default XDG data-dir positions file for older artifacts without a snapshot
 - shareable tab URLs using `?tab=table`, `?tab=positions`, `?tab=summary`, `?tab=chain`, or `?tab=readme`
 - hover descriptions on column headers pulled from this guide
 - a file selector for available CSV exports
