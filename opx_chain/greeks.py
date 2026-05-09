@@ -4,6 +4,7 @@ import numpy as np
 import pandas as pd
 from scipy.stats import norm
 
+from opx_chain.option_types import OPTION_TYPE_CALL
 from opx_chain.utils import finite_float
 
 
@@ -60,7 +61,7 @@ def compute_greeks(  # pylint: disable=too-many-locals
     cdf_d1 = norm.cdf(d1)
     cdf_d2 = norm.cdf(d2)
 
-    is_call = df["option_type"] == "call"
+    is_call = df["option_type"] == OPTION_TYPE_CALL
     is_put = ~is_call
     valid_calls = valid & is_call.to_numpy()
     valid_puts = valid & is_put.to_numpy()

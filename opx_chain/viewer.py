@@ -26,6 +26,7 @@ from opx_chain.coerce import coerce_bool_or_default
 from opx_chain.config import get_runtime_config
 from opx_chain.export import CANONICAL_EXPORT_COLUMNS
 from opx_chain.json_utils import to_python_scalar
+from opx_chain.option_types import OPTION_TYPE_CALL, OPTION_TYPE_PUT
 from opx_chain.paths import get_runs_dir
 from opx_chain.positions import (
     STRIKE_MATCH_TOLERANCE,
@@ -609,7 +610,7 @@ def pick_moderate_risk_opportunity(frame: pd.DataFrame) -> OpportunitySummary | 
 def _compute_direction_alignment(day_change_pct: Any, option_type: str) -> pd.Series:
     """Return signed alignment so opposite-direction momentum is penalized."""
     changes = coerce_number(day_change_pct).fillna(0.0)
-    if option_type == "call":
+    if option_type == OPTION_TYPE_CALL:
         return changes
     return -changes
 
@@ -651,7 +652,7 @@ def pick_high_conviction_opportunity(
         option_type,
     )
     direction_alignment_weight = 300.0
-    delta_target = 0.40 if option_type == "call" else 0.35
+    delta_target = 0.40 if option_type == OPTION_TYPE_CALL else 0.35
     candidates["_distance_penalty"] = candidates["_strike_distance_pct"].fillna(1.0)
     candidates["_delta_penalty"] = (candidates["_delta_abs"] - delta_target).abs().fillna(1.0)
     candidates["_conviction_score"] = (
@@ -768,8 +769,8 @@ def build_ticker_summary(  # pylint: disable=too-many-locals
     hv = coerce_number(frame.get("historical_volatility")).dropna()
     profitable = pick_profitable_opportunity(frame)
     moderate = pick_moderate_risk_opportunity(frame)
-    high_conviction_call = pick_high_conviction_opportunity(frame, "call")
-    high_conviction_put = pick_high_conviction_opportunity(frame, "put")
+    high_conviction_call = pick_high_conviction_opportunity(frame, OPTION_TYPE_CALL)
+    high_conviction_put = pick_high_conviction_opportunity(frame, OPTION_TYPE_PUT)
     underlying_price_value = None if underlying_price.empty else float(underlying_price.iloc[0])
     day_change_value = None if day_change.empty else float(day_change.iloc[0])
     median_iv_value = (
@@ -784,8 +785,8 @@ def build_ticker_summary(  # pylint: disable=too-many-locals
     return {
         "ticker": ticker,
         "row_count": int(len(frame.index)),
-        "call_count": int((frame.get("option_type") == "call").sum()),
-        "put_count": int((frame.get("option_type") == "put").sum()),
+        "call_count": int((frame.get("option_type") == OPTION_TYPE_CALL).sum()),
+        "put_count": int((frame.get("option_type") == OPTION_TYPE_PUT).sum()),
         "expiration_count": int(frame.get("expiration_date").nunique()),
         "underlying_price": underlying_price_value,
         "underlying_day_change_pct": format_percent(day_change_value),

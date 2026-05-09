@@ -11,6 +11,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from opx_chain.json_utils import dumps_strict_json
+from opx_chain.option_types import OPTION_TYPE_CALL, OPTION_TYPE_PUT
 from opx_chain.paths import get_default_positions_path
 
 
@@ -102,7 +103,7 @@ def _parse_option_symbol(raw: str) -> OptionPositionKey | None:
     return OptionPositionKey(
         ticker=ticker,
         expiration_date=f"20{yy}-{mm}-{dd}",
-        option_type="call" if cp == "C" else "put",
+        option_type=OPTION_TYPE_CALL if cp == "C" else OPTION_TYPE_PUT,
         strike=strike,
     )
 

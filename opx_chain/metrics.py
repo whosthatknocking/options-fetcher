@@ -5,6 +5,7 @@ import pandas as pd
 
 from opx_chain.config import get_runtime_config
 from opx_chain.greeks import compute_greeks
+from opx_chain.option_types import OPTION_TYPE_CALL, OPTION_TYPES
 from opx_chain.utils import finite_float, is_finite_positive_number
 
 
@@ -188,7 +189,7 @@ def add_option_score(df):
         & df["spread_score"].notna()
         & df["dte_score"].notna()
         & df["theta_efficiency"].notna()
-        & df["option_type"].isin(["call", "put"])
+        & df["option_type"].isin(OPTION_TYPES)
     )
     df["option_score"] = np.where(required, _clip_zero_to_one(weighted_score) * 100, np.nan)
     validation_values = _compute_score_validation(
@@ -286,9 +287,13 @@ def add_derived_pricing_metrics(df, underlying_price):
         np.maximum(df["strike"] - spot_price, 0),
         np.nan,
     )
-    df["itm_amount"] = np.where(df["option_type"] == "call", call_itm_amount, put_itm_amount)
+    df["itm_amount"] = np.where(
+        df["option_type"] == OPTION_TYPE_CALL,
+        call_itm_amount,
+        put_itm_amount,
+    )
     df["otm_pct"] = np.where(
-        df["option_type"] == "call",
+        df["option_type"] == OPTION_TYPE_CALL,
         np.maximum(df["strike_vs_spot_pct"], 0),
         np.maximum(-df["strike_vs_spot_pct"], 0),
     )
@@ -348,12 +353,12 @@ def add_derived_pricing_metrics(df, underlying_price):
         np.nan,
     )
     otm_amount = np.where(
-        df["option_type"] == "call",
+        df["option_type"] == OPTION_TYPE_CALL,
         np.where(has_valid_spot, np.maximum(df["strike"] - spot_price, 0), np.nan),
         np.where(has_valid_spot, np.maximum(spot_price - df["strike"], 0), np.nan),
     )
     margin_floor = np.where(
-        df["option_type"] == "call",
+        df["option_type"] == OPTION_TYPE_CALL,
         np.nan if not has_valid_spot else 0.10 * spot_price,
         0.10 * df["strike"],
     )
@@ -386,7 +391,7 @@ def add_derived_pricing_metrics(df, underlying_price):
         .combine_first(df["mark_price_mid"])
     )
     df["capital_required"] = np.where(
-        df["option_type"] == "call",
+        df["option_type"] == OPTION_TYPE_CALL,
         call_capital_price * 100,
         df["strike"] * 100,
     )
@@ -401,7 +406,7 @@ def add_derived_pricing_metrics(df, underlying_price):
         np.nan,
     )
     df["break_even_if_short"] = np.where(
-        df["option_type"] == "call",
+        df["option_type"] == OPTION_TYPE_CALL,
         df["strike"] + df["premium_reference_price"],
         df["strike"] - df["premium_reference_price"],
     )

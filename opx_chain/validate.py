@@ -7,6 +7,7 @@ from dataclasses import dataclass
 import numpy as np
 import pandas as pd
 
+from opx_chain.option_types import OPTION_TYPES
 from opx_chain.schema import BOOLEAN_FIELDS
 
 
@@ -163,7 +164,7 @@ def validate_option_rows(df: pd.DataFrame) -> list[ValidationFinding]:
     if "option_type" in df.columns:
         invalid_option_type = (
             ~_missing_mask(df, "option_type")
-            & ~df["option_type"].isin({"call", "put"})
+            & ~df["option_type"].isin(OPTION_TYPES)
         )
         _append_row_findings(
             findings,

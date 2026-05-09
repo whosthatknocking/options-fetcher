@@ -17,6 +17,7 @@ from opx_chain.metrics import (
     add_theta_efficiency_below_p25,
 )
 from opx_chain.normalize import apply_post_download_filters, enrich_option_frame
+from opx_chain.option_types import OPTION_TYPE_CALL, OPTION_TYPE_PUT
 from opx_chain.positions import EMPTY_POSITION_SET, PositionSet
 from opx_chain.price_context import (
     PriceContextStatus,
@@ -411,7 +412,10 @@ def fetch_ticker_option_chain(  # pylint: disable=too-many-locals,too-many-branc
                     call_trade_count,
                     put_trade_count,
                 )
-            for option_type, option_frame in [("call", chain.calls), ("put", chain.puts)]:
+            for option_type, option_frame in [
+                (OPTION_TYPE_CALL, chain.calls),
+                (OPTION_TYPE_PUT, chain.puts),
+            ]:
                 if option_frame.empty:
                     continue
                 vendor_normalized = provider.normalize_option_frame(

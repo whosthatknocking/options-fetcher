@@ -23,6 +23,7 @@ from opx_chain.config import (
     get_provider_credentials,
     get_runtime_config,
 )
+from opx_chain.option_types import OPTION_TYPE_CALL, OPTION_TYPE_PUT
 from opx_chain.paths import get_default_config_path
 from opx_chain.providers.base import (
     DataProvider,
@@ -627,8 +628,8 @@ class MarketDataProvider(DataProvider):
         if "contract_size" not in scoped.columns:
             scoped["contract_size"] = "REGULAR"
 
-        calls = scoped.loc[scoped["side"] == "call"].copy()
-        puts = scoped.loc[scoped["side"] == "put"].copy()
+        calls = scoped.loc[scoped["side"] == OPTION_TYPE_CALL].copy()
+        puts = scoped.loc[scoped["side"] == OPTION_TYPE_PUT].copy()
         return OptionChainFrames(calls=calls, puts=puts)
 
     def normalize_option_frame(  # pylint: disable=too-many-arguments,too-many-positional-arguments

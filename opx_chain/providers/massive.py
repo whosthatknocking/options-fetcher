@@ -19,6 +19,7 @@ from opx_chain.config import (
     get_provider_credentials,
     get_runtime_config,
 )
+from opx_chain.option_types import OPTION_TYPE_CALL, OPTION_TYPE_PUT
 from opx_chain.paths import get_default_config_path
 from opx_chain.providers.base import (
     DataProvider,
@@ -61,10 +62,10 @@ def _get_field(value: Any, *path: str) -> Any:
 def _normalize_contract_type(value: Any) -> str | None:
     """Map Massive contract types to canonical call/put labels."""
     normalized = str(value).strip().lower() if value is not None else ""
-    if normalized in {"call", "c"}:
-        return "call"
-    if normalized in {"put", "p"}:
-        return "put"
+    if normalized in {OPTION_TYPE_CALL, "c"}:
+        return OPTION_TYPE_CALL
+    if normalized in {OPTION_TYPE_PUT, "p"}:
+        return OPTION_TYPE_PUT
     return None
 
 
@@ -91,9 +92,9 @@ def _compute_is_in_the_money(result: Any, option_type: str | None) -> bool | Non
     strike_price = coerce_float(_get_field(result, "details", "strike_price"))
     if pd.isna(underlying_price) or pd.isna(strike_price):
         return None
-    if option_type == "call":
+    if option_type == OPTION_TYPE_CALL:
         return bool(underlying_price > strike_price)
-    if option_type == "put":
+    if option_type == OPTION_TYPE_PUT:
         return bool(underlying_price < strike_price)
     return None
 
@@ -377,8 +378,8 @@ class MassiveProvider(DataProvider):
             empty = pd.DataFrame()
             return OptionChainFrames(calls=empty, puts=empty)
 
-        calls = frame[frame["option_type"] == "call"].copy()
-        puts = frame[frame["option_type"] == "put"].copy()
+        calls = frame[frame["option_type"] == OPTION_TYPE_CALL].copy()
+        puts = frame[frame["option_type"] == OPTION_TYPE_PUT].copy()
         return OptionChainFrames(calls=calls, puts=puts)
 
     def normalize_option_frame(  # pylint: disable=too-many-arguments,too-many-positional-arguments
