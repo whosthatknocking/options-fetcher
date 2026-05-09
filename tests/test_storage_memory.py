@@ -9,6 +9,7 @@ import pytest
 
 from opx_chain import SCHEMA_VERSION
 from opx_chain.storage.base import StorageBackend
+from opx_chain.storage._disk import content_hash_for_bytes
 from opx_chain.storage.memory import MemoryBackend
 from opx_chain.storage.models import (
     ArtifactWrite,
@@ -458,6 +459,14 @@ def test_content_hash_is_deterministic():
     r2 = backend.write_dataset(run_id, make_write())
 
     assert r1.content_hash == r2.content_hash
+
+
+def test_content_hash_helper_uses_sha256():
+    """Storage backends share the same content-hash algorithm."""
+    assert content_hash_for_bytes(b"abc") == (
+        "ba7816bf8f01cfea414140de5dae2223"
+        "b00361a396177a9cb410ff61f20015ad"
+    )
 
 
 def test_schema_version_constant_is_positive_int():

@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
-import hashlib
 import uuid
 from datetime import datetime, timezone
 
+from opx_chain.storage._disk import content_hash_for_bytes
 from opx_chain.storage.models import (
     ArtifactRecord,
     ArtifactWrite,
@@ -105,7 +105,7 @@ class MemoryBackend:
         dataset_id = str(uuid.uuid4())
         serializer = get_serializer(dataset.format)
         content = serializer.serialize_bytes(dataset.data)
-        content_hash = hashlib.sha256(content).hexdigest()
+        content_hash = content_hash_for_bytes(content)
         record = DatasetRecord(
             dataset_id=dataset_id,
             run_id=run_id,
@@ -128,7 +128,7 @@ class MemoryBackend:
     def write_artifact(self, run_id: str, artifact: ArtifactWrite) -> ArtifactRecord:
         """Store artifact bytes in memory and return an ArtifactRecord."""
         artifact_id = str(uuid.uuid4())
-        content_hash = hashlib.sha256(artifact.content).hexdigest()
+        content_hash = content_hash_for_bytes(artifact.content)
         record = ArtifactRecord(
             artifact_id=artifact_id,
             run_id=run_id,

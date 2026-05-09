@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import hashlib
 import shutil
 import threading
 import uuid
@@ -29,6 +28,7 @@ from opx_chain.storage.models import (
 )
 from opx_chain.storage.atomic import atomic_write_bytes, atomic_write_text
 from opx_chain.storage._disk import (
+    content_hash_for_bytes,
     resolve_child_path,
     write_artifact_bytes,
     write_dataset_artifact,
@@ -494,7 +494,7 @@ class FilesystemBackend:
             dest = self._sidecar_path(run_id, artifact.filename)
             atomic_write_bytes(dest, artifact.content)
             artifact_id = f"{run_id}:{artifact.filename}"
-            content_hash = hashlib.sha256(artifact.content).hexdigest()
+            content_hash = content_hash_for_bytes(artifact.content)
         else:
             artifact_id, dest, content_hash = write_artifact_bytes(
                 artifact.content, self._debug_dir, artifact.filename

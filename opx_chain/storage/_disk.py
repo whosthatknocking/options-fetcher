@@ -12,6 +12,11 @@ from opx_chain.storage.atomic import atomic_write_bytes
 from opx_chain.storage.serializers import DatasetSerializer
 
 
+def content_hash_for_bytes(content: bytes) -> str:
+    """Return the stable SHA-256 hex digest for stored artifact bytes."""
+    return hashlib.sha256(content).hexdigest()
+
+
 def validate_path_component(value: str, *, label: str = "path component") -> str:
     """Return a single safe path component or raise ValueError."""
     if not isinstance(value, str) or not value:
@@ -53,7 +58,7 @@ def write_dataset_artifact(
     artifact_path = (output_dir / f"{dataset_id}.{dataset_format}").resolve()
     content = serializer.serialize_bytes(data)
     atomic_write_bytes(artifact_path, content)
-    content_hash = hashlib.sha256(content).hexdigest()
+    content_hash = content_hash_for_bytes(content)
     return dataset_id, artifact_path, content_hash
 
 
@@ -70,5 +75,5 @@ def write_artifact_bytes(
         validate_path_component(filename, label="filename"),
     )
     atomic_write_bytes(dest, content)
-    content_hash = hashlib.sha256(content).hexdigest()
+    content_hash = content_hash_for_bytes(content)
     return artifact_id, dest, content_hash

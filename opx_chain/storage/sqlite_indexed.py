@@ -3,7 +3,6 @@
 
 from __future__ import annotations
 
-import hashlib
 import json
 import re
 import shutil
@@ -34,6 +33,7 @@ from opx_chain.storage.models import (
 )
 from opx_chain.storage.atomic import atomic_write_bytes
 from opx_chain.storage._disk import (
+    content_hash_for_bytes,
     resolve_child_path,
     write_artifact_bytes,
     write_dataset_artifact,
@@ -539,7 +539,7 @@ class SqliteIndexedBackend:
             existed_before_write = dest.exists()
             atomic_write_bytes(dest, artifact.content)
             artifact_id = f"{run_id}:{artifact.filename}"
-            content_hash = hashlib.sha256(artifact.content).hexdigest()
+            content_hash = content_hash_for_bytes(artifact.content)
             remove_empty_parent = False
         else:
             artifact_id, dest, content_hash = write_artifact_bytes(
