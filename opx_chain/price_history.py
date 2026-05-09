@@ -2,11 +2,13 @@
 
 from __future__ import annotations
 
+from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import date, datetime, timezone
 from pathlib import Path
 import sqlite3
 import threading
+import weakref
 
 import pandas as pd
 
@@ -119,6 +121,7 @@ class PriceHistoryStore:
     def __init__(self, db_path: Path) -> None:
         self._db_path = Path(db_path)
         self._connection: sqlite3.Connection | None = None
+        self._connection_finalizer: weakref.finalize | None = None
         self._lock = threading.RLock()
         self._db_path.parent.mkdir(parents=True, exist_ok=True)
         self._init_schema()
@@ -128,6 +131,9 @@ class PriceHistoryStore:
         with self._lock:
             if self._connection is not None:
                 self._connection.close()
+                if self._connection_finalizer is not None:
+                    self._connection_finalizer.detach()
+                    self._connection_finalizer = None
                 self._connection = None
 
     def __del__(self) -> None:
@@ -146,11 +152,22 @@ class PriceHistoryStore:
     def _connection_for_use(self) -> sqlite3.Connection:
         if self._connection is None:
             self._connection = self._connect()
+            self._connection_finalizer = weakref.finalize(self, self._connection.close)
         return self._connection
 
-    def _init_schema(self) -> None:
+    @contextmanager
+    def _open_connection(self):
+        """Yield the pooled SQLite connection and rollback failed writes."""
         with self._lock:
             conn = self._connection_for_use()
+            try:
+                yield conn
+            except Exception:
+                conn.rollback()
+                raise
+
+    def _init_schema(self) -> None:
+        with self._open_connection() as conn:
             conn.executescript(_SCHEMA_SQL)
             row = conn.execute(
                 "SELECT value FROM _schema_meta WHERE key = 'schema_version'"
@@ -313,8 +330,7 @@ class PriceHistoryStore:
             )
         if not rows:
             return 0
-        with self._lock:
-            conn = self._connection_for_use()
+        with self._open_connection() as conn:
             conn.executemany(
                 """
                 INSERT INTO daily_price_bars
@@ -384,8 +400,7 @@ class PriceHistoryStore:
         provider_key = provider.strip()
         ticker_key = self._normalize_key(ticker)
         checked_at = checked_at or _utc_now()
-        with self._lock:
-            conn = self._connection_for_use()
+        with self._open_connection() as conn:
             conn.execute(
                 """
                 INSERT INTO price_history_syncs

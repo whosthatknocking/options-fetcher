@@ -1,8 +1,10 @@
 """Tests for the durable daily price-history store."""
 
 from datetime import date, datetime, timedelta, timezone
+import sqlite3
 
 import pandas as pd
+import pytest
 
 from conftest import make_runtime_config
 from opx_chain.price_history import PriceHistoryStore, reconcile_price_history
@@ -38,6 +40,21 @@ class HistoryProvider:  # pylint: disable=too-few-public-methods
         return _history(end=self.end, periods=lookback_days)
 
 
+class FailingConnection:
+    """Connection stub that verifies failed write transactions roll back."""
+
+    def __init__(self) -> None:
+        self.rolled_back = False
+
+    def execute(self, *_args, **_kwargs):
+        """Fail every write statement so the transaction context handles rollback."""
+        raise sqlite3.OperationalError("forced failure")
+
+    def rollback(self) -> None:
+        """Record that rollback was requested."""
+        self.rolled_back = True
+
+
 def test_price_history_store_enables_sqlite_foreign_keys(tmp_path):
     """Price-history connections should use the same FK guard as sibling stores."""
     store = PriceHistoryStore(tmp_path / "price-history.db")
@@ -45,6 +62,42 @@ def test_price_history_store_enables_sqlite_foreign_keys(tmp_path):
     enabled = store._connection_for_use().execute("PRAGMA foreign_keys").fetchone()[0]  # pylint: disable=protected-access
 
     assert enabled == 1
+
+
+def test_price_history_store_detaches_finalizer_on_close(tmp_path):
+    """Price-history pooled connections should mirror sibling SQLite cleanup."""
+    store = PriceHistoryStore(tmp_path / "price-history.db")
+    finalizer = store._connection_finalizer  # pylint: disable=protected-access
+
+    assert finalizer is not None
+    assert finalizer.alive
+
+    store.close()
+
+    assert store._connection is None  # pylint: disable=protected-access
+    assert store._connection_finalizer is None  # pylint: disable=protected-access
+    assert not finalizer.alive
+
+
+def test_price_history_store_rolls_back_failed_write(tmp_path, monkeypatch):
+    """Failed price-history writes must not leave dirty pooled transactions."""
+    store = PriceHistoryStore(tmp_path / "price-history.db")
+    connection = FailingConnection()
+    monkeypatch.setattr(store, "_connection_for_use", lambda: connection)
+
+    with pytest.raises(sqlite3.OperationalError):
+        store.record_sync(
+            provider="stub",
+            ticker="AAA",
+            lookback_days=30,
+            status="error",
+            requested_lookback_days=30,
+            latest_trading_date=None,
+            fetched_rows=0,
+            stored_rows=0,
+        )
+
+    assert connection.rolled_back
 
 
 def test_reconcile_price_history_backfills_new_ticker(tmp_path):
