@@ -1,5 +1,8 @@
 """Shared schema constants for canonical option data."""
 
+INTEGER_DATASET_FIELDS = ("days_to_expiration",)
+TIMESTAMP_FIELDS = ("option_quote_time", "underlying_price_time")
+
 QUALITY_FLAG_FIELDS = (
     "has_valid_underlying",
     "has_valid_strike",

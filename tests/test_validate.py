@@ -4,7 +4,7 @@ import pandas as pd
 
 import opx_chain.validate as validate_mod
 from opx_chain.export import CANONICAL_EXPORT_COLUMNS
-from opx_chain.schema import BOOLEAN_FIELDS
+from opx_chain.schema import BOOLEAN_FIELDS, INTEGER_DATASET_FIELDS, TIMESTAMP_FIELDS
 from opx_chain.validate import (
     NUMERIC_FIELDS,
     emit_validation_report,
@@ -112,6 +112,13 @@ def test_exported_boolean_fields_are_validated():
 
     for field in BOOLEAN_FIELDS:
         assert field in CANONICAL_EXPORT_COLUMNS
+
+
+def test_schema_field_groups_cover_dataset_dtypes_and_validation():
+    """Dataset normalization and validation should share canonical schema fields."""
+    assert INTEGER_DATASET_FIELDS == ("days_to_expiration",)
+    assert TIMESTAMP_FIELDS == ("option_quote_time", "underlying_price_time")
+    assert validate_mod.TIMESTAMP_FIELDS is TIMESTAMP_FIELDS
 
 
 def test_validate_option_rows_flags_derived_boolean_fields():

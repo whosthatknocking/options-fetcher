@@ -8,7 +8,7 @@ import numpy as np
 import pandas as pd
 
 from opx_chain.option_types import OPTION_TYPES
-from opx_chain.schema import BOOLEAN_FIELDS
+from opx_chain.schema import BOOLEAN_FIELDS, TIMESTAMP_FIELDS
 
 
 REQUIRED_CORE_FIELDS = (
@@ -31,10 +31,6 @@ NUMERIC_FIELDS = (
     "volume",
     "open_interest",
     "implied_volatility",
-)
-TIMESTAMP_FIELDS = (
-    "option_quote_time",
-    "underlying_price_time",
 )
 @dataclass(frozen=True)
 class ValidationFinding:

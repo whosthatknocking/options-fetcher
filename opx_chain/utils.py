@@ -7,11 +7,7 @@ import numpy as np
 import pandas as pd
 
 from opx_chain.coerce import coerce_bool_or_default
-from opx_chain.schema import BOOLEAN_FIELDS
-
-
-INTEGER_DATASET_COLUMNS = ("days_to_expiration",)
-TIMESTAMP_DATASET_COLUMNS = ("option_quote_time", "underlying_price_time")
+from opx_chain.schema import BOOLEAN_FIELDS, INTEGER_DATASET_FIELDS, TIMESTAMP_FIELDS
 
 
 def _coerce_boolean_value(value):
@@ -31,7 +27,7 @@ def _normalize_boolean_series(series: pd.Series) -> pd.Series:
 def _normalize_dataset_dtypes(df: pd.DataFrame) -> pd.DataFrame:
     """Apply canonical artifact dtypes after reading CSV or parquet."""
     normalized = df.copy()
-    for column in INTEGER_DATASET_COLUMNS:
+    for column in INTEGER_DATASET_FIELDS:
         if column in normalized.columns:
             normalized[column] = pd.to_numeric(
                 normalized[column], errors="coerce"
@@ -39,7 +35,7 @@ def _normalize_dataset_dtypes(df: pd.DataFrame) -> pd.DataFrame:
     for column in BOOLEAN_FIELDS:
         if column in normalized.columns:
             normalized[column] = _normalize_boolean_series(normalized[column])
-    for column in TIMESTAMP_DATASET_COLUMNS:
+    for column in TIMESTAMP_FIELDS:
         if column in normalized.columns:
             timestamp_values = pd.to_datetime(
                 normalized[column], utc=True, errors="coerce", format="mixed"
