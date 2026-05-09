@@ -14,6 +14,7 @@ import pandas as pd
 
 from opx_chain.config import get_runtime_config
 from opx_chain.normalize import normalize_vendor_option_frame
+from opx_chain.json_utils import to_python_scalar
 from opx_chain.storage.atomic import atomic_write_text
 
 
@@ -82,11 +83,9 @@ def _to_json_ready(value):  # pylint: disable=too-many-return-statements
         return [_to_json_ready(record) for record in records]
     if isinstance(value, pd.Series):
         return _to_json_ready(value.where(pd.notna(value), None).to_dict())
-    if hasattr(value, "item") and callable(getattr(value, "item")):
-        try:
-            return value.item()
-        except (ValueError, TypeError):
-            pass
+    scalar = to_python_scalar(value)
+    if scalar is not value:
+        return scalar
     if hasattr(value, "__dict__"):
         return {
             key: _to_json_ready(item)

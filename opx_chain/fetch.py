@@ -8,7 +8,7 @@ import numpy as np
 import pandas as pd
 
 from opx_chain.config import get_runtime_config
-from opx_chain.json_utils import dumps_strict_json, loads_strict_json
+from opx_chain.json_utils import dumps_strict_json, loads_strict_json, to_python_scalar
 from opx_chain.metrics import (
     add_expected_move_by_expiration,
     add_iv_state_level,
@@ -112,7 +112,7 @@ def _prepare_cached_json_value(value):
     elif isinstance(value, (list, tuple)):
         prepared = [_prepare_cached_json_value(item) for item in value]
     elif isinstance(value, np.generic):
-        prepared = value.item()
+        prepared = to_python_scalar(value)
     if isinstance(prepared, Real) and not isinstance(prepared, bool):
         return prepared if np.isfinite(float(prepared)) else None
     return {_JSON_NAT_KEY: True} if is_nat else prepared

@@ -25,6 +25,7 @@ from pandas.api.types import is_bool_dtype, is_numeric_dtype
 from opx_chain.coerce import coerce_bool_or_default
 from opx_chain.config import get_runtime_config
 from opx_chain.export import CANONICAL_EXPORT_COLUMNS
+from opx_chain.json_utils import to_python_scalar
 from opx_chain.paths import get_runs_dir
 from opx_chain.positions import (
     STRIKE_MATCH_TOLERANCE,
@@ -266,7 +267,7 @@ def normalize_value(value: Any) -> Any:
         return None
     if isinstance(value, (pd.Timestamp,)):
         return value.isoformat()
-    return value.item() if hasattr(value, "item") else value
+    return to_python_scalar(value)
 
 
 def sanitize_json_payload(value: Any) -> Any:
@@ -280,8 +281,10 @@ def sanitize_json_payload(value: Any) -> Any:
         normalized = normalized.isoformat()
     elif isinstance(normalized, float) and not math.isfinite(normalized):
         normalized = None
-    elif hasattr(normalized, "item") and not isinstance(normalized, (str, bytes, bytearray)):
-        normalized = sanitize_json_payload(normalized.item())
+    elif not isinstance(normalized, (str, bytes, bytearray)):
+        scalar = to_python_scalar(normalized)
+        if scalar is not normalized:
+            normalized = sanitize_json_payload(scalar)
     elif pd.isna(normalized):
         normalized = None
     return normalized

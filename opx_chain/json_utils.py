@@ -6,6 +6,19 @@ import json
 from typing import Any
 
 
+def to_python_scalar(value: Any) -> Any:
+    """Return a Python scalar for numpy/pandas scalar-like values when safe."""
+    if isinstance(value, str | bytes | bytearray):
+        return value
+    item = getattr(value, "item", None)
+    if not callable(item):
+        return value
+    try:
+        return item()
+    except (OverflowError, TypeError, ValueError):
+        return value
+
+
 def _reject_non_finite_json_constant(value: str) -> None:
     raise ValueError(f"non-finite JSON value is not allowed: {value}")
 
