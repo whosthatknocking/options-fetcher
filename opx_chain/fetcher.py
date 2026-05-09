@@ -5,6 +5,7 @@ from dataclasses import fields as dataclass_fields, replace
 from datetime import datetime, timedelta, timezone
 import hashlib
 import json
+import logging
 import os
 from pathlib import Path
 import shutil
@@ -308,20 +309,13 @@ def release_fetcher_lock(lock_handle, lock_path: Path | None = None):
     release_file_lock(lock_handle)
 
 
-class _NullLogger:
-    """Discards all log output — used in --dry-run mode to avoid writing log files."""
-
-    def info(self, *_a, **_kw):
-        """No-op."""
-
-    def warning(self, *_a, **_kw):
-        """No-op."""
-
-    def exception(self, *_a, **_kw):
-        """No-op."""
-
-    def error(self, *_a, **_kw):
-        """No-op."""
+def _dry_run_logger() -> logging.Logger:
+    """Return a stdlib logger that discards dry-run log records."""
+    logger = logging.getLogger("opx_chain.fetcher.dry_run")
+    if not any(isinstance(handler, logging.NullHandler) for handler in logger.handlers):
+        logger.addHandler(logging.NullHandler())
+    logger.propagate = False
+    return logger
 
 
 def _validation_sample(finding: ValidationFinding) -> str:
@@ -423,7 +417,7 @@ def _do_fetch_with_lock_held(  # pylint: disable=too-many-branches,too-many-loca
     try:
         storage = get_storage_backend(config)
         if dry_run:
-            logger = _NullLogger()
+            logger = _dry_run_logger()
             print(f"Today: {config.today}  [DRY RUN — no API calls or writes]")
         else:
             logger, log_path = create_run_logger()

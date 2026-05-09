@@ -706,6 +706,20 @@ def test_dry_run_makes_no_api_calls_and_no_writes(tmp_path: Path):
     assert not backend.list_datasets()
 
 
+def test_dry_run_logger_uses_stdlib_null_logger():
+    """Dry-run logging should keep the complete stdlib logger method surface."""
+    from opx_chain import fetcher  # pylint: disable=import-outside-toplevel
+
+    logger = fetcher._dry_run_logger()  # pylint: disable=protected-access
+
+    assert logger.name == "opx_chain.fetcher.dry_run"
+    assert logger.propagate is False
+    assert any(isinstance(handler, fetcher.logging.NullHandler) for handler in logger.handlers)
+    logger.debug("debug calls should be supported")
+    logger.critical("critical calls should be supported")
+    logger.log(fetcher.logging.INFO, "generic log calls should be supported")
+
+
 def test_fetcher_lock_blocks_second_holder(tmp_path: Path):
     """Fetcher locks must remain non-blocking without requiring fcntl imports."""
     lock_path = tmp_path / "fetcher.lock"
