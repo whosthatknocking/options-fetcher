@@ -6,8 +6,6 @@ This guide is for people changing the codebase, adding providers, or working on 
 
 ```text
 .
-├── fetcher.py
-├── viewer.py
 ├── docs/
 │   ├── DEVELOPMENT.md
 │   ├── DESIGN_SPEC.md
@@ -23,6 +21,7 @@ This guide is for people changing the codebase, adding providers, or working on 
 │   ├── config.py
 │   ├── export.py
 │   ├── fetch.py
+│   ├── fetcher.py
 │   ├── greeks.py
 │   ├── metrics.py
 │   ├── normalize.py
@@ -259,7 +258,7 @@ Run the dedicated local coverage workflow with:
 That script:
 
 - runs the full pytest suite under coverage using the repo's `pyproject.toml` coverage config
-- measures the packaged modules plus the top-level compatibility entrypoints such as `main.py`, `fetcher.py`, and `viewer.py`
+- measures the packaged modules plus the top-level compatibility entrypoint `main.py`
 - prints a missing-lines terminal report sorted by lowest coverage first
 - writes browser and machine-readable artifacts to `htmlcov/index.html`, `coverage.xml`, and `coverage.json`
 - prints a final `--skip-covered` report so only files with remaining gaps stay in view

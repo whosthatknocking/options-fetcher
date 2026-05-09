@@ -18,7 +18,7 @@ Core product rules:
 - output files must not mix providers
 - the canonical CSV schema is the main product contract
 - provider-specific data should map into existing canonical fields where semantics match
-- `viewer.py` remains unchanged as the top-level entrypoint name
+- `opx-view` remains unchanged as the viewer CLI entrypoint name
 
 Current minimum supported runtime:
 
@@ -62,7 +62,8 @@ Implemented naming rules:
 
 - the Python package path is `opx_chain`
 - documentation and user-facing commands use `opx-chain`
-- `viewer.py` remains the unchanged entrypoint name
+- `opx-view` remains the unchanged viewer CLI entrypoint name
+- the viewer implementation lives in `opx_chain.viewer`
 - no temporary compatibility layer for the old package name remains in the repo
 
 ## 4. Runtime Model
@@ -527,7 +528,7 @@ Current validation coverage includes:
 
 - config loading and fallback behavior
 - provider factory selection and unsupported-provider handling
-- unchanged `viewer.py` entrypoint behavior
+- unchanged `opx-view` entrypoint behavior
 - schema-preserving export behavior
 - shared fetch logging behavior
 - Massive normalization and field mapping
@@ -558,7 +559,7 @@ Completed:
 
 - migrated runtime settings into `$XDG_CONFIG_HOME/opx-chain/config.toml` (default `~/.config/opx-chain/config.toml`)
 - renamed the project/package to `opx-chain` / `opx_chain`
-- kept `viewer.py` unchanged
+- kept `opx-view` unchanged
 - isolated credential access behind the config layer
 
 ### 10.2 Provider Contract Cleanup
@@ -650,7 +651,7 @@ Future changes should preserve these project rules:
 - prefer provider mapping over schema expansion
 - keep provider selection single-source and config-driven
 - keep provider behavior explicit in documentation
-- keep `viewer.py` unchanged as the entrypoint name
+- keep `opx-view` unchanged as the viewer CLI entrypoint name
 - avoid temporary compatibility shims for completed rename work
 
 ## 12. Current Completion Status

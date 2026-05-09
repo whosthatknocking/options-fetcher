@@ -180,7 +180,8 @@ Common files to update:
 
 - The package version is defined in `pyproject.toml`.
 - Current supported providers are `yfinance`, `massive`, and `marketdata`.
-- `viewer.py` remains the stable top-level viewer entrypoint name.
+- `opx-view` remains the stable viewer CLI entrypoint; implementation lives in
+  `opx_chain.viewer`.
 - This project is the data and screening layer. The portfolio decision engine is downstream and should not be collapsed into the fetch/viewer runtime.
 
 ## Good Changes

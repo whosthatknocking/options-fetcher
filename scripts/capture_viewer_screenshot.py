@@ -100,17 +100,25 @@ def main() -> int:
     env["OPX_VIEWER_QUIET"] = "1"
 
     with subprocess.Popen(
-        [sys.executable, "viewer.py"],
+        [sys.executable, "-m", "opx_chain.viewer"],
         cwd=str(REPO_ROOT),
         env=env,
         stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
+        stderr=subprocess.PIPE,
+        text=True,
     ) as process:
         try:
             wait_for_server(url)
             capture_screenshot(url, args.output, args.theme)
             print(f"Saved screenshot: {args.output}")
             return 0
+        except RuntimeError as exc:
+            stderr_text = ""
+            if process.poll() is not None and process.stderr is not None:
+                stderr_text = process.stderr.read().strip()
+            if stderr_text:
+                raise RuntimeError(f"{exc}; viewer stderr: {stderr_text}") from exc
+            raise
         finally:
             process.terminate()
             try:

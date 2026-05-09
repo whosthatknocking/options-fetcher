@@ -40,3 +40,16 @@ def test_runtime_runs_dir_callers_delegate_to_shared_helper():
 
         assert "get_runs_dir(" in source
         assert 'Path(config.storage_dir) / "runs" if config.storage_dir else' not in source
+
+
+def test_capture_viewer_screenshot_launches_packaged_viewer():
+    """Screenshot tooling should launch the packaged viewer and surface stderr."""
+    source = (ROOT / "scripts" / "capture_viewer_screenshot.py").read_text(
+        encoding="utf-8"
+    )
+
+    assert '[sys.executable, "-m", "opx_chain.viewer"]' in source
+    assert "stderr=subprocess.PIPE" in source
+    assert "viewer stderr:" in source
+    assert "viewer.py" not in source
+    assert "stderr=subprocess.DEVNULL" not in source
