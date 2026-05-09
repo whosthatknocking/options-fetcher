@@ -10,6 +10,26 @@ integrate without coupling to internal implementation details.
 
 ---
 
+## Boundary and Duplication Policy
+
+`opx-chain` owns public contracts for option-chain market data, canonical
+exports, storage/dataset discovery, provider-owned metadata, and positions
+parsing. Downstream packages may depend on those contracts only through the
+public surfaces documented here.
+
+Generic helpers are not external contracts. Similar JSON helpers, timestamp
+formatting, timestamp-age guards, XDG/path helpers, logging helpers, CLI/test
+guards, display formatting, and error wording may remain package-local in
+`opx-chain` and downstream packages. If one package has a concrete bug in those
+areas, fix that package without creating a shared abstraction.
+
+Promote behavior into this external interface only when downstream consumers
+must rely on the same `opx-chain` domain semantics. Good candidates are storage
+dataset handles and schema metadata, option-chain reuse and freshness fields,
+provider/fetcher defaults that define exported rows, and option or ticker
+parsing when it governs chain/positions boundary behavior. Strategy-layer
+policy remains outside this interface.
+
 ## 1. Scope
 
 Three integration points are in scope:

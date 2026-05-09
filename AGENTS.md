@@ -118,6 +118,32 @@ Keep those files aligned with the implementation. If you change canonical fields
 - Do not reintroduce rich portfolio/positions browsing in opx-chain. The viewer may show only lightweight positions counts, parsed-position fingerprint, and chain coverage metadata; portfolio-specific browsing belongs in opx-strategy.
 - Use JSON-serializable payloads only when sending data to the browser.
 
+## Package Boundary and Downstream Consumers
+
+`opx-chain` is the market-data collection, normalization, storage, and export
+package. Downstream packages such as `opx-strategy` may import only documented
+public APIs for option-chain datasets, storage handles, provider-owned
+market-data artifacts, and positions parsing.
+
+Boundary rules:
+
+- Never import `opx_strategy` or add strategy-layer policy here. Prompt rules,
+  strategy constraints, decision schemas, trade validation policy, run
+  lifecycle, server behavior, UI behavior, and rendered strategy output belong
+  to `opx-strategy`.
+- Generic helper duplication across packages is acceptable when the behavior is
+  package-local: JSON strict/sanitize helpers, timestamp formatting,
+  timestamp-age handling, XDG/path helpers, logger helpers, CLI/test guards,
+  display formatting, or error wording. Fix concrete defects locally instead of
+  creating shared glue.
+- Promote behavior to an `opx-chain` public contract only when it defines the
+  market-data, storage, export, dataset, option-chain, or positions-parsing
+  surface downstream consumers rely on. Document that contract in
+  `docs/EXTERNAL_INTERFACE_SPEC.md` and expose it through a stable module.
+- Do not create an `opx_common` package or shared cross-repo module to remove
+  small duplication unless the operator explicitly approves that architecture
+  change and the public contract is documented.
+
 ## Error Handling and Stability
 
 - Raise clear project-appropriate errors for config, authentication, mapping, and validation failures.

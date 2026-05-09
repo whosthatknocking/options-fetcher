@@ -53,6 +53,9 @@ The project does not currently aim to:
 - act as a live trading terminal
 - implement a strategy engine, portfolio action engine, or trade-decision workflow
 - implement a secret-management system beyond local user config
+- own downstream strategy policy or absorb package-local helper behavior from
+  `opx-strategy`; only documented market-data, storage, export, dataset,
+  option-chain, and positions-parsing contracts belong in `opx-chain`
 
 ## 3. Naming and Packaging
 
