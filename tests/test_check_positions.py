@@ -1,5 +1,6 @@
 """Tests for opx.check_positions."""
 
+import ast
 import csv
 import os
 from pathlib import Path
@@ -135,12 +136,58 @@ def test_check_positions_true_like_uses_canonical_boolean_coercion():
 
 def test_check_positions_true_like_delegates_to_canonical_coercer():
     """Avoid reintroducing the old 3-string truthy set in opx-check."""
-    module_source = (
-        Path(__file__).resolve().parents[1] / "opx_chain" / "check_positions.py"
-    ).read_text(encoding="utf-8")
+    module_path = Path(__file__).resolve().parents[1] / "opx_chain" / "check_positions.py"
+    tree = ast.parse(module_path.read_text(encoding="utf-8"), filename=str(module_path))
+    true_like = next(
+        node
+        for node in tree.body
+        if isinstance(node, ast.FunctionDef) and node.name == "_is_true_like"
+    )
 
-    assert "coerce_bool_or_default(value, default=False) is True" in module_source
-    assert '{"true", "1", "yes"}' not in module_source
+    def call_name(node):
+        if isinstance(node, ast.Name):
+            return node.id
+        if isinstance(node, ast.Attribute):
+            return node.attr
+        return None
+
+    def is_false_constant(node):
+        return isinstance(node, ast.Constant) and node.value is False
+
+    canonical_calls = [
+        node
+        for node in ast.walk(true_like)
+        if isinstance(node, ast.Call) and call_name(node.func) == "coerce_bool_or_default"
+    ]
+    assert len(canonical_calls) == 1
+    assert any(
+        keyword.arg == "default" and is_false_constant(keyword.value)
+        for keyword in canonical_calls[0].keywords
+    )
+
+    legacy_truthy = {"true", "1", "yes"}
+
+    def literal_strings(node):
+        if isinstance(node, (ast.Set, ast.Tuple, ast.List)):
+            return {
+                elt.value
+                for elt in node.elts
+                if isinstance(elt, ast.Constant) and isinstance(elt.value, str)
+            }
+        if (
+            isinstance(node, ast.Call)
+            and call_name(node.func) in {"set", "frozenset", "tuple", "list"}
+            and len(node.args) == 1
+        ):
+            return literal_strings(node.args[0])
+        return set()
+
+    violations = [
+        f"{module_path.relative_to(module_path.parents[1])}:{node.lineno}"
+        for node in ast.walk(tree)
+        if legacy_truthy.issubset(literal_strings(node))
+    ]
+    assert violations == []
 
 
 def test_main_exits_0_all_found(tmp_path):
