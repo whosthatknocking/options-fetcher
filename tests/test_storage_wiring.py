@@ -10,6 +10,7 @@ import pandas as pd
 from conftest import make_runtime_config
 from opx_chain.fetcher import acquire_fetcher_lock, release_fetcher_lock
 from opx_chain.providers.base import ProviderQuotaError
+from opx_chain.runlog import logger_name
 from opx_chain.storage.memory import MemoryBackend
 from opx_chain.validate import ValidationFinding
 
@@ -712,7 +713,7 @@ def test_dry_run_logger_uses_stdlib_null_logger():
 
     logger = fetcher._dry_run_logger()  # pylint: disable=protected-access
 
-    assert logger.name == "opx_chain.fetcher.dry_run"
+    assert logger.name == logger_name("fetcher.dry_run")
     assert logger.propagate is False
     assert any(isinstance(handler, fetcher.logging.NullHandler) for handler in logger.handlers)
     logger.debug("debug calls should be supported")

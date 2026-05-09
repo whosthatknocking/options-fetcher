@@ -151,6 +151,18 @@ Boundary rules:
 - Preserve fetch locking, validation reporting, and run logging unless there is a strong reason to change them.
 - Be careful with market-open and stale-quote edge cases. Freshness fields are user-facing and should remain trustworthy.
 
+## Local Style Contracts
+
+- Route opx-chain package loggers through `opx_chain.runlog.get_logger(...)`
+  / `logger_name(...)`; do not repeat `opx_chain.*` logger-name literals in
+  production code or tests.
+- Keep production logger handles module-local and named `_LOGGER` when a module
+  needs a reusable logger.
+- Route UTC timestamp displays and artifact/run-id filename timestamps through
+  `opx_chain.timestamps` helpers/constants. Do not repeat canonical
+  second-precision, microsecond-precision, or compact UTC `strftime(...)`
+  format strings at call sites.
+
 ## Testing Expectations
 
 Run the smallest relevant test set first, then broaden if needed.

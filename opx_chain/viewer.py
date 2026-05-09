@@ -37,6 +37,7 @@ from opx_chain.positions import (
     positions_fingerprint,
 )
 from opx_chain.storage.factory import get_data_dir, get_storage_backend
+from opx_chain.timestamps import format_utc_z_seconds
 from opx_chain.utils import read_dataset_file
 
 
@@ -325,9 +326,9 @@ def build_freshness_summary(frame: pd.DataFrame, csv_path: Path) -> FreshnessSum
 
     summary: FreshnessSummary = {
         "file_age_seconds": max(0.0, now - modified_at),
-        "file_modified_at": datetime.fromtimestamp(
-            modified_at, tz=timezone.utc
-        ).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "file_modified_at": format_utc_z_seconds(
+            datetime.fromtimestamp(modified_at, tz=timezone.utc)
+        ),
         "option_quote_age_median_seconds": None,
         "option_quote_age_max_seconds": None,
         "underlying_quote_age_median_seconds": None,

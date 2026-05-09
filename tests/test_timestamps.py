@@ -1,17 +1,27 @@
 """Tests for shared timestamp helpers."""
 
 from datetime import datetime, timezone
+from pathlib import Path
 
 import pandas as pd
 import pytest
 
 from opx_chain.timestamps import (
+    UTC_COMPACT_TIMESTAMP_FORMAT,
+    UTC_Z_MICROSECONDS_FORMAT,
+    UTC_Z_SECONDS_FORMAT,
     datetime_to_iso,
+    format_utc_compact,
+    format_utc_z_microseconds,
+    format_utc_z_seconds,
     iso_to_datetime,
     parse_iso_datetime,
     utc_now,
     utc_now_timestamp,
 )
+
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+PACKAGE_ROOT = PROJECT_ROOT / "opx_chain"
 
 
 def test_parse_iso_datetime_accepts_trailing_z_suffix():
@@ -45,3 +55,35 @@ def test_utc_now_helpers_return_utc_values():
     timestamp = utc_now_timestamp()
     assert isinstance(timestamp, pd.Timestamp)
     assert str(timestamp.tz) == "UTC"
+
+
+def test_utc_timestamp_format_helpers_share_canonical_formats():
+    """Runtime timestamp displays should use shared format constants."""
+    value = datetime(2026, 5, 9, 12, 34, 56, 789123, tzinfo=timezone.utc)
+
+    assert format_utc_compact(value) == "20260509_123456"
+    assert format_utc_z_seconds(value) == "2026-05-09T12:34:56Z"
+    assert format_utc_z_microseconds(value) == "2026-05-09T12:34:56.789123Z"
+
+
+def test_production_timestamp_formats_stay_centralized():
+    """Production code should import timestamp format helpers, not repeat literals."""
+    assert PACKAGE_ROOT.exists()
+    canonical_formats = (
+        UTC_COMPACT_TIMESTAMP_FORMAT,
+        UTC_Z_SECONDS_FORMAT,
+        UTC_Z_MICROSECONDS_FORMAT,
+    )
+    offenders: list[str] = []
+    scanned_files = 0
+    for path in PACKAGE_ROOT.rglob("*.py"):
+        if path.name == "timestamps.py":
+            continue
+        scanned_files += 1
+        source = path.read_text(encoding="utf-8")
+        for timestamp_format in canonical_formats:
+            if f'"{timestamp_format}"' in source or f"'{timestamp_format}'" in source:
+                offenders.append(f"{path.relative_to(PROJECT_ROOT)}: {timestamp_format}")
+
+    assert scanned_files > 0
+    assert not offenders

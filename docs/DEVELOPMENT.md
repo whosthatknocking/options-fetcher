@@ -67,6 +67,20 @@ Provider rules:
 - provider-specific scratch or debug fields should not expand the CSV schema implicitly
 - mixed-provider rows should not appear in the same output file
 
+## Local Style Contracts
+
+Repeated helper logic should be centralized inside this package without
+creating cross-package glue. In particular:
+
+- Package loggers use `opx_chain.runlog.get_logger(...)` and
+  `logger_name(...)`. Reusable module loggers should be named `_LOGGER`.
+- Runtime UTC timestamp displays, compact artifact filename timestamps, and
+  run-id fallback timestamps use `opx_chain.timestamps` helpers/constants
+  rather than repeating `strftime(...)` format strings.
+- Cross-package duplication with `opx-strategy` is not enough reason to add a
+  shared abstraction. Promote an API only when it is part of the documented
+  market-data, storage, dataset, option-chain, or positions-parsing contract.
+
 ## Development Setup
 
 Install dependencies from `pyproject.toml`:

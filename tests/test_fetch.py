@@ -16,6 +16,7 @@ import opx_chain.normalize
 from opx_chain.price_context import PriceContextStatus
 from opx_chain.positions import EMPTY_POSITION_SET, OptionPositionKey, PositionSet
 from opx_chain.providers.base import OptionChainFrames
+from opx_chain.runlog import RUN_LOGGER_NAME
 from opx_chain.storage.cache import FilesystemCache
 
 
@@ -282,8 +283,8 @@ def test_fetch_ticker_option_chain_logs_raw_provider_row_counts(monkeypatch, cap
         lambda: make_runtime_config(today=pd.Timestamp("2026-03-20").date()),
     )
 
-    caplog.set_level("INFO", logger="opx_chain.run")
-    logger = logging.getLogger("opx_chain.run")
+    caplog.set_level("INFO", logger=RUN_LOGGER_NAME)
+    logger = logging.getLogger(RUN_LOGGER_NAME)
 
     result = fetch.fetch_ticker_option_chain("TEST", logger=logger)
 
@@ -322,8 +323,8 @@ def test_fetch_ticker_option_chain_skips_non_finite_underlying_price(
         lambda: make_runtime_config(today=pd.Timestamp("2026-03-20").date()),
     )
 
-    caplog.set_level("INFO", logger="opx_chain.run")
-    logger = logging.getLogger("opx_chain.run")
+    caplog.set_level("INFO", logger=RUN_LOGGER_NAME)
+    logger = logging.getLogger(RUN_LOGGER_NAME)
 
     result = fetch.fetch_ticker_option_chain("TEST", logger=logger)
 
@@ -376,8 +377,8 @@ def test_fetch_ticker_option_chain_counts_vendor_trade_aliases(monkeypatch, capl
         lambda: make_runtime_config(today=pd.Timestamp("2026-03-20").date()),
     )
 
-    caplog.set_level("INFO", logger="opx_chain.run")
-    logger = logging.getLogger("opx_chain.run")
+    caplog.set_level("INFO", logger=RUN_LOGGER_NAME)
+    logger = logging.getLogger(RUN_LOGGER_NAME)
 
     result = fetch.fetch_ticker_option_chain("TEST", logger=logger)
 
@@ -406,8 +407,8 @@ def test_fetch_ticker_option_chain_logs_skipped_when_provider_has_no_frames(
         lambda: make_runtime_config(today=pd.Timestamp("2026-03-20").date()),
     )
 
-    caplog.set_level("WARNING", logger="opx_chain.run")
-    logger = logging.getLogger("opx_chain.run")
+    caplog.set_level("WARNING", logger=RUN_LOGGER_NAME)
+    logger = logging.getLogger(RUN_LOGGER_NAME)
 
     result = fetch.fetch_ticker_option_chain("TEST", logger=logger)
 
@@ -644,8 +645,8 @@ def test_fetch_ticker_option_chain_explains_when_filters_remove_everything(
     monkeypatch.setattr(opx_chain.normalize, "get_runtime_config", config_factory)
     monkeypatch.setattr(opx_chain.metrics, "get_runtime_config", config_factory)
 
-    caplog.set_level("INFO", logger="opx_chain.run")
-    logger = logging.getLogger("opx_chain.run")
+    caplog.set_level("INFO", logger=RUN_LOGGER_NAME)
+    logger = logging.getLogger(RUN_LOGGER_NAME)
 
     result = fetch.fetch_ticker_option_chain("TEST", logger=logger)
 
@@ -757,8 +758,8 @@ def test_fetch_ticker_option_chain_logs_provider_name_on_error(monkeypatch, capl
     monkeypatch.setattr(fetch, "get_data_provider", ErrorProvider)
     monkeypatch.setattr(fetch, "get_runtime_config", make_runtime_config)
 
-    caplog.set_level("ERROR", logger="opx_chain.run")
-    logger = logging.getLogger("opx_chain.run")
+    caplog.set_level("ERROR", logger=RUN_LOGGER_NAME)
+    logger = logging.getLogger(RUN_LOGGER_NAME)
 
     result = fetch.fetch_ticker_option_chain("TEST", logger=logger)
 

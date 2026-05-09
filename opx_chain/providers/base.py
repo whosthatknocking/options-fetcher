@@ -20,6 +20,7 @@ from opx_chain.config import get_runtime_config
 from opx_chain.normalize import normalize_vendor_option_frame
 from opx_chain.json_utils import to_python_scalar
 from opx_chain.storage.atomic import atomic_write_text
+from opx_chain.timestamps import format_utc_compact, format_utc_z_seconds
 
 
 class ProviderAuthenticationError(RuntimeError):
@@ -189,14 +190,14 @@ class DataProvider(ABC):
         dump_dir = Path(config.debug_dump_dir)
         dump_dir.mkdir(parents=True, exist_ok=True)
         fetched_at = datetime.now(timezone.utc)
-        timestamp = fetched_at.strftime("%Y%m%d_%H%M%S")
+        timestamp = format_utc_compact(fetched_at)
         safe_label = label.replace(" ", "_")
         dump_path = dump_dir / f"{self.name}_{ticker.upper()}_{safe_label}_{timestamp}.json"
         debug_payload = {
             "provider": self.name,
             "ticker": ticker.upper(),
             "label": label,
-            "fetched_at": fetched_at.strftime("%Y-%m-%dT%H:%M:%SZ"),
+            "fetched_at": format_utc_z_seconds(fetched_at),
             "payload": _to_json_ready(payload),
         }
         atomic_write_text(

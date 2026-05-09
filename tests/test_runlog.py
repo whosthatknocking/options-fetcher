@@ -7,7 +7,14 @@ from pathlib import Path
 import pytest
 
 from conftest import make_runtime_config
-from opx_chain.runlog import LOG_NAME, create_run_logger, get_logger, log_run_started
+from opx_chain.runlog import (
+    LOG_NAME,
+    RUN_LOGGER_NAME,
+    create_run_logger,
+    get_logger,
+    logger_name,
+    log_run_started,
+)
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 PACKAGE_ROOT = PROJECT_ROOT / "opx_chain"
@@ -31,7 +38,7 @@ class TrackingHandler(logging.Handler):
 @pytest.fixture(autouse=True)
 def restore_run_logger():
     """Reset the shared run logger so tests do not leak handlers or propagation."""
-    loggers = [logging.getLogger("opx_chain.run"), logging.getLogger("yfinance")]
+    loggers = [logging.getLogger(RUN_LOGGER_NAME), logging.getLogger("yfinance")]
     original_state = {
         logger.name: (logger.level, logger.propagate, list(logger.handlers))
         for logger in loggers
@@ -72,8 +79,10 @@ def _stub_runlog_dependencies(monkeypatch, tmp_path):
 def test_get_logger_uses_canonical_opx_chain_namespace():
     """opx-chain package loggers should all live under one root namespace."""
     assert get_logger().name == LOG_NAME
-    assert get_logger("fetch").name == "opx_chain.fetch"
-    assert get_logger(".providers.marketdata.sdk.").name == "opx_chain.providers.marketdata.sdk"
+    assert get_logger("fetch").name == logger_name("fetch")
+    assert get_logger(".providers.marketdata.sdk.").name == logger_name(
+        "providers.marketdata.sdk"
+    )
 
 
 def _logging_getlogger_call_lines(path: Path) -> list[int]:
@@ -120,7 +129,7 @@ def test_create_run_logger_routes_yfinance_errors_to_run_log(monkeypatch, tmp_pa
     for handler in logger.handlers:
         handler.flush()
 
-    assert logger.name == "opx_chain.run"
+    assert logger.name == RUN_LOGGER_NAME
     contents = log_path.read_text(encoding="utf-8")
     assert "run_started run_id=storage-run-123" in contents
     assert "remote request failed for TSLA" in contents
@@ -150,7 +159,7 @@ def test_create_run_logger_migrates_legacy_data_log(monkeypatch, tmp_path):
 def test_create_run_logger_closes_replaced_run_handlers(monkeypatch, tmp_path):
     """Replacing the shared run logger should close prior file descriptors."""
     _stub_runlog_dependencies(monkeypatch, tmp_path)
-    logger = logging.getLogger("opx_chain.run")
+    logger = logging.getLogger(RUN_LOGGER_NAME)
     stale_handler = TrackingHandler()
     logger.addHandler(stale_handler)
 

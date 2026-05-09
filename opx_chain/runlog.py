@@ -2,16 +2,18 @@
 
 import logging
 import time
-from datetime import datetime, timezone
 
 from opx_chain.config import SCRIPT_VERSION, get_runtime_config
 from opx_chain.paths import get_state_dir
 from opx_chain.providers import get_data_provider
 from opx_chain.storage.factory import get_data_dir
+from opx_chain.timestamps import format_utc_compact, utc_now
 
 _RUNLOG_HANDLER_ATTR = "_opx_chain_runlog_handler"
 _MANAGED_EXTERNAL_LOGGER_NAMES: set[str] = set()
 LOG_NAME = "opx_chain"
+RUN_LOGGER_SUFFIX = "run"
+RUN_LOG_FORMAT = "%(asctime)sZ | %(levelname)s | %(message)s"
 
 
 def logger_name(name_suffix: str = "") -> str:
@@ -30,6 +32,9 @@ def get_logger(name_suffix: str = "") -> logging.Logger:
 def get_external_logger(name: str) -> logging.Logger:
     """Return a non-opx-chain logger exposed by a provider dependency."""
     return logging.getLogger(name)
+
+
+RUN_LOGGER_NAME = logger_name(RUN_LOGGER_SUFFIX)
 
 
 def _mark_runlog_handler(handler):
@@ -81,12 +86,12 @@ def create_run_logger():
     log_path = logs_dir / "opx_runs.log"
     _migrate_legacy_shared_log(get_data_dir() / "logs" / "opx_runs.log", log_path)
 
-    logger = get_logger("run")
+    logger = get_logger(RUN_LOGGER_SUFFIX)
     logger.setLevel(logging.INFO)
     _close_logger_handlers(logger)
     logger.propagate = False
 
-    formatter = logging.Formatter("%(asctime)sZ | %(levelname)s | %(message)s")
+    formatter = logging.Formatter(RUN_LOG_FORMAT)
     formatter.converter = time.gmtime
     file_handler = _mark_runlog_handler(logging.FileHandler(log_path, encoding="utf-8"))
     file_handler.setFormatter(formatter)
@@ -101,7 +106,7 @@ def log_run_started(logger, run_id: str | None = None, config=None) -> str:
     """Write the canonical run-start line and return the emitted run identifier."""
     if config is None:
         config = get_runtime_config()
-    resolved_run_id = run_id or datetime.now(tz=timezone.utc).strftime("%Y%m%d_%H%M%S")
+    resolved_run_id = run_id or format_utc_compact(utc_now())
     logger.info(
         "run_started run_id=%s script_version=%s provider=%s config_path=%s",
         resolved_run_id,

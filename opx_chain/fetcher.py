@@ -42,6 +42,7 @@ from opx_chain.storage.models import (
     TickerFetchResult,
     ValidationRecord,
 )
+from opx_chain.timestamps import format_utc_compact, format_utc_z_seconds
 from opx_chain.validate import ValidationFinding, emit_validation_report, validate_export_frame
 
 _DATA_DIR = get_data_dir()
@@ -256,14 +257,14 @@ def _run_price_context_fetch(config, effective_tickers, logger) -> Path:
         store.close()
 
     fetched_at = datetime.now(tz=timezone.utc)
-    timestamp = fetched_at.strftime("%Y%m%d_%H%M%S")
+    timestamp = format_utc_compact(fetched_at)
     runs_dir = _runs_dir(config)
     output_path = runs_dir / f"price_context_{timestamp}.json"
     payload = {
         "artifact_type": "price_context",
         "schema_version": PRICE_CONTEXT_SCHEMA_VERSION,
         "provider": config.data_provider,
-        "fetched_at": fetched_at.strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "fetched_at": format_utc_z_seconds(fetched_at),
         "tickers": list(effective_tickers),
         "records": records,
     }
@@ -586,7 +587,7 @@ def _do_fetch_with_lock_held(  # pylint: disable=too-many-branches,too-many-loca
 
         runs_dir = _runs_dir(config)
         write_csv = storage is None or config.storage_also_write_csv
-        timestamp = datetime.now(tz=timezone.utc).strftime("%Y%m%d_%H%M%S")
+        timestamp = format_utc_compact(datetime.now(tz=timezone.utc))
         if storage is not None and run_id is not None:
             csv_output_dir = runs_dir / run_id / "output"
         else:

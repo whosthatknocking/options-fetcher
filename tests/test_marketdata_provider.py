@@ -21,6 +21,7 @@ from opx_chain.config import set_runtime_config_override
 from opx_chain.export import prepare_export_frame
 from opx_chain.providers.base import DataProvider, ProviderAuthenticationError, ProviderQuotaError
 from opx_chain.providers.marketdata import CALLER_USER_AGENT, MarketDataProvider
+from opx_chain.runlog import logger_name
 from opx_chain.storage.filesystem import FilesystemBackend
 from opx_chain.storage.models import DatasetWrite, RunContext, RunSummary
 
@@ -184,8 +185,9 @@ def test_marketdata_provider_uses_namespaced_sdk_logger(monkeypatch):
     provider = MarketDataProvider()
     client = fake_client(provider)
 
-    assert provider.external_logger_names == ("opx_chain.providers.marketdata.sdk",)
-    assert client.logger.name == "opx_chain.providers.marketdata.sdk"
+    sdk_logger_name = logger_name("providers.marketdata.sdk")
+    assert provider.external_logger_names == (sdk_logger_name,)
+    assert client.logger.name == sdk_logger_name
 
 
 def test_marketdata_provider_builds_snapshot_and_option_chain(monkeypatch):

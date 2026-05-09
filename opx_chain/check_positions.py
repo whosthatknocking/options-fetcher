@@ -18,7 +18,7 @@ from opx_chain.positions import (
 )
 from opx_chain.storage.factory import get_data_dir, get_storage_backend
 from opx_chain.storage.models import DatasetRecord
-from opx_chain.timestamps import utc_now_timestamp
+from opx_chain.timestamps import format_utc_z_seconds, utc_now_timestamp
 from opx_chain.utils import read_dataset_file
 
 RUNS_DIR = get_data_dir() / "runs"
@@ -53,7 +53,7 @@ def find_latest_output(runs_dir: Path | None = None) -> Path | None:
 def _format_file_mtime_utc(path: Path) -> str:
     """Format a file mtime as an explicit UTC timestamp."""
     modified_at = datetime.fromtimestamp(path.stat().st_mtime, tz=timezone.utc)
-    return modified_at.strftime("%Y-%m-%dT%H:%M:%SZ")
+    return format_utc_z_seconds(modified_at)
 
 
 def check_positions(positions_path: Path | None = None, output_path: Path | None = None):
@@ -142,7 +142,7 @@ def _format_iso_timestamp(value) -> str:
     """Render timestamps consistently in UTC with a trailing Z."""
     if value is None or pd.isna(value):
         return "—"
-    return pd.to_datetime(value, utc=True).strftime("%Y-%m-%dT%H:%M:%SZ")
+    return format_utc_z_seconds(pd.to_datetime(value, utc=True))
 
 
 def _append_filter_failure(

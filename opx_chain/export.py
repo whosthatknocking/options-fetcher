@@ -7,6 +7,7 @@ import pandas as pd
 from opx_chain import SCHEMA_VERSION  # noqa: F401 pylint: disable=unused-import
 from opx_chain.schema import QUALITY_FLAG_FIELDS
 from opx_chain.storage.atomic import atomic_file_write
+from opx_chain.timestamps import UTC_Z_MICROSECONDS_FORMAT
 
 
 COLUMN_ORDER = [
@@ -123,7 +124,7 @@ def format_export_timestamps(df):
     for column in ["option_quote_time", "underlying_price_time"]:
         if column in df.columns:
             df[column] = pd.to_datetime(df[column], utc=True, errors="coerce").dt.strftime(
-                "%Y-%m-%dT%H:%M:%S.%fZ"
+                UTC_Z_MICROSECONDS_FORMAT
             )
     return df
 

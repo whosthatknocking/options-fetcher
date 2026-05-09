@@ -33,6 +33,7 @@ from opx_chain.providers.base import (
 from opx_chain.providers import get_data_provider
 from opx_chain.runlog import get_logger
 from opx_chain.storage.cache import get_provider_cache
+from opx_chain.timestamps import format_utc_z_seconds
 from opx_chain.utils import is_finite_positive_number
 from opx_chain.validate import validate_option_rows
 
@@ -513,7 +514,7 @@ def fetch_ticker_option_chain(  # pylint: disable=too-many-locals,too-many-branc
                     ),
                     ticker,
                     provider.name,
-                    fetched_at.strftime("%Y-%m-%dT%H:%M:%SZ"),
+                    format_utc_z_seconds(fetched_at),
                     raw_contract_count,
                     raw_expiration_count,
             )
@@ -548,7 +549,7 @@ def fetch_ticker_option_chain(  # pylint: disable=too-many-locals,too-many-branc
                 ),
                 ticker,
                 provider.name,
-                fetched_at.strftime("%Y-%m-%dT%H:%M:%SZ"),
+                format_utc_z_seconds(fetched_at),
                 len(combined),
                 combined["expiration_date"].nunique(),
                 raw_contract_count,
