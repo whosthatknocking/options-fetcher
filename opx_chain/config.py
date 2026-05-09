@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import math
 from dataclasses import dataclass, field
 from datetime import date, datetime, timedelta
 from functools import lru_cache
@@ -14,7 +13,15 @@ try:
 except ImportError:  # pragma: no cover
     import tomli as tomllib
 
-from opx_chain.coerce import coerce_bool_or_default
+from opx_chain.config_coercion import (
+    ConfigError,
+    coerce_bool as _coerce_bool,
+    coerce_float as _coerce_float,
+    coerce_int as _coerce_int,
+    coerce_list as _coerce_list,
+    coerce_path as _coerce_path,
+    coerce_str as _coerce_str,
+)
 from opx_chain.paths import (
     get_cache_dir,
     get_data_dir,
@@ -67,10 +74,6 @@ DEFAULT_MASSIVE_BACKOFF_SECONDS = 1.0
 DEFAULT_DEBUG_DUMP_PROVIDER_PAYLOAD = False
 _RUNTIME_CONFIG_OVERRIDE: RuntimeConfig | None = None
 US_MARKET_TIMEZONE = ZoneInfo("America/New_York")
-
-
-class ConfigError(ValueError):
-    """Raised when user config is invalid for the requested runtime."""
 
 
 @dataclass(frozen=True)
@@ -147,67 +150,6 @@ def market_calendar_today(now: datetime | None = None) -> date:
     else:
         current = current.astimezone(US_MARKET_TIMEZONE)
     return current.date()
-
-
-def _coerce_list(value, *, field_name):
-    if value is None:
-        return None
-    if not isinstance(value, list) or not all(isinstance(item, str) for item in value):
-        raise ConfigError(f"Config field '{field_name}' must be a list of strings.")
-    normalized = tuple(item.strip().upper() for item in value if item.strip())
-    if not normalized:
-        raise ConfigError(f"Config field '{field_name}' must not be empty.")
-    return normalized
-
-
-def _coerce_str(value, *, field_name):
-    if value is None:
-        return None
-    if not isinstance(value, str):
-        raise ConfigError(f"Config field '{field_name}' must be a string.")
-    normalized = value.strip()
-    if not normalized:
-        raise ConfigError(f"Config field '{field_name}' must not be blank.")
-    return normalized
-
-
-def _coerce_int(value, *, field_name):
-    if value is None:
-        return None
-    if isinstance(value, bool) or not isinstance(value, int):
-        raise ConfigError(f"Config field '{field_name}' must be an integer.")
-    return value
-
-
-def _coerce_bool(value, *, field_name):
-    if value is None:
-        return None
-    resolved = coerce_bool_or_default(value, default=None)
-    if resolved is None:
-        raise ConfigError(f"Config field '{field_name}' must be true or false.")
-    return resolved
-
-
-def _coerce_float(value, *, field_name):
-    if value is None:
-        return None
-    if isinstance(value, bool) or not isinstance(value, (int, float)):
-        raise ConfigError(f"Config field '{field_name}' must be numeric.")
-    resolved = float(value)
-    if not math.isfinite(resolved):
-        raise ConfigError(f"Config field '{field_name}' must be finite.")
-    return resolved
-
-
-def _coerce_path(value, *, field_name):
-    if value is None:
-        return None
-    if not isinstance(value, str):
-        raise ConfigError(f"Config field '{field_name}' must be a string path.")
-    normalized = value.strip()
-    if not normalized:
-        raise ConfigError(f"Config field '{field_name}' must not be blank.")
-    return Path(normalized).expanduser()
 
 
 def _resolve_path_setting(

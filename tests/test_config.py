@@ -136,6 +136,7 @@ def test_get_runtime_config_refreshes_after_market_day_boundary(monkeypatch):
 
 def test_config_bool_coercion_uses_shared_bool_policy():
     """Config fields should share the same truthy/falsy policy as dataset reads."""
+    assert _coerce_bool(None, field_name="settings.enable_validation") is None
     assert _coerce_bool("on", field_name="settings.enable_validation") is True
     assert _coerce_bool("off", field_name="settings.enable_validation") is False
     assert _coerce_bool(1, field_name="settings.enable_validation") is True
