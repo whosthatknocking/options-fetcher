@@ -34,6 +34,7 @@ from opx_chain.providers.base import (
     RequestThrottle,
     TRANSIENT_BASE_EXCEPTIONS,
     compute_backoff_delay,
+    empty_underlying_snapshot,
     is_provider_quota_error,
     normalize_provider_frame,
 )
@@ -407,21 +408,11 @@ class MarketDataProvider(DataProvider):
     def _snapshot_from_chain_frame(chain_frame: pd.DataFrame) -> dict:
         """Build a consistent underlying snapshot from one chain row."""
         if chain_frame.empty or "underlyingPrice" not in chain_frame.columns:
-            return {
-                "underlying_price": np.nan,
-                "underlying_price_time": pd.NaT,
-                "underlying_day_change_pct": np.nan,
-                "historical_volatility": np.nan,
-            }
+            return empty_underlying_snapshot()
 
         candidates = chain_frame.loc[chain_frame["underlyingPrice"].notna()].copy()
         if candidates.empty:
-            return {
-                "underlying_price": np.nan,
-                "underlying_price_time": pd.NaT,
-                "underlying_day_change_pct": np.nan,
-                "historical_volatility": np.nan,
-            }
+            return empty_underlying_snapshot()
 
         if "updated" in candidates.columns:
             candidates["_updated_ts"] = candidates["updated"].map(normalize_timestamp)

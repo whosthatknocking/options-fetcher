@@ -12,6 +12,7 @@ from opx_chain.providers.base import (
     OptionChainFrames,
     RequestThrottle,
     compute_backoff_delay,
+    empty_underlying_snapshot,
     is_provider_quota_error,
 )
 from opx_chain.storage.atomic import atomic_write_text
@@ -44,6 +45,22 @@ class MinimalProvider(DataProvider):
     ) -> pd.DataFrame:
         del underlying_price, expiration_date, option_type, ticker
         return df
+
+
+def test_empty_underlying_snapshot_returns_canonical_missing_payload() -> None:
+    """Missing provider snapshots should share one sentinel payload shape."""
+    snapshot = empty_underlying_snapshot()
+
+    assert set(snapshot) == {
+        "underlying_price",
+        "underlying_price_time",
+        "underlying_day_change_pct",
+        "historical_volatility",
+    }
+    assert pd.isna(snapshot["underlying_price"])
+    assert pd.isna(snapshot["underlying_price_time"])
+    assert pd.isna(snapshot["underlying_day_change_pct"])
+    assert pd.isna(snapshot["historical_volatility"])
 
 
 def test_debug_dump_payload_uses_atomic_text_writer(monkeypatch, tmp_path: Path) -> None:

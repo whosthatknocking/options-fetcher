@@ -29,6 +29,7 @@ from opx_chain.providers.base import (
     RequestThrottle,
     TRANSIENT_BASE_EXCEPTIONS,
     compute_backoff_delay,
+    empty_underlying_snapshot,
     is_provider_quota_error,
     normalize_provider_frame,
 )
@@ -268,12 +269,7 @@ class MassiveProvider(DataProvider):
         """Infer the underlying snapshot from the option snapshot payload."""
         results = self._snapshot_results(ticker)
         if not results:
-            return {
-                "underlying_price": np.nan,
-                "underlying_price_time": pd.NaT,
-                "underlying_day_change_pct": np.nan,
-                "historical_volatility": np.nan,
-            }
+            return empty_underlying_snapshot()
 
         first = results[0]
         underlying_price = coerce_float(

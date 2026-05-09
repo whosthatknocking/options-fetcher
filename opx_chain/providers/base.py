@@ -36,6 +36,16 @@ TRANSIENT_BASE_EXCEPTIONS: tuple[type[BaseException], ...] = (
 )
 
 
+def empty_underlying_snapshot() -> dict:
+    """Return the canonical missing underlying snapshot payload."""
+    return {
+        "underlying_price": np.nan,
+        "underlying_price_time": pd.NaT,
+        "underlying_day_change_pct": np.nan,
+        "historical_volatility": np.nan,
+    }
+
+
 def compute_backoff_delay(
     attempt: int,
     base_seconds: float,
