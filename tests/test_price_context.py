@@ -1,5 +1,6 @@
 """Price-context calculation tests."""
 
+import ast
 from datetime import date
 from pathlib import Path
 
@@ -102,17 +103,33 @@ def test_blank_price_context_accepts_status_enum():
 def test_price_context_status_producers_use_status_contract():
     """Production emit sites should not bypass PriceContextStatus for status values."""
     root = Path(__file__).resolve().parents[1]
-    checked_paths = [
-        root / "opx_chain" / "price_context.py",
-        root / "opx_chain" / "fetch.py",
-    ]
-    forbidden_patterns = (
-        'status="STALE"',
-        'status="ERROR"',
-        '"price_context_staleness_status": "FRESH"',
-    )
+    allowed_path = root / "opx_chain" / "price_context.py"
+    status_values = {status.value for status in PriceContextStatus}
+    offenders: list[str] = []
 
-    for path in checked_paths:
+    for path in (root / "opx_chain").rglob("*.py"):
+        if path == allowed_path:
+            continue
         source = path.read_text(encoding="utf-8")
-        for pattern in forbidden_patterns:
-            assert pattern not in source
+        tree = ast.parse(source, filename=str(path))
+        for node in ast.walk(tree):
+            if (
+                isinstance(node, ast.keyword)
+                and node.arg == "status"
+                and isinstance(node.value, ast.Constant)
+                and node.value.value in status_values
+            ):
+                offenders.append(f"{path}:{node.lineno} inline status keyword")
+            if isinstance(node, ast.Dict):
+                for key, value in zip(node.keys, node.values, strict=False):
+                    if (
+                        isinstance(key, ast.Constant)
+                        and key.value == "price_context_staleness_status"
+                        and isinstance(value, ast.Constant)
+                        and value.value in status_values
+                    ):
+                        offenders.append(
+                            f"{path}:{value.lineno} inline price-context status value"
+                        )
+
+    assert not offenders

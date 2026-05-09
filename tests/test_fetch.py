@@ -13,6 +13,7 @@ from opx_chain import fetch
 from opx_chain.fetch import append_ticker_event_fields
 import opx_chain.metrics
 import opx_chain.normalize
+from opx_chain.price_context import PriceContextStatus
 from opx_chain.positions import EMPTY_POSITION_SET, OptionPositionKey, PositionSet
 from opx_chain.providers.base import OptionChainFrames
 from opx_chain.storage.cache import FilesystemCache
@@ -522,8 +523,8 @@ def test_fetch_ticker_price_context_uses_price_history_store(monkeypatch, tmp_pa
     first = fetch.fetch_ticker_price_context("TEST", provider=provider, config=config)
     second = fetch.fetch_ticker_price_context("TEST", provider=provider, config=config)
 
-    assert first["price_context_staleness_status"] == "FRESH"
-    assert second["price_context_staleness_status"] == "FRESH"
+    assert first["price_context_staleness_status"] == PriceContextStatus.FRESH.value
+    assert second["price_context_staleness_status"] == PriceContextStatus.FRESH.value
     assert provider.history_calls == 1
 
 
@@ -542,7 +543,7 @@ def test_fetch_ticker_price_context_returns_error_payload_on_failure():
         config=config,
     )
 
-    assert context["price_context_staleness_status"] == "ERROR"
+    assert context["price_context_staleness_status"] == PriceContextStatus.ERROR.value
     assert context["support_1"] is None
 
 
