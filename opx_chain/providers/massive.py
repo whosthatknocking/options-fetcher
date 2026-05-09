@@ -26,6 +26,9 @@ from opx_chain.providers.base import (
     OptionChainFrames,
     ProviderAuthenticationError,
     ProviderQuotaError,
+    RequestThrottle,
+    TRANSIENT_BASE_EXCEPTIONS,
+    compute_backoff_delay,
     is_provider_quota_error,
     normalize_provider_frame,
 )
@@ -97,7 +100,7 @@ class MassiveProvider(DataProvider):
     name = "massive"
 
     def __init__(self) -> None:
-        self._last_request_started_at: float | None = None
+        self._request_throttle = RequestThrottle()
         self._api_page_count = 0
         self._api_result_count = 0
         self._debug_call_sequence = 0
@@ -155,13 +158,7 @@ class MassiveProvider(DataProvider):
         """Enforce minimum spacing between underlying Massive client HTTP calls."""
 
         def rate_limited_get(*args, **kwargs):
-            interval_seconds = self._request_interval_seconds()
-            if self._last_request_started_at is not None and interval_seconds > 0:
-                elapsed = time.monotonic() - self._last_request_started_at
-                remaining = interval_seconds - elapsed
-                if remaining > 0:
-                    time.sleep(remaining)
-            self._last_request_started_at = time.monotonic()
+            self._request_throttle.wait(self._request_interval_seconds())
             return wrapped_get(*args, **kwargs)
 
         return rate_limited_get
@@ -246,9 +243,15 @@ class MassiveProvider(DataProvider):
                         raise ProviderQuotaError(
                             f"Massive snapshot request failed due to quota/rate limit: {exc}"
                         ) from exc
+                    is_retryable = isinstance(
+                        exc,
+                        TRANSIENT_BASE_EXCEPTIONS,
+                    ) or is_provider_quota_error(exc)
+                    if not is_retryable:
+                        raise
                     if attempt == max_retries:
                         raise
-                    time.sleep(backoff_seconds * (2 ** attempt))
+                    time.sleep(compute_backoff_delay(attempt, backoff_seconds))
 
             raise RuntimeError(
                 "Massive snapshot request failed without a response."

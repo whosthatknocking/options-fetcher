@@ -1,5 +1,7 @@
 """YFinance provider tests covering snapshot normalization, events, and debug payload dumping."""
 
+# pylint: disable=duplicate-code
+
 from datetime import date
 from pathlib import Path
 import json
@@ -208,11 +210,11 @@ def test_yfinance_provider_respects_request_interval(monkeypatch):
 
     monotonic_values = iter([100.0, 100.2, 100.2])
     monkeypatch.setattr(
-        "opx_chain.providers.yfinance.time.monotonic",
+        "opx_chain.providers.base.time.monotonic",
         lambda: next(monotonic_values),
     )
     sleep_calls = []
-    monkeypatch.setattr("opx_chain.providers.yfinance.time.sleep", sleep_calls.append)
+    monkeypatch.setattr("opx_chain.providers.base.time.sleep", sleep_calls.append)
 
     provider = YFinanceProvider()
     provider.list_option_expirations("TSLA")
@@ -247,6 +249,7 @@ def test_yfinance_provider_retries_configured_failures(monkeypatch, capsys):
         ),
     )
     monkeypatch.setattr("opx_chain.providers.yfinance.yf.Ticker", FlakyTicker)
+    monkeypatch.setattr("opx_chain.providers.base.random.uniform", lambda _low, _high: 1.0)
     sleep_calls = []
     monkeypatch.setattr("opx_chain.providers.yfinance.time.sleep", sleep_calls.append)
 
@@ -276,6 +279,7 @@ def test_yfinance_provider_raises_quota_error_after_rate_limit_retries(monkeypat
         ),
     )
     monkeypatch.setattr("opx_chain.providers.yfinance.yf.Ticker", lambda _ticker: LimitedTicker())
+    monkeypatch.setattr("opx_chain.providers.base.random.uniform", lambda _low, _high: 1.0)
     sleep_calls = []
     monkeypatch.setattr("opx_chain.providers.yfinance.time.sleep", sleep_calls.append)
 
@@ -410,6 +414,7 @@ def test_yfinance_fast_info_retry_log_names_action(monkeypatch, capsys):
         ),
     )
     monkeypatch.setattr("opx_chain.providers.yfinance.yf.Ticker", FlakyFastInfoTicker)
+    monkeypatch.setattr("opx_chain.providers.base.random.uniform", lambda _low, _high: 1.0)
     monkeypatch.setattr("opx_chain.providers.yfinance.time.sleep", lambda _seconds: None)
 
     snapshot = YFinanceProvider().load_underlying_snapshot("TSLA")

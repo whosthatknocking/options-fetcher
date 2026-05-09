@@ -25,6 +25,9 @@ from opx_chain.providers.base import (
     OptionChainFrames,
     ProviderAuthenticationError,
     ProviderQuotaError,
+    RequestThrottle,
+    TRANSIENT_BASE_EXCEPTIONS,
+    compute_backoff_delay,
     is_provider_quota_error,
     normalize_provider_frame,
 )
@@ -37,9 +40,8 @@ from opx_chain.utils import (
 
 
 _transient_yfinance_exceptions: tuple[type[BaseException], ...] = (
+    *TRANSIENT_BASE_EXCEPTIONS,
     YFRateLimitError,
-    TimeoutError,
-    ConnectionError,
     requests_exceptions.RequestException,
 )
 if curl_exceptions is not None:
@@ -138,7 +140,7 @@ class YFinanceProvider(DataProvider):
     name = "yfinance"
 
     def __init__(self) -> None:
-        self._last_request_started_at: float | None = None
+        self._request_throttle = RequestThrottle()
 
     @property
     def external_logger_names(self) -> tuple[str, ...]:
@@ -159,13 +161,7 @@ class YFinanceProvider(DataProvider):
 
     def _sleep_for_request_interval(self) -> None:
         """Respect the configured minimum spacing between Yahoo calls."""
-        interval_seconds = self._request_interval_seconds()
-        if self._last_request_started_at is not None and interval_seconds > 0:
-            elapsed = time.monotonic() - self._last_request_started_at
-            remaining = interval_seconds - elapsed
-            if remaining > 0:
-                time.sleep(remaining)
-        self._last_request_started_at = time.monotonic()
+        self._request_throttle.wait(self._request_interval_seconds())
 
     def _call_yahoo(self, label: str, callback):
         """Apply pacing and retry configuration around one yfinance call."""
@@ -185,7 +181,7 @@ class YFinanceProvider(DataProvider):
                             f"Yahoo Finance {label} failed due to quota/rate limit: {exc}"
                         ) from exc
                     raise
-                delay = self._backoff_seconds() * (2**attempt)
+                delay = compute_backoff_delay(attempt, self._backoff_seconds())
                 print(
                     f"yfinance api: {label} retry_in={delay:.2f}s "
                     f"attempt={attempt + 1}/{max_retries} error={exc}"

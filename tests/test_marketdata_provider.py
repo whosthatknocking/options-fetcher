@@ -415,6 +415,7 @@ def test_marketdata_provider_retries_rate_limits(monkeypatch):
         ),
     )
     sleep_calls = []
+    monkeypatch.setattr("opx_chain.providers.base.random.uniform", lambda _low, _high: 1.0)
     monkeypatch.setattr("opx_chain.providers.marketdata.time.sleep", sleep_calls.append)
     provider = MarketDataProvider()
     responses = iter(
@@ -448,6 +449,7 @@ def test_marketdata_provider_ignores_non_finite_retry_after(monkeypatch, retry_a
         ),
     )
     sleep_calls = []
+    monkeypatch.setattr("opx_chain.providers.base.random.uniform", lambda _low, _high: 1.0)
     monkeypatch.setattr("opx_chain.providers.marketdata.time.sleep", sleep_calls.append)
     provider = MarketDataProvider()
     responses = iter(
@@ -535,6 +537,7 @@ def test_marketdata_provider_uses_configured_backoff_without_retry_after(monkeyp
         ),
     )
     sleep_calls = []
+    monkeypatch.setattr("opx_chain.providers.base.random.uniform", lambda _low, _high: 1.0)
     monkeypatch.setattr("opx_chain.providers.marketdata.time.sleep", sleep_calls.append)
     provider = MarketDataProvider()
     responses = iter(
@@ -568,6 +571,7 @@ def test_marketdata_provider_retries_transient_server_errors(monkeypatch):
         ),
     )
     sleep_calls = []
+    monkeypatch.setattr("opx_chain.providers.base.random.uniform", lambda _low, _high: 1.0)
     monkeypatch.setattr("opx_chain.providers.marketdata.time.sleep", sleep_calls.append)
     provider = MarketDataProvider()
     responses = iter(
@@ -600,6 +604,7 @@ def test_marketdata_provider_retries_network_exceptions(monkeypatch, capsys):
         ),
     )
     sleep_calls = []
+    monkeypatch.setattr("opx_chain.providers.base.random.uniform", lambda _low, _high: 1.0)
     monkeypatch.setattr("opx_chain.providers.marketdata.time.sleep", sleep_calls.append)
     provider = MarketDataProvider()
     attempts = []
@@ -671,10 +676,11 @@ def test_marketdata_provider_respects_request_interval(monkeypatch):
     )
     monotonic_values = iter([10.0, 10.2, 10.2, 12.0])
     monkeypatch.setattr(
-        "opx_chain.providers.marketdata.time.monotonic", lambda: next(monotonic_values)
+        "opx_chain.providers.base.time.monotonic",
+        lambda: next(monotonic_values),
     )
     sleep_calls = []
-    monkeypatch.setattr("opx_chain.providers.marketdata.time.sleep", sleep_calls.append)
+    monkeypatch.setattr("opx_chain.providers.base.time.sleep", sleep_calls.append)
     provider = MarketDataProvider()
     wrapped = provider._wrap_logged_request(  # pylint: disable=protected-access
         lambda _method, _url, *_args, **_kwargs: FakeResponse(200, {"optionSymbol": []})

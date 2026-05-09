@@ -31,6 +31,9 @@ from opx_chain.providers.base import (
     OptionChainFrames,
     ProviderAuthenticationError,
     ProviderQuotaError,
+    RequestThrottle,
+    TRANSIENT_BASE_EXCEPTIONS,
+    compute_backoff_delay,
     is_provider_quota_error,
     normalize_provider_frame,
 )
@@ -42,10 +45,10 @@ CALLER_USER_AGENT = f"opx-chain/{SCRIPT_VERSION}"
 _SDK_LOGGER_SUFFIX = "providers.marketdata.sdk"
 _SDK_LOGGER_NAME = logger_name(_SDK_LOGGER_SUFFIX)
 TRANSIENT_REQUEST_EXCEPTIONS = (
+    *TRANSIENT_BASE_EXCEPTIONS,
     httpx.TimeoutException,
     httpx.NetworkError,
     httpx.RemoteProtocolError,
-    TimeoutError,
 )
 
 
@@ -111,7 +114,7 @@ class MarketDataProvider(DataProvider):
     def __init__(self) -> None:
         self._debug_call_sequence = 0
         self._active_debug_ticker: str | None = None
-        self._last_request_started_at: float | None = None
+        self._request_throttle = RequestThrottle()
         self._client_cache_key: tuple[str] | None = None
         self._client_cache: OpxMarketDataClient | None = None
 
@@ -186,7 +189,7 @@ class MarketDataProvider(DataProvider):
                 except TRANSIENT_REQUEST_EXCEPTIONS as exc:
                     if attempt == self._max_retries():
                         raise
-                    retry_delay = self._backoff_seconds() * (2**attempt)
+                    retry_delay = compute_backoff_delay(attempt, self._backoff_seconds())
                     print(
                         f"marketdata api: {endpoint_label} transient_retry_in="
                         f"{retry_delay:.2f}s attempt={attempt + 1}/{self._max_retries()} "
@@ -233,13 +236,7 @@ class MarketDataProvider(DataProvider):
 
     def _sleep_for_request_interval(self) -> None:
         """Respect the configured minimum spacing between HTTP requests."""
-        interval_seconds = self._request_interval_seconds()
-        if self._last_request_started_at is not None and interval_seconds > 0:
-            elapsed = time.monotonic() - self._last_request_started_at
-            remaining = interval_seconds - elapsed
-            if remaining > 0:
-                time.sleep(remaining)
-        self._last_request_started_at = time.monotonic()
+        self._request_throttle.wait(self._request_interval_seconds())
 
     @staticmethod
     def _decode_response_json(response):
@@ -288,7 +285,7 @@ class MarketDataProvider(DataProvider):
             else:
                 if math.isfinite(retry_delay):
                     return max(retry_delay, 0.0)
-        return self._backoff_seconds() * (2 ** attempt)
+        return compute_backoff_delay(attempt, self._backoff_seconds())
 
     @staticmethod
     def _parse_retry_after_http_date(retry_after: str) -> float | None:

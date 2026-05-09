@@ -4,9 +4,16 @@ import json
 from pathlib import Path
 
 import pandas as pd
+import pytest
 
 from conftest import BoundaryTickDateTime, make_runtime_config
-from opx_chain.providers.base import DataProvider, OptionChainFrames, is_provider_quota_error
+from opx_chain.providers.base import (
+    DataProvider,
+    OptionChainFrames,
+    RequestThrottle,
+    compute_backoff_delay,
+    is_provider_quota_error,
+)
 from opx_chain.storage.atomic import atomic_write_text
 
 
@@ -126,3 +133,36 @@ def test_provider_quota_classifier_ignores_local_quota_errors() -> None:
     assert not is_provider_quota_error(OSError(122, "Disk quota exceeded"))
     assert not is_provider_quota_error(RuntimeError("memory quota exceeded"))
     assert not is_provider_quota_error(RuntimeError("time quota expired"))
+
+
+def test_compute_backoff_delay_applies_jitter_and_final_cap(monkeypatch) -> None:
+    """Shared retry backoff should jitter delays without exceeding the max cap."""
+    monkeypatch.setattr("opx_chain.providers.base.random.uniform", lambda _low, _high: 1.3)
+
+    assert compute_backoff_delay(1, 2.0) == pytest.approx(5.2)
+    assert compute_backoff_delay(10, 2.0, max_seconds=60.0) == pytest.approx(60.0)
+
+
+def test_compute_backoff_delay_ignores_invalid_inputs() -> None:
+    """Non-finite or invalid retry config should never create invalid sleep values."""
+    assert compute_backoff_delay(1, float("nan")) == 0.0
+    assert compute_backoff_delay(1, float("inf")) == 0.0
+    assert compute_backoff_delay(1, "bad") == 0.0
+    assert compute_backoff_delay(1, -1.0) == 0.0
+
+
+def test_request_throttle_serializes_start_times(monkeypatch) -> None:
+    """Request pacing should use one shared lock-protected start-time boundary."""
+    monotonic_values = iter([10.0, 10.25, 11.0])
+    sleeps: list[float] = []
+    monkeypatch.setattr(
+        "opx_chain.providers.base.time.monotonic",
+        lambda: next(monotonic_values),
+    )
+    monkeypatch.setattr("opx_chain.providers.base.time.sleep", sleeps.append)
+
+    throttle = RequestThrottle()
+    throttle.wait(1.0)
+    throttle.wait(1.0)
+
+    assert sleeps == [pytest.approx(0.75)]

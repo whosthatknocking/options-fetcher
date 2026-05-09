@@ -469,6 +469,7 @@ def test_massive_provider_retries_rate_limits(monkeypatch):
         return fake_client
 
     monkeypatch.setattr(provider, "_client", fake_client_factory)
+    monkeypatch.setattr("opx_chain.providers.base.random.uniform", lambda _low, _high: 1.0)
     monkeypatch.setattr("opx_chain.providers.massive.time.sleep", sleeps.append)
 
     payload = provider._fetch_snapshot_results("TSLA")  # pylint: disable=protected-access
@@ -495,6 +496,7 @@ def test_massive_provider_raises_quota_error_after_rate_limit_retries(monkeypatc
             raise RuntimeError("429 too many requests")
 
     monkeypatch.setattr(provider, "_client", FakeClient)
+    monkeypatch.setattr("opx_chain.providers.base.random.uniform", lambda _low, _high: 1.0)
     monkeypatch.setattr("opx_chain.providers.massive.time.sleep", sleeps.append)
 
     with pytest.raises(ProviderQuotaError, match="Massive snapshot request failed"):
@@ -568,28 +570,31 @@ def test_massive_provider_can_dump_each_http_response_page(monkeypatch, tmp_path
 def test_massive_provider_spaces_underlying_http_requests(monkeypatch):
     """Configured request spacing should apply between paginated client HTTP calls."""
     provider = MassiveProvider()
-    # pylint: disable=protected-access
-    provider._last_request_started_at = 100.0
-    monotonic_values = iter([105.0, 112.0])
+    monotonic_values = iter([100.0, 105.0, 112.0])
     sleeps = []
     wrapped_calls = []
 
     monkeypatch.setattr(
-        "opx_chain.providers.massive.time.monotonic", lambda: next(monotonic_values)
+        "opx_chain.providers.base.time.monotonic",
+        lambda: next(monotonic_values),
     )
-    monkeypatch.setattr("opx_chain.providers.massive.time.sleep", sleeps.append)
+    monkeypatch.setattr("opx_chain.providers.base.time.sleep", sleeps.append)
     monkeypatch.setattr(provider, "_request_interval_seconds", lambda: 12.0)
 
     wrapped = provider._wrap_rate_limited_get(  # pylint: disable=protected-access
         lambda *args, **kwargs: wrapped_calls.append((args, kwargs)) or "ok"
     )
 
-    result = wrapped("/v3/snapshot/options/TSLA", params={"limit": 250})
+    first_result = wrapped("/v3/snapshot/options/TSLA", params={"limit": 250})
+    second_result = wrapped("/v3/snapshot/options/TSLA", params={"limit": 250})
 
-    assert result == "ok"
+    assert first_result == "ok"
+    assert second_result == "ok"
     assert sleeps == [7.0]
-    assert wrapped_calls == [(("/v3/snapshot/options/TSLA",), {"params": {"limit": 250}})]
-    assert provider._last_request_started_at == 112.0
+    assert wrapped_calls == [
+        (("/v3/snapshot/options/TSLA",), {"params": {"limit": 250}}),
+        (("/v3/snapshot/options/TSLA",), {"params": {"limit": 250}}),
+    ]
 
 
 def test_compute_greeks_preserves_provider_values():

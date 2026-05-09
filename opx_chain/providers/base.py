@@ -8,7 +8,10 @@ from datetime import date, datetime, timezone
 import json
 import math
 from pathlib import Path
+import random
 import re
+import threading
+import time
 
 import numpy as np
 import pandas as pd
@@ -25,6 +28,63 @@ class ProviderAuthenticationError(RuntimeError):
 
 class ProviderQuotaError(RuntimeError):
     """Raised when the provider rejects the request due to a quota or rate limit."""
+
+
+TRANSIENT_BASE_EXCEPTIONS: tuple[type[BaseException], ...] = (
+    TimeoutError,
+    ConnectionError,
+)
+
+
+def compute_backoff_delay(
+    attempt: int,
+    base_seconds: float,
+    *,
+    max_seconds: float = 60.0,
+    jitter_range: tuple[float, float] = (0.7, 1.3),
+) -> float:
+    """Return capped exponential backoff with jitter for transient provider retries."""
+    try:
+        base_value = float(base_seconds)
+    except (TypeError, ValueError):
+        return 0.0
+    try:
+        max_value = float(max_seconds)
+    except (TypeError, ValueError):
+        max_value = 60.0
+    if not math.isfinite(base_value) or base_value <= 0:
+        return 0.0
+    if not math.isfinite(max_value) or max_value <= 0:
+        max_value = 60.0
+    base_delay = base_value * (2 ** max(0, attempt))
+    low, high = jitter_range
+    if high <= 0 or low <= 0 or high < low:
+        return min(base_delay, max_value)
+    return min(base_delay * random.uniform(low, high), max_value)
+
+
+class RequestThrottle:  # pylint: disable=too-few-public-methods
+    """Thread-safe request pacing helper shared by provider wrappers."""
+
+    def __init__(self) -> None:
+        self._lock = threading.Lock()
+        self._last_request_started_at: float | None = None
+
+    def wait(self, interval_seconds: float) -> None:
+        """Sleep until the configured minimum interval has elapsed."""
+        try:
+            interval = float(interval_seconds)
+        except (TypeError, ValueError):
+            interval = 0.0
+        if not math.isfinite(interval) or interval <= 0:
+            interval = 0.0
+        with self._lock:
+            if self._last_request_started_at is not None and interval > 0:
+                elapsed = time.monotonic() - self._last_request_started_at
+                remaining = interval - elapsed
+                if remaining > 0:
+                    time.sleep(remaining)
+            self._last_request_started_at = time.monotonic()
 
 
 def is_provider_quota_error(exc: Exception) -> bool:
