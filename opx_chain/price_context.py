@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from datetime import date
+from enum import Enum
 import math
 from typing import Any
 
@@ -39,13 +40,23 @@ PRICE_CONTEXT_CALCULATION_METHOD = "daily_ohlcv_v1"
 PRICE_CONTEXT_SCHEMA_VERSION = 1
 
 
+class PriceContextStatus(str, Enum):
+    """Status vocabulary for the price_context_staleness_status artifact field."""
+
+    FRESH = "FRESH"
+    STALE = "STALE"
+    MISSING = "MISSING"
+    ERROR = "ERROR"
+
+
 def blank_price_context(
     *,
     source: str | None = None,
-    status: str = "MISSING",
+    status: PriceContextStatus | str = PriceContextStatus.MISSING,
     method: str = PRICE_CONTEXT_CALCULATION_METHOD,
 ) -> dict[str, Any]:
     """Return a JSON-safe blank price-context payload."""
+    status_value = status.value if isinstance(status, PriceContextStatus) else str(status)
     return {
         **{field: None for field in PRICE_CONTEXT_FIELDS},
         "price_context_as_of": None,
@@ -53,7 +64,7 @@ def blank_price_context(
         "price_context_source": source,
         "price_context_lookback_trading_days": 0,
         "price_context_calculation_method": method,
-        "price_context_staleness_status": status,
+        "price_context_staleness_status": status_value,
     }
 
 
@@ -264,7 +275,7 @@ def compute_price_context(  # pylint: disable=too-many-locals
     if age_days is None:
         return blank_price_context(source=source)
     if age_days > max_age_days:
-        context = blank_price_context(source=source, status="STALE")
+        context = blank_price_context(source=source, status=PriceContextStatus.STALE)
         context.update(
             {
                 "price_context_as_of": as_of.date().isoformat(),
@@ -315,5 +326,5 @@ def compute_price_context(  # pylint: disable=too-many-locals
         "price_context_source": source,
         "price_context_lookback_trading_days": int(len(normalized)),
         "price_context_calculation_method": PRICE_CONTEXT_CALCULATION_METHOD,
-        "price_context_staleness_status": "FRESH",
+        "price_context_staleness_status": PriceContextStatus.FRESH.value,
     }

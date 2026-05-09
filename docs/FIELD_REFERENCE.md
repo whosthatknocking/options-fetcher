@@ -98,7 +98,7 @@ leaves numeric levels blank and uses metadata fields to explain why.
 - `price_context_source`: Provider that supplied the OHLCV history.
 - `price_context_lookback_trading_days`: Number of usable trading bars in the calculation.
 - `price_context_calculation_method`: Calculation label. Current value is `daily_ohlcv_v1`.
-- `price_context_staleness_status`: `FRESH`, `STALE`, `MISSING`, or `ERROR`.
+- `price_context_staleness_status`: `FRESH`, `STALE`, `MISSING`, or `ERROR`. These values are defined by the `PriceContextStatus` artifact contract.
 
 ## Raw Option Quote Fields
 

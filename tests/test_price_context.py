@@ -1,15 +1,25 @@
 """Price-context calculation tests."""
 
 from datetime import date
+from pathlib import Path
 
 import pandas as pd
 import pytest
 
 from opx_chain.price_context import (
     PRICE_CONTEXT_FIELDS,
+    PriceContextStatus,
     blank_price_context,
     compute_price_context,
 )
+
+
+def test_price_context_status_contract_values():
+    """Price-context status values are a chain-owned artifact contract."""
+    assert PriceContextStatus.FRESH.value == "FRESH"
+    assert PriceContextStatus.STALE.value == "STALE"
+    assert PriceContextStatus.MISSING.value == "MISSING"
+    assert PriceContextStatus.ERROR.value == "ERROR"
 
 
 def _history(start: str = "2025-07-01", periods: int = 220) -> pd.DataFrame:
@@ -39,7 +49,7 @@ def test_compute_price_context_derives_daily_ohlcv_boundaries():
     )
 
     assert set(PRICE_CONTEXT_FIELDS).issubset(context)
-    assert context["price_context_staleness_status"] == "FRESH"
+    assert context["price_context_staleness_status"] == PriceContextStatus.FRESH.value
     assert context["price_context_source"] == "unit"
     assert context["price_context_lookback_trading_days"] == 220
     assert context["price_context_as_of"] == "2026-05-04"
@@ -64,7 +74,7 @@ def test_compute_price_context_blanks_stale_numeric_fields():
         max_age_days=7,
     )
 
-    assert context["price_context_staleness_status"] == "STALE"
+    assert context["price_context_staleness_status"] == PriceContextStatus.STALE.value
     assert context["price_context_as_of"] == "2025-07-28"
     assert context["price_context_age_days"] > 7
     assert all(context[field] is None for field in PRICE_CONTEXT_FIELDS)
@@ -80,3 +90,29 @@ def test_compute_price_context_returns_blank_payload_for_missing_history():
     )
 
     assert context == blank_price_context(source="unit")
+
+
+def test_blank_price_context_accepts_status_enum():
+    """Callers should use the canonical enum without leaking enum objects to JSON."""
+    context = blank_price_context(source="unit", status=PriceContextStatus.ERROR)
+
+    assert context["price_context_staleness_status"] == PriceContextStatus.ERROR.value
+
+
+def test_price_context_status_producers_use_status_contract():
+    """Production emit sites should not bypass PriceContextStatus for status values."""
+    root = Path(__file__).resolve().parents[1]
+    checked_paths = [
+        root / "opx_chain" / "price_context.py",
+        root / "opx_chain" / "fetch.py",
+    ]
+    forbidden_patterns = (
+        'status="STALE"',
+        'status="ERROR"',
+        '"price_context_staleness_status": "FRESH"',
+    )
+
+    for path in checked_paths:
+        source = path.read_text(encoding="utf-8")
+        for pattern in forbidden_patterns:
+            assert pattern not in source

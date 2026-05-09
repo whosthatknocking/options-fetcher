@@ -19,6 +19,7 @@ from opx_chain.metrics import (
 from opx_chain.normalize import apply_post_download_filters, enrich_option_frame
 from opx_chain.positions import EMPTY_POSITION_SET, PositionSet
 from opx_chain.price_context import (
+    PriceContextStatus,
     blank_price_context,
     compute_price_context,
 )
@@ -257,7 +258,7 @@ def fetch_ticker_price_context(  # pylint: disable=too-many-arguments
             store=store,
         )
         if result.error_summary is not None and result.history.empty:
-            return blank_price_context(source=provider.name, status="ERROR")
+            return blank_price_context(source=provider.name, status=PriceContextStatus.ERROR)
         context = compute_price_context(
             result.history,
             source=provider.name,
@@ -265,7 +266,7 @@ def fetch_ticker_price_context(  # pylint: disable=too-many-arguments
             max_age_days=config.price_context_max_age_days,
         )
     except Exception as exc:  # pylint: disable=broad-exception-caught
-        context = blank_price_context(source=provider.name, status="ERROR")
+        context = blank_price_context(source=provider.name, status=PriceContextStatus.ERROR)
         message = f"{ticker}: price_context skipped  error={_exception_summary(exc)}"
         if logger:
             logger.warning(message)
