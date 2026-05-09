@@ -14,7 +14,9 @@ from opx_chain.storage.serializers import get_serializer
 from opx_chain.utils import (
     finite_float,
     finite_float_or_none,
+    first_non_missing,
     is_finite_positive_number,
+    is_missing_or_non_finite,
     normalize_timestamp,
     read_dataset_file,
 )
@@ -186,6 +188,14 @@ def test_finite_float_or_none_shares_finite_float_policy(value, expected):
     else:
         assert result == pytest.approx(expected)
         assert finite_float(value) == pytest.approx(expected)
+
+
+def test_first_non_missing_rejects_non_finite_numeric_values():
+    """Provider coalescing should not treat inf as a valid market value."""
+    assert is_missing_or_non_finite(math.inf) is True
+    assert is_missing_or_non_finite(pd.NA) is True
+    assert first_non_missing(None, math.inf, np.nan, "fallback") == "fallback"
+    assert first_non_missing(False, "fallback") is False
 
 
 @pytest.mark.parametrize(

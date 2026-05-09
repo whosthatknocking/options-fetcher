@@ -90,6 +90,29 @@ def test_debug_dump_payload_reuses_timestamp_for_filename_and_payload(
     assert payload["fetched_at"] == "2026-05-09T05:59:59Z"
 
 
+def test_debug_dump_payload_sanitizes_non_finite_values(monkeypatch, tmp_path: Path) -> None:
+    """Provider debug dumps should stay strict-JSON compatible."""
+    monkeypatch.setattr(
+        "opx_chain.providers.base.get_runtime_config",
+        lambda: make_runtime_config(
+            debug_dump_provider_payload=True,
+            debug_dump_dir=tmp_path,
+        ),
+    )
+
+    dump_path = MinimalProvider().debug_dump_payload(
+        "tsla",
+        "snapshot",
+        {"price": float("inf"), "nested": [float("-inf")]},
+    )
+
+    assert dump_path is not None
+    text = dump_path.read_text(encoding="utf-8")
+    assert "Infinity" not in text
+    payload = json.loads(text)
+    assert payload["payload"] == {"price": None, "nested": [None]}
+
+
 def test_provider_quota_classifier_matches_provider_rate_limits() -> None:
     """Provider quota/rate-limit wording should still classify as terminal quota."""
     assert is_provider_quota_error(RuntimeError("HTTP 429 Too Many Requests"))

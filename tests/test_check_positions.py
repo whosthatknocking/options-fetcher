@@ -9,7 +9,9 @@ import time
 import pandas as pd
 
 from opx_chain.check_positions import (
+    _format_filter_value,  # pylint: disable=protected-access
     _format_iso_timestamp,  # pylint: disable=protected-access
+    _format_quote_value,  # pylint: disable=protected-access
     _is_true_like,  # pylint: disable=protected-access
     check_positions,
     find_latest_output,
@@ -132,6 +134,14 @@ def test_check_positions_true_like_uses_canonical_boolean_coercion():
     assert _is_true_like("n") is False
     assert _is_true_like(0.0) is False
     assert _is_true_like("garbage") is False
+
+
+def test_check_positions_formatters_treat_non_finite_as_missing():
+    """CLI formatting should not print inf as if it were a valid value."""
+    assert _format_filter_value(float("inf")) == "missing"
+    assert _format_filter_value(float("-inf")) == "missing"
+    assert _format_quote_value(float("inf")) == "—"
+    assert _format_quote_value(float("-inf")) == "—"
 
 
 def test_check_positions_true_like_delegates_to_canonical_coercer():

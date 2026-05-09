@@ -94,6 +94,30 @@ def coerce_float(value):
     return pd.to_numeric(value, errors="coerce")
 
 
+def is_missing_or_non_finite(value) -> bool:
+    """Return true for missing values and non-finite numeric scalars."""
+    if value is None:
+        return True
+    try:
+        if pd.isna(value):
+            return True
+    except (TypeError, ValueError):
+        return False
+    if isinstance(value, (bool, np.bool_)):
+        return False
+    if isinstance(value, (int, float, np.integer, np.floating)):
+        return not np.isfinite(float(value))
+    return False
+
+
+def first_non_missing(*values):
+    """Return the first value that is neither missing nor non-finite."""
+    for value in values:
+        if not is_missing_or_non_finite(value):
+            return value
+    return None
+
+
 def finite_float(value) -> float:
     """Convert a scalar to a finite float, returning NaN for invalid values."""
     if isinstance(value, (bool, np.bool_)):

@@ -10,7 +10,11 @@ from opx_chain.utils import finite_float
 
 def _merge_provider_and_derived(existing, derived):
     """Keep provider-native values when present and fill gaps with derived ones."""
-    return existing.where(existing.notna(), derived) if existing is not None else derived
+    if existing is None:
+        return derived
+    numeric = pd.to_numeric(existing, errors="coerce")
+    valid = numeric.notna() & np.isfinite(numeric)
+    return numeric.where(valid, derived)
 
 
 def _provider_greek_available(df):
@@ -19,7 +23,8 @@ def _provider_greek_available(df):
     for field in ("delta", "probability_itm", "gamma", "vega", "theta"):
         existing = df.get(field)
         if existing is not None:
-            available |= existing.notna()
+            numeric = pd.to_numeric(existing, errors="coerce")
+            available |= numeric.notna() & np.isfinite(numeric)
     return available
 
 
@@ -42,7 +47,9 @@ def compute_greeks(  # pylint: disable=too-many-locals
 
     valid = (
         has_valid_spot
+        & np.isfinite(strike)
         & (strike > 0)
+        & np.isfinite(time_to_expiration)
         & (time_to_expiration > 0)
         & np.isfinite(sigma)
         & (sigma > 0)

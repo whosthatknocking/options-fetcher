@@ -29,7 +29,11 @@ from opx_chain.providers.base import (
     normalize_provider_frame,
 )
 from opx_chain.providers._dates import parse_event_date as _parse_event_date
-from opx_chain.utils import coerce_float, normalize_timestamp
+from opx_chain.utils import (
+    coerce_float,
+    first_non_missing as _first_non_missing,
+    normalize_timestamp,
+)
 
 
 _transient_yfinance_exceptions: tuple[type[BaseException], ...] = (
@@ -48,14 +52,6 @@ if curl_exceptions is not None:
 def _is_retryable_yfinance_error(exc: Exception) -> bool:
     """Return True only for transient Yahoo/yfinance failures worth retrying."""
     return isinstance(exc, _transient_yfinance_exceptions) or is_provider_quota_error(exc)
-
-
-def _first_non_missing(*values):
-    """Return the first value that is not None/NaN, preserving legitimate zeroes."""
-    for value in values:
-        if value is not None and not pd.isna(value):
-            return value
-    return None
 
 
 def _flatten_calendar_values(value: Any) -> list[Any]:  # pylint: disable=too-many-return-statements

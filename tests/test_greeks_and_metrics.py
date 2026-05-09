@@ -1,4 +1,5 @@
 """Unit tests for Black-Scholes greeks and expected-move calculations."""
+# pylint: disable=too-many-lines
 
 import math
 
@@ -100,6 +101,31 @@ def test_compute_greeks_rejects_non_finite_underlying_price():
     assert result["has_valid_greeks"].tolist() == [False, False]
 
 
+def test_compute_greeks_rejects_non_finite_strike_and_time():
+    """Non-finite row inputs should not enter Black-Scholes calculations."""
+    frame = pd.DataFrame(
+        [
+            {
+                "strike": float("inf"),
+                "time_to_expiration_years": 0.5,
+                "implied_volatility": 0.25,
+                "option_type": "call",
+            },
+            {
+                "strike": 100,
+                "time_to_expiration_years": float("inf"),
+                "implied_volatility": 0.25,
+                "option_type": "put",
+            },
+        ]
+    )
+
+    result = compute_greeks(frame.copy(), underlying_price=110, risk_free_rate=0.045)
+
+    assert result[["delta", "probability_itm", "gamma", "vega", "theta"]].isna().all().all()
+    assert result["has_valid_greeks"].tolist() == [False, False]
+
+
 def test_compute_greeks_marks_provider_greeks_valid_without_iv():
     """Provider-native Greeks remain valid even when derived Greeks cannot run."""
     frame = pd.DataFrame(
@@ -119,6 +145,26 @@ def test_compute_greeks_marks_provider_greeks_valid_without_iv():
     assert result.loc[0, "delta"] == 0.25
     assert pd.isna(result.loc[0, "probability_itm"])
     assert bool(result.loc[0, "has_valid_greeks"]) is True
+
+
+def test_compute_greeks_does_not_preserve_non_finite_provider_greeks():
+    """Provider-native greeks must be finite before they are trusted."""
+    frame = pd.DataFrame(
+        [
+            {
+                "strike": 100,
+                "time_to_expiration_years": 0.5,
+                "implied_volatility": None,
+                "option_type": "call",
+                "delta": float("inf"),
+            },
+        ]
+    )
+
+    result = compute_greeks(frame.copy(), underlying_price=110, risk_free_rate=0.045)
+
+    assert pd.isna(result.loc[0, "delta"])
+    assert bool(result.loc[0, "has_valid_greeks"]) is False
 
 
 def test_compute_greeks_adds_delta_safety_pct_from_delta_abs():
@@ -208,6 +254,34 @@ def test_add_expected_move_by_expiration_uses_nearest_to_money_iv():
         rel_tol=0,
         abs_tol=1e-9,
     )
+
+
+def test_add_expected_move_by_expiration_rejects_non_finite_inputs():
+    """Expected move should not be computed from infinite IV or spot values."""
+    frame = pd.DataFrame(
+        [
+            {
+                "underlying_symbol": "TSLA",
+                "expiration_date": "2026-04-17",
+                "underlying_price": 100.0,
+                "time_to_expiration_years": 0.25,
+                "implied_volatility": float("inf"),
+                "strike_distance_pct": 0.01,
+            },
+            {
+                "underlying_symbol": "TSLA",
+                "expiration_date": "2026-04-17",
+                "underlying_price": float("inf"),
+                "time_to_expiration_years": 0.25,
+                "implied_volatility": 0.30,
+                "strike_distance_pct": 0.01,
+            },
+        ]
+    )
+
+    result = add_expected_move_by_expiration(frame)
+
+    assert result["expected_move"].isna().all()
 
 
 def make_scored_row(**overrides):
@@ -527,6 +601,32 @@ def test_add_screening_and_freshness_flags_vectorizes_days_bucket(monkeypatch):
         "Week_3",
         "Week_4",
     ]
+
+
+def test_add_screening_and_freshness_flags_marks_non_finite_scores_missing(monkeypatch):
+    """Scoring helpers should not turn non-finite inputs into usable defaults."""
+    monkeypatch.setattr("opx_chain.metrics.get_runtime_config", make_score_config)
+    fetched_at = pd.Timestamp("2026-03-20T16:00:00Z")
+    row = {
+        **make_scored_row(),
+        "option_quote_time": pd.Timestamp("2026-03-20T15:55:00Z"),
+        "has_valid_quote": True,
+        "has_nonzero_bid": True,
+        "has_nonzero_ask": True,
+        "has_valid_iv": True,
+        "has_valid_greeks": True,
+        "has_crossed_or_locked_market": False,
+        "bid_ask_spread_pct_of_mid": float("inf"),
+        "days_to_expiration": float("inf"),
+        "delta_abs": float("inf"),
+    }
+
+    result = add_screening_and_freshness_flags(pd.DataFrame([row]), fetched_at=fetched_at)
+
+    assert result.loc[0, "days_bucket"] == "UNKNOWN"
+    assert pd.isna(result.loc[0, "spread_score"])
+    assert pd.isna(result.loc[0, "dte_score"])
+    assert pd.isna(result.loc[0, "option_score"])
 
 
 def test_add_option_score_returns_bounded_value(monkeypatch):

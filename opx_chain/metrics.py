@@ -11,26 +11,31 @@ from opx_chain.utils import finite_float, is_finite_positive_number
 
 def classify_days_to_expiration_bucket(days_to_expiration):
     """Bucket expirations into coarse week ranges for quick filtering."""
-    if days_to_expiration <= 10:
+    days = finite_float(days_to_expiration)
+    if not np.isfinite(days):
+        return "UNKNOWN"
+    if days <= 10:
         return "Week_1"
-    if days_to_expiration <= 18:
+    if days <= 18:
         return "Week_2"
-    if days_to_expiration <= 26:
+    if days <= 26:
         return "Week_3"
     return "Week_4"
 
 
 def _compute_days_bucket(days_to_expiration):
     """Vectorized version of classify_days_to_expiration_bucket."""
-    return np.select(
+    days = _finite_numeric_series(days_to_expiration)
+    raw = np.select(
         [
-            days_to_expiration <= 10,
-            days_to_expiration <= 18,
-            days_to_expiration <= 26,
+            days <= 10,
+            days <= 18,
+            days <= 26,
         ],
         ["Week_1", "Week_2", "Week_3"],
         default="Week_4",
     )
+    return np.where(days.notna(), raw, "UNKNOWN")
 
 
 def _clip_zero_to_one(values):
@@ -38,9 +43,18 @@ def _clip_zero_to_one(values):
     return np.clip(values, 0.0, 1.0)
 
 
+def _finite_numeric_series(values):
+    """Return numeric values with non-finite entries masked as NaN."""
+    numeric = pd.to_numeric(values, errors="coerce")
+    if not isinstance(numeric, pd.Series):
+        numeric = pd.Series(numeric)
+    return numeric.where(np.isfinite(numeric))
+
+
 def _compute_spread_score(spread_pct):
     """Score execution quality from spread percent using prompt-aligned tiers."""
-    return np.select(
+    spread_pct = _finite_numeric_series(spread_pct)
+    raw = np.select(
         [
             spread_pct < 0.10,
             spread_pct <= 0.15,
@@ -53,11 +67,13 @@ def _compute_spread_score(spread_pct):
         ],
         default=0.0,
     )
+    return np.where(spread_pct.notna(), raw, np.nan)
 
 
 def _compute_dte_score(days_to_expiration):
     """Apply the prompt's tiered DTE preference."""
-    return np.select(
+    days_to_expiration = _finite_numeric_series(days_to_expiration)
+    raw = np.select(
         [
             days_to_expiration < 5,
             days_to_expiration < 7,
@@ -74,21 +90,25 @@ def _compute_dte_score(days_to_expiration):
         ],
         default=30.0,
     )
+    return np.where(days_to_expiration.notna(), raw, np.nan)
 
 
 def _compute_income_score(iv_adjusted_premium_per_day):
     """Score IV-adjusted premium-per-day with a floor and hard cap."""
+    iv_adjusted_premium_per_day = _finite_numeric_series(iv_adjusted_premium_per_day)
     min_useful_premium_per_day = 0.01
     max_premium_per_day = 0.05
-    return _clip_zero_to_one(
+    raw = _clip_zero_to_one(
         (iv_adjusted_premium_per_day - min_useful_premium_per_day)
         / (max_premium_per_day - min_useful_premium_per_day)
     )
+    return raw.where(iv_adjusted_premium_per_day.notna())
 
 
 def _compute_theta_efficiency_score(theta_efficiency):
     """Normalize theta efficiency into a bounded score."""
-    return _clip_zero_to_one(theta_efficiency / 15.0)
+    theta_efficiency = _finite_numeric_series(theta_efficiency)
+    return _clip_zero_to_one(theta_efficiency / 15.0).where(theta_efficiency.notna())
 
 
 def _series_finite_positive(series):
@@ -119,7 +139,8 @@ def _compute_risk_level(df):
 
 def _compute_risk_score(delta_abs):
     """Use delta alone as the score-driving risk input."""
-    return np.select(
+    delta_abs = _finite_numeric_series(delta_abs)
+    raw = np.select(
         [
             delta_abs < 0.30,
             delta_abs <= 0.40,
@@ -130,6 +151,7 @@ def _compute_risk_score(delta_abs):
         ],
         default=0.35,
     )
+    return np.where(delta_abs.notna(), raw, np.nan)
 
 
 def _compute_score_validation(option_score, income_score, spread_score):
@@ -512,13 +534,10 @@ def add_expected_move_by_expiration(df):
         df[column] = np.nan
 
     valid = (
-        df["underlying_price"].notna()
-        & (df["underlying_price"] > 0)
-        & df["time_to_expiration_years"].notna()
-        & (df["time_to_expiration_years"] > 0)
-        & df["implied_volatility"].notna()
-        & (df["implied_volatility"] > 0)
-        & df["strike_distance_pct"].notna()
+        _series_finite_positive(df["underlying_price"])
+        & _series_finite_positive(df["time_to_expiration_years"])
+        & _series_finite_positive(df["implied_volatility"])
+        & _series_finite_nonnegative(df["strike_distance_pct"])
     )
     if not valid.any():
         return df
@@ -610,7 +629,7 @@ def add_iv_state_level(df):
         return df
 
     for _, group in df.groupby("underlying_symbol"):
-        valid_iv = group["implied_volatility"].notna() & (group["implied_volatility"] > 0)
+        valid_iv = _series_finite_positive(group["implied_volatility"])
         iv_vals = group.loc[valid_iv, "implied_volatility"]
         if len(iv_vals) < 5:
             continue
@@ -623,9 +642,8 @@ def add_iv_state_level(df):
         for exp in sorted(group["expiration_date"].unique()):
             exp_rows = group[group["expiration_date"] == exp]
             candidates = exp_rows[
-                exp_rows["implied_volatility"].notna()
-                & (exp_rows["implied_volatility"] > 0)
-                & exp_rows["strike_distance_pct"].notna()
+                _series_finite_positive(exp_rows["implied_volatility"])
+                & _series_finite_nonnegative(exp_rows["strike_distance_pct"])
             ]
             if candidates.empty:
                 continue
@@ -633,9 +651,9 @@ def add_iv_state_level(df):
             rep_iv = candidates.loc[atm_idx, "implied_volatility"]
             break
 
-        if rep_iv is None or pd.isna(rep_iv):
+        if rep_iv is None or pd.isna(rep_iv) or not np.isfinite(rep_iv):
             rep_iv = iv_vals.median()
-        if pd.isna(rep_iv):
+        if pd.isna(rep_iv) or not np.isfinite(rep_iv):
             continue
 
         if rep_iv >= p70:
@@ -663,7 +681,7 @@ def add_iv_state_term(df):
         return df
 
     for _, group in df.groupby("underlying_symbol"):
-        valid_rows = group[group["implied_volatility"].notna() & (group["implied_volatility"] > 0)]
+        valid_rows = group[_series_finite_positive(group["implied_volatility"])]
         if valid_rows.empty:
             continue
 
@@ -674,7 +692,13 @@ def add_iv_state_term(df):
 
         near_iv = by_exp[exps[0]]
         far_iv = by_exp[exps[1]]
-        if pd.isna(near_iv) or pd.isna(far_iv) or far_iv <= 0:
+        if (
+            pd.isna(near_iv)
+            or pd.isna(far_iv)
+            or not np.isfinite(near_iv)
+            or not np.isfinite(far_iv)
+            or far_iv <= 0
+        ):
             continue
 
         if near_iv >= far_iv * 1.05:

@@ -217,6 +217,15 @@ def test_respond_json_serializes_non_finite_values_as_null():
     assert ("Content-Type", "application/json; charset=utf-8") in headers
 
 
+def test_market_context_ignores_non_finite_values():
+    """Market text helpers should not render inf or inf%."""
+    assert (
+        viewer.build_market_context("TSLA", float("inf"), 0.01)
+        == "TSLA last underlying price was unavailable."
+    )
+    assert viewer.build_latest_status(float("inf"), float("inf"), 0.2) == "Snapshot available"
+
+
 def _capture_api_response(handler):
     """Capture JSON endpoint responses from a handler built without a socket."""
     captured: dict[str, object] = {}

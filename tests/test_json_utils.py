@@ -2,9 +2,17 @@
 # pylint: disable=too-few-public-methods
 
 import ast
+import json
+import math
 from pathlib import Path
 
-from opx_chain.json_utils import to_python_scalar
+import pandas as pd
+
+from opx_chain.json_utils import (
+    dumps_sanitized_json,
+    sanitize_json_payload,
+    to_python_scalar,
+)
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 PACKAGE_ROOT = PROJECT_ROOT / "opx_chain"
@@ -52,6 +60,27 @@ def test_to_python_scalar_defensively_calls_item() -> None:
     assert to_python_scalar(overflow) is overflow
     assert to_python_scalar(non_callable) is non_callable
     assert to_python_scalar("abc") == "abc"
+
+
+def test_dumps_sanitized_json_converts_nested_non_finite_values() -> None:
+    """Graceful JSON responses should turn non-finite scalars into null."""
+    payload = {
+        "nan": math.nan,
+        "pos_inf": math.inf,
+        "items": [1, -math.inf],
+    }
+
+    encoded = dumps_sanitized_json(payload, sort_keys=True)
+
+    assert "NaN" not in encoded
+    assert "Infinity" not in encoded
+    assert json.loads(encoded) == {"items": [1, None], "nan": None, "pos_inf": None}
+
+
+def test_sanitize_json_payload_handles_scalar_like_non_finite_values() -> None:
+    """Numpy/pandas scalar-like values should pass through the same sanitizer."""
+    assert sanitize_json_payload(math.inf) is None
+    assert sanitize_json_payload(pd.NA) is None
 
 
 def test_scalar_item_conversion_stays_in_json_utils() -> None:

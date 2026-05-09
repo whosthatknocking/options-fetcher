@@ -63,6 +63,7 @@ class FakeResponse:  # pylint: disable=too-few-public-methods
         self.status_code = status_code
         self._payload = payload
         self.headers = headers or {}
+        self.text = json.dumps(payload)
 
     def json(self):
         """Return the canned JSON payload."""
@@ -465,6 +466,14 @@ def test_marketdata_provider_ignores_non_finite_retry_after(monkeypatch, retry_a
 
     assert response.status_code == 200
     assert sleep_calls == [0.5]
+
+
+def test_marketdata_decode_response_json_rejects_non_finite_literals():
+    """Provider HTTP decode boundary should reject non-standard JSON constants."""
+    response = FakeResponse(200, {"value": 1})
+    response.text = '{"value": Infinity}'
+
+    assert MarketDataProvider._decode_response_json(response) is None  # pylint: disable=protected-access
 
 
 def test_marketdata_provider_retries_rate_limits_with_http_date(monkeypatch):

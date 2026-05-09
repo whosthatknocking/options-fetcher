@@ -5,7 +5,6 @@
 from __future__ import annotations
 
 from functools import lru_cache
-import json
 import time
 from typing import Any
 
@@ -19,6 +18,7 @@ from opx_chain.config import (
     get_provider_credentials,
     get_runtime_config,
 )
+from opx_chain.json_utils import loads_strict_json
 from opx_chain.option_types import OPTION_TYPE_CALL, OPTION_TYPE_PUT
 from opx_chain.paths import get_default_config_path
 from opx_chain.providers.base import (
@@ -29,21 +29,14 @@ from opx_chain.providers.base import (
     is_provider_quota_error,
     normalize_provider_frame,
 )
-from opx_chain.utils import coerce_float, normalize_timestamp
+from opx_chain.utils import (
+    coerce_float,
+    first_non_missing as _coalesce,
+    normalize_timestamp,
+)
 
 DEFAULT_SNAPSHOT_PAGE_LIMIT = DEFAULT_MASSIVE_SNAPSHOT_PAGE_LIMIT
 CALLER_USER_AGENT = f"opx-chain/{SCRIPT_VERSION}"
-
-
-def _coalesce(*values: Any) -> Any:
-    """Return the first value that is not None and not NaN-like."""
-    for value in values:
-        if value is None:
-            continue
-        if isinstance(value, float) and np.isnan(value):
-            continue
-        return value
-    return None
 
 
 def _get_field(value: Any, *path: str) -> Any:
@@ -187,8 +180,8 @@ class MassiveProvider(DataProvider):
             response_data = getattr(response, "data", None)
             if response_data:
                 try:
-                    decoded = json.loads(response_data.decode("utf-8"))
-                except (UnicodeDecodeError, json.JSONDecodeError, AttributeError):
+                    decoded = loads_strict_json(response_data.decode("utf-8"))
+                except (UnicodeDecodeError, ValueError, AttributeError):
                     decoded = None
                 if isinstance(decoded, dict):
                     results = decoded.get("results")

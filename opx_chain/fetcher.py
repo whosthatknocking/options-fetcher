@@ -4,7 +4,6 @@ import argparse
 from dataclasses import fields as dataclass_fields, replace
 from datetime import datetime, timedelta, timezone
 import hashlib
-import json
 import logging
 import os
 from pathlib import Path
@@ -327,7 +326,7 @@ def _validation_sample(finding: ValidationFinding) -> str:
         "contract_symbol": finding.contract_symbol,
         "field": finding.field,
     }
-    return json.dumps(
+    return dumps_strict_json(
         {key: value for key, value in sample.items() if value is not None},
         sort_keys=True,
     )
@@ -398,7 +397,7 @@ def _run_log_reference(run_id: str, log_path: Path) -> bytes:
         "log_scope": "shared_append_only",
         "lookup_hint": "Search the shared log for this storage run_id.",
     }
-    return json.dumps(payload, sort_keys=True, indent=2).encode()
+    return dumps_strict_json(payload, sort_keys=True, indent=2).encode()
 
 
 def _do_fetch_with_lock_held(  # pylint: disable=too-many-branches,too-many-locals,too-many-statements

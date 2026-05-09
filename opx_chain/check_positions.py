@@ -1,7 +1,8 @@
 """CLI tool to verify positions coverage and summarize saved-chain freshness."""
 from datetime import datetime, timezone
-from pathlib import Path
+import math
 from numbers import Real
+from pathlib import Path
 
 import pandas as pd
 
@@ -93,7 +94,8 @@ def _format_filter_value(value) -> str:
     if isinstance(value, bool):
         return str(value).lower()
     if isinstance(value, Real):
-        return f"{float(value):.4f}"
+        parsed = float(value)
+        return f"{parsed:.4f}" if math.isfinite(parsed) else "missing"
     return str(value)
 
 
@@ -102,7 +104,8 @@ def _format_quote_value(value) -> str:
     if value is None or pd.isna(value):
         return "—"
     if isinstance(value, Real):
-        return f"{float(value):.2f}"
+        parsed = float(value)
+        return f"{parsed:.2f}" if math.isfinite(parsed) else "—"
     return str(value)
 
 

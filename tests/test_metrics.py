@@ -119,6 +119,19 @@ def test_add_iv_state_level_missing_required_column_returns_unknown():
     assert (result["iv_state_level"] == "UNKNOWN").all()
 
 
+def test_add_iv_state_level_ignores_non_finite_iv_values():
+    """Infinite IV should not force HIGH classification."""
+    tickers = ["TSLA"] * 6
+    exps = ["2026-04-17"] * 6
+    strikes = [95, 97, 100, 103, 105, 107]
+    ivs = [float("inf")] * 6
+    df = _iv_level_frame(tickers, exps, strikes, ivs)
+
+    result = add_iv_state_level(df)
+
+    assert (result["iv_state_level"] == "UNKNOWN").all()
+
+
 # ---------------------------------------------------------------------------
 # add_iv_state_term
 # ---------------------------------------------------------------------------
@@ -185,6 +198,19 @@ def test_add_iv_state_term_independent_per_underlying():
     result = add_iv_state_term(df)
     assert (result.loc[result["underlying_symbol"] == "AAPL", "iv_state_term"] == "RISING").all()
     assert (result.loc[result["underlying_symbol"] == "MSFT", "iv_state_term"] == "FALLING").all()
+
+
+def test_add_iv_state_term_ignores_non_finite_iv_values():
+    """Infinite IV values should leave term structure unknown."""
+    df = _iv_term_frame(
+        ["TSLA"] * 4,
+        ["2026-04-17", "2026-04-17", "2026-05-16", "2026-05-16"],
+        [float("inf"), float("inf"), float("inf"), float("inf")],
+    )
+
+    result = add_iv_state_term(df)
+
+    assert (result["iv_state_term"] == "UNKNOWN").all()
 
 
 # ---------------------------------------------------------------------------

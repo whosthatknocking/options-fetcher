@@ -6,6 +6,7 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from datetime import date, datetime, timezone
 import json
+import math
 from pathlib import Path
 import re
 
@@ -68,8 +69,10 @@ class OptionChainFrames:
 
 def _to_json_ready(value):  # pylint: disable=too-many-return-statements
     """Convert provider payloads into JSON-serializable structures."""
-    if value is None or isinstance(value, (str, int, float, bool)):
+    if value is None or isinstance(value, (str, bool, int)):
         return value
+    if isinstance(value, (float, np.floating)):
+        return float(value) if math.isfinite(float(value)) else None
     if isinstance(value, Path):
         return str(value)
     if isinstance(value, (datetime, date)):

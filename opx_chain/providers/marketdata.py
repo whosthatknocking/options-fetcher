@@ -23,6 +23,7 @@ from opx_chain.config import (
     get_provider_credentials,
     get_runtime_config,
 )
+from opx_chain.json_utils import loads_strict_json
 from opx_chain.option_types import OPTION_TYPE_CALL, OPTION_TYPE_PUT
 from opx_chain.paths import get_default_config_path
 from opx_chain.providers.base import (
@@ -244,7 +245,7 @@ class MarketDataProvider(DataProvider):
     def _decode_response_json(response):
         """Decode a JSON response body when available."""
         try:
-            return response.json()
+            return loads_strict_json(response.text)
         except (ValueError, TypeError, AttributeError):
             return None
 

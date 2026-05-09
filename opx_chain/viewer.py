@@ -5,7 +5,6 @@ from __future__ import annotations
 
 import argparse
 import ipaddress
-import json
 import math
 import os
 import re
@@ -25,7 +24,10 @@ from pandas.api.types import is_bool_dtype, is_numeric_dtype
 from opx_chain.coerce import coerce_bool_or_default
 from opx_chain.config import get_runtime_config
 from opx_chain.export import CANONICAL_EXPORT_COLUMNS
-from opx_chain.json_utils import to_python_scalar
+from opx_chain.json_utils import (
+    dumps_sanitized_json,
+    to_python_scalar,
+)
 from opx_chain.option_types import OPTION_TYPE_CALL, OPTION_TYPE_PUT
 from opx_chain.paths import get_runs_dir
 from opx_chain.positions import (
@@ -268,26 +270,9 @@ def normalize_value(value: Any) -> Any:
         return None
     if isinstance(value, (pd.Timestamp,)):
         return value.isoformat()
-    return to_python_scalar(value)
-
-
-def sanitize_json_payload(value: Any) -> Any:
-    """Convert nested payload values into strict JSON-safe primitives."""
-    if isinstance(value, dict):
-        return {key: sanitize_json_payload(item) for key, item in value.items()}
-    if isinstance(value, (list, tuple)):
-        return [sanitize_json_payload(item) for item in value]
-    normalized = value
-    if isinstance(normalized, pd.Timestamp):
-        normalized = normalized.isoformat()
-    elif isinstance(normalized, float) and not math.isfinite(normalized):
-        normalized = None
-    elif not isinstance(normalized, (str, bytes, bytearray)):
-        scalar = to_python_scalar(normalized)
-        if scalar is not normalized:
-            normalized = sanitize_json_payload(scalar)
-    elif pd.isna(normalized):
-        normalized = None
+    normalized = to_python_scalar(value)
+    if isinstance(normalized, float) and not math.isfinite(normalized):
+        return None
     return normalized
 
 
@@ -684,8 +669,12 @@ def build_market_context(
     day_change_pct: float | None,
 ) -> str:
     """Summarize the latest underlying snapshot in plain language."""
+    underlying_price = coerce_scalar_number(underlying_price)
+    day_change_pct = coerce_scalar_number(day_change_pct)
     if underlying_price is None and day_change_pct is None:
         return f"{ticker} has no recent underlying snapshot in this file."
+    if underlying_price is None:
+        return f"{ticker} last underlying price was unavailable."
     if day_change_pct is None:
         return f"{ticker} last underlying price was {underlying_price:.2f}."
     direction = "up" if day_change_pct >= 0 else "down"
@@ -701,6 +690,9 @@ def build_latest_status(
     historical_volatility_pct: float | None,
 ) -> str:
     """Build a short status label summarizing move and volatility context."""
+    day_change_pct = coerce_scalar_number(day_change_pct)
+    median_iv_pct = coerce_scalar_number(median_iv_pct)
+    historical_volatility_pct = coerce_scalar_number(historical_volatility_pct)
     if (
         day_change_pct is None
         and median_iv_pct is None
@@ -991,7 +983,7 @@ class ViewerRequestHandler(SimpleHTTPRequestHandler):
 
     def respond_json(self, payload: dict[str, Any], status: HTTPStatus = HTTPStatus.OK) -> None:
         """Serialize and send a JSON response for one of the API endpoints."""
-        encoded = json.dumps(sanitize_json_payload(payload), allow_nan=False).encode("utf-8")
+        encoded = dumps_sanitized_json(payload).encode("utf-8")
         self.send_response(status)
         self.send_header("Content-Type", "application/json; charset=utf-8")
         self.send_header("Content-Length", str(len(encoded)))
