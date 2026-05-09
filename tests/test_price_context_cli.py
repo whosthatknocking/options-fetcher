@@ -4,10 +4,10 @@ import json
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-import pytest
 import pandas as pd
+import pytest
 
-from conftest import make_runtime_config
+from conftest import BoundaryTickDateTime, make_runtime_config
 from opx_chain.price_context import PRICE_CONTEXT_SCHEMA_VERSION
 from opx_chain.positions import EMPTY_POSITION_SET
 from opx_chain.storage.memory import MemoryBackend
@@ -200,6 +200,47 @@ def test_enabled_price_context_option_run_writes_independent_json(
     assert payload["schema_version"] == PRICE_CONTEXT_SCHEMA_VERSION
     assert payload["tickers"] == ["AAA"]
     assert payload["records"][0]["ticker"] == "AAA"
+
+
+def test_price_context_artifact_reuses_timestamp_for_filename_and_payload(
+    monkeypatch,
+    tmp_path: Path,
+):
+    """The timestamped artifact name and fetched_at metadata must stay paired."""
+    from opx_chain import fetcher  # pylint: disable=import-outside-toplevel
+
+    BoundaryTickDateTime.reset()
+    config = make_runtime_config(
+        storage_enabled=False,
+        storage_dir=tmp_path / "data",
+        tickers=("AAA",),
+        price_context_enable=True,
+    )
+    store = MagicMock()
+    provider = StubProvider()
+    price_fetch = PriceContextFetchStub()
+
+    monkeypatch.setattr(fetcher, "datetime", BoundaryTickDateTime)
+    monkeypatch.setattr(fetcher, "get_data_provider", MagicMock(return_value=provider))
+    monkeypatch.setattr(fetcher, "get_price_history_store", MagicMock(return_value=store))
+    monkeypatch.setattr(fetcher, "fetch_ticker_price_context", price_fetch)
+
+    output_path = fetcher._run_price_context_fetch(  # pylint: disable=protected-access
+        config,
+        ("AAA",),
+        logger=None,
+    )
+
+    payload = json.loads(output_path.read_text(encoding="utf-8"))
+    latest_payload = json.loads(
+        (tmp_path / "data" / "runs" / "price_context_latest.json").read_text(
+            encoding="utf-8",
+        ),
+    )
+    assert BoundaryTickDateTime.calls == 1
+    assert output_path.name == "price_context_20260509_055959.json"
+    assert payload["fetched_at"] == "2026-05-09T05:59:59Z"
+    assert latest_payload["fetched_at"] == "2026-05-09T05:59:59Z"
 
 
 def test_price_context_only_conflicts_with_disable_flag():

@@ -115,14 +115,15 @@ class DataProvider(ABC):
             return None
         dump_dir = Path(config.debug_dump_dir)
         dump_dir.mkdir(parents=True, exist_ok=True)
-        timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
+        fetched_at = datetime.now(timezone.utc)
+        timestamp = fetched_at.strftime("%Y%m%d_%H%M%S")
         safe_label = label.replace(" ", "_")
         dump_path = dump_dir / f"{self.name}_{ticker.upper()}_{safe_label}_{timestamp}.json"
         debug_payload = {
             "provider": self.name,
             "ticker": ticker.upper(),
             "label": label,
-            "fetched_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+            "fetched_at": fetched_at.strftime("%Y-%m-%dT%H:%M:%SZ"),
             "payload": _to_json_ready(payload),
         }
         atomic_write_text(

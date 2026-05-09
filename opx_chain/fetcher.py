@@ -255,14 +255,15 @@ def _run_price_context_fetch(config, effective_tickers, logger) -> Path:
     finally:
         store.close()
 
-    timestamp = datetime.now(tz=timezone.utc).strftime("%Y%m%d_%H%M%S")
+    fetched_at = datetime.now(tz=timezone.utc)
+    timestamp = fetched_at.strftime("%Y%m%d_%H%M%S")
     runs_dir = _runs_dir(config)
     output_path = runs_dir / f"price_context_{timestamp}.json"
     payload = {
         "artifact_type": "price_context",
         "schema_version": PRICE_CONTEXT_SCHEMA_VERSION,
         "provider": config.data_provider,
-        "fetched_at": datetime.now(tz=timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "fetched_at": fetched_at.strftime("%Y-%m-%dT%H:%M:%SZ"),
         "tickers": list(effective_tickers),
         "records": records,
     }

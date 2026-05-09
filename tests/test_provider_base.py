@@ -1,10 +1,11 @@
 """Tests for shared provider base behavior."""
 
+import json
 from pathlib import Path
 
 import pandas as pd
 
-from conftest import make_runtime_config
+from conftest import BoundaryTickDateTime, make_runtime_config
 from opx_chain.providers.base import DataProvider, OptionChainFrames, is_provider_quota_error
 from opx_chain.storage.atomic import atomic_write_text
 
@@ -62,6 +63,31 @@ def test_debug_dump_payload_uses_atomic_text_writer(monkeypatch, tmp_path: Path)
     assert dump_path.exists()
     assert not list(tmp_path.glob(".*.tmp"))
     assert '"ticker": "TSLA"' in dump_path.read_text(encoding="utf-8")
+
+
+def test_debug_dump_payload_reuses_timestamp_for_filename_and_payload(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    """The debug dump filename timestamp and fetched_at field must stay paired."""
+    monkeypatch.setattr(
+        "opx_chain.providers.base.get_runtime_config",
+        lambda: make_runtime_config(
+            debug_dump_provider_payload=True,
+            debug_dump_dir=tmp_path,
+        ),
+    )
+
+    BoundaryTickDateTime.reset()
+    monkeypatch.setattr("opx_chain.providers.base.datetime", BoundaryTickDateTime)
+
+    dump_path = MinimalProvider().debug_dump_payload("tsla", "snapshot", {"price": 123.45})
+
+    assert dump_path is not None
+    payload = json.loads(dump_path.read_text(encoding="utf-8"))
+    assert BoundaryTickDateTime.calls == 1
+    assert dump_path.name == "minimal_TSLA_snapshot_20260509_055959.json"
+    assert payload["fetched_at"] == "2026-05-09T05:59:59Z"
 
 
 def test_provider_quota_classifier_matches_provider_rate_limits() -> None:

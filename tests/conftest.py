@@ -1,6 +1,6 @@
 """Pytest configuration ensuring the repository root is importable."""
 
-from datetime import date
+from datetime import date, datetime, timezone
 from pathlib import Path
 import sys
 
@@ -11,6 +11,29 @@ if str(REPO_ROOT) not in sys.path:
 import pytest  # pylint: disable=wrong-import-position
 
 from opx_chain.config import RuntimeConfig, reset_runtime_config  # pylint: disable=wrong-import-position
+
+
+class BoundaryTickDateTime(datetime):
+    """Datetime stub that crosses a second boundary if callers read it twice."""
+
+    calls = 0
+    instants = (
+        datetime(2026, 5, 9, 5, 59, 59, tzinfo=timezone.utc),
+        datetime(2026, 5, 9, 6, 0, 0, tzinfo=timezone.utc),
+    )
+
+    @classmethod
+    def reset(cls) -> None:
+        """Reset recorded clock reads."""
+        cls.calls = 0
+
+    @classmethod
+    def now(cls, *args, **kwargs):
+        """Return sequential instants while recording clock reads."""
+        del args, kwargs
+        instant = cls.instants[min(cls.calls, len(cls.instants) - 1)]
+        cls.calls += 1
+        return instant
 
 
 def _make_xdg_test_paths(tmp_path: Path) -> dict[str, Path]:
