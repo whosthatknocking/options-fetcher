@@ -214,6 +214,22 @@ def test_main_exits_0_all_found(tmp_path):
     assert result == 0
 
 
+def test_main_ignores_pytest_argv_when_called_without_args(monkeypatch, tmp_path):
+    """Bare main() under pytest should not parse pytest's own process argv."""
+    pos_path = _write_positions(tmp_path, [
+        {"Symbol": " -AAPL260620C200"},
+    ])
+    out_path = _write_output(tmp_path, "options_engine_output_test.csv", [
+        {"underlying_symbol": "AAPL", "expiration_date": "2026-06-20",
+         "option_type": "call", "strike": 200.0, "bid": 5.0, "ask": 5.5,
+         "passes_primary_screen": True},
+    ])
+    monkeypatch.setattr("opx_chain.check_positions.DEFAULT_POSITIONS_PATH", pos_path)
+    monkeypatch.setattr("opx_chain.check_positions.find_latest_output", lambda: out_path)
+
+    assert main() == 0
+
+
 def test_main_exits_1_some_missing(tmp_path):
     """main() returns 1 when any position is missing from the output."""
     pos_path = _write_positions(tmp_path, [

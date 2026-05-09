@@ -2,6 +2,7 @@
 from datetime import datetime, timezone
 import math
 from numbers import Real
+import os
 from pathlib import Path
 
 import pandas as pd
@@ -15,6 +16,13 @@ from opx_chain.storage.models import DatasetRecord
 from opx_chain.utils import read_dataset_file
 
 RUNS_DIR = get_data_dir() / "runs"
+
+
+def _coerce_argv_for_pytest(argv):
+    """Protect bare CLI entrypoint calls from pytest's own process arguments."""
+    if argv is None and "PYTEST_CURRENT_TEST" in os.environ:
+        return []
+    return argv
 
 
 def _runtime_runs_dir() -> Path:
@@ -393,6 +401,7 @@ def main(argv=None):
     """Print a position coverage report for the latest output CSV."""
     import argparse  # pylint: disable=import-outside-toplevel
 
+    argv = _coerce_argv_for_pytest(argv)
     parser = argparse.ArgumentParser(
         prog="opx-check",
         description=(
