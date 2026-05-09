@@ -1,5 +1,6 @@
 """Run-log tests covering shared logging between the app and yfinance."""
 
+import ast
 import logging
 from pathlib import Path
 
@@ -7,6 +8,9 @@ import pytest
 
 from conftest import make_runtime_config
 from opx_chain.runlog import LOG_NAME, create_run_logger, get_logger, log_run_started
+
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+PACKAGE_ROOT = PROJECT_ROOT / "opx_chain"
 
 
 class TrackingHandler(logging.Handler):
@@ -72,15 +76,36 @@ def test_get_logger_uses_canonical_opx_chain_namespace():
     assert get_logger(".providers.marketdata.sdk.").name == "opx_chain.providers.marketdata.sdk"
 
 
+def _logging_getlogger_call_lines(path: Path) -> list[int]:
+    tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+    matches: list[int] = []
+    for node in ast.walk(tree):
+        if (
+            isinstance(node, ast.Call)
+            and isinstance(node.func, ast.Attribute)
+            and isinstance(node.func.value, ast.Name)
+            and node.func.value.id == "logging"
+            and node.func.attr == "getLogger"
+        ):
+            matches.append(node.lineno)
+    return matches
+
+
 def test_production_code_uses_runlog_get_logger_for_opx_loggers():
     """Only runlog.py should call logging.getLogger in production code."""
+    assert PACKAGE_ROOT.exists()
     offenders: list[str] = []
-    for path in (Path(__file__).resolve().parents[1] / "opx_chain").rglob("*.py"):
+    scanned_files = 0
+    for path in PACKAGE_ROOT.rglob("*.py"):
         if path.name == "runlog.py":
             continue
-        if "logging.getLogger" in path.read_text(encoding="utf-8"):
-            offenders.append(str(path.relative_to(path.parents[1])))
+        scanned_files += 1
+        offenders.extend(
+            f"{path.relative_to(PROJECT_ROOT)}:{line}"
+            for line in _logging_getlogger_call_lines(path)
+        )
 
+    assert scanned_files > 0
     assert not offenders
 
 
