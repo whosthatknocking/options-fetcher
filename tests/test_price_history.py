@@ -7,6 +7,7 @@ import pandas as pd
 import pytest
 
 from conftest import make_runtime_config
+import opx_chain.price_history as price_history_mod
 from opx_chain.price_history import PriceHistoryStore, reconcile_price_history
 
 
@@ -62,6 +63,51 @@ def test_price_history_store_enables_sqlite_foreign_keys(tmp_path):
     enabled = store._connection_for_use().execute("PRAGMA foreign_keys").fetchone()[0]  # pylint: disable=protected-access
 
     assert enabled == 1
+
+
+def test_price_history_schema_migration_updates_version_and_applies_sql(tmp_path, monkeypatch):
+    """Existing price-history databases should migrate when schema version advances."""
+    db_path = tmp_path / "price-history.db"
+    PriceHistoryStore(db_path).close()
+    next_version = price_history_mod.PRICE_HISTORY_SCHEMA_VERSION + 1
+    monkeypatch.setattr(price_history_mod, "PRICE_HISTORY_SCHEMA_VERSION", next_version)
+    monkeypatch.setattr(
+        price_history_mod,
+        "PRICE_HISTORY_SCHEMA_MIGRATIONS",
+        {next_version: "ALTER TABLE daily_price_bars ADD COLUMN adjustment REAL;"},
+    )
+
+    PriceHistoryStore(db_path).close()
+
+    conn = sqlite3.connect(db_path)
+    try:
+        version = conn.execute(
+            "SELECT value FROM _schema_meta WHERE key = 'schema_version'"
+        ).fetchone()[0]
+        columns = {
+            row[1]
+            for row in conn.execute("PRAGMA table_info(daily_price_bars)").fetchall()
+        }
+    finally:
+        conn.close()
+
+    assert version == str(next_version)
+    assert "adjustment" in columns
+
+
+def test_price_history_schema_migration_fails_when_required_step_is_missing(
+    tmp_path,
+    monkeypatch,
+):
+    """A price-history schema bump without migration SQL must fail explicitly."""
+    db_path = tmp_path / "price-history.db"
+    PriceHistoryStore(db_path).close()
+    next_version = price_history_mod.PRICE_HISTORY_SCHEMA_VERSION + 1
+    monkeypatch.setattr(price_history_mod, "PRICE_HISTORY_SCHEMA_VERSION", next_version)
+    monkeypatch.setattr(price_history_mod, "PRICE_HISTORY_SCHEMA_MIGRATIONS", {})
+
+    with pytest.raises(RuntimeError, match="schema migration missing"):
+        PriceHistoryStore(db_path)
 
 
 def test_price_history_store_detaches_finalizer_on_close(tmp_path):

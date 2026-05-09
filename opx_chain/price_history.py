@@ -19,6 +19,7 @@ from opx_chain.utils import finite_float_or_none
 
 
 PRICE_HISTORY_SCHEMA_VERSION = 1
+PRICE_HISTORY_SCHEMA_MIGRATIONS: dict[int, str] = {}
 PRICE_HISTORY_TAIL_REFRESH_DAYS = 7
 
 _SCHEMA_SQL = """
@@ -169,21 +170,58 @@ class PriceHistoryStore:
     def _init_schema(self) -> None:
         with self._open_connection() as conn:
             conn.executescript(_SCHEMA_SQL)
-            row = conn.execute(
-                "SELECT value FROM _schema_meta WHERE key = 'schema_version'"
-            ).fetchone()
-            if row is None:
+            current_version = self._read_schema_version(conn)
+            if current_version is None:
                 conn.execute(
                     "INSERT INTO _schema_meta VALUES ('schema_version', ?)",
                     (str(PRICE_HISTORY_SCHEMA_VERSION),),
                 )
-            elif int(row["value"]) > PRICE_HISTORY_SCHEMA_VERSION:
+            elif current_version > PRICE_HISTORY_SCHEMA_VERSION:
                 raise RuntimeError(
                     "Price history schema version "
-                    f"{row['value']} is newer than supported version "
+                    f"{current_version} is newer than supported version "
                     f"{PRICE_HISTORY_SCHEMA_VERSION}"
                 )
+            elif current_version < PRICE_HISTORY_SCHEMA_VERSION:
+                self._migrate_schema(conn, current_version, PRICE_HISTORY_SCHEMA_VERSION)
             conn.commit()
+
+    def _read_schema_version(self, conn: sqlite3.Connection) -> int | None:
+        row = conn.execute(
+            "SELECT value FROM _schema_meta WHERE key = 'schema_version'"
+        ).fetchone()
+        if row is None:
+            return None
+        try:
+            return int(row["value"])
+        except ValueError as exc:
+            raise RuntimeError(
+                "Price history schema version is not an integer: "
+                f"{row['value']!r}"
+            ) from exc
+
+    def _migration_statements(self, migration: str) -> list[str]:
+        return [statement.strip() for statement in migration.split(";") if statement.strip()]
+
+    def _migrate_schema(
+        self,
+        conn: sqlite3.Connection,
+        current_version: int,
+        target_version: int,
+    ) -> None:
+        for next_version in range(current_version + 1, target_version + 1):
+            migration = PRICE_HISTORY_SCHEMA_MIGRATIONS.get(next_version)
+            if migration is None:
+                raise RuntimeError(
+                    "Price history schema migration missing: "
+                    f"{current_version}->{target_version}"
+                )
+            for statement in self._migration_statements(migration):
+                conn.execute(statement)
+            conn.execute(
+                "UPDATE _schema_meta SET value = ? WHERE key = 'schema_version'",
+                (str(next_version),),
+            )
 
     @staticmethod
     def _normalize_key(value: str) -> str:
