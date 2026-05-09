@@ -4,17 +4,16 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import date, datetime, timezone
-import math
 from pathlib import Path
 import sqlite3
 import threading
-from typing import Any
 
 import pandas as pd
 
 from opx_chain.paths import get_data_dir
 from opx_chain.price_context import normalize_price_history_frame
 from opx_chain.timestamps import parse_iso_datetime
+from opx_chain.utils import finite_float_or_none
 
 
 PRICE_HISTORY_SCHEMA_VERSION = 1
@@ -73,14 +72,6 @@ def _parse_date(value: str | None) -> date | None:
         return date.fromisoformat(value)
     except ValueError:
         return None
-
-
-def _finite_float(value: Any) -> float | None:
-    try:
-        resolved = float(value)
-    except (TypeError, ValueError):
-        return None
-    return resolved if math.isfinite(resolved) else None
 
 
 def _history_db_path(config=None) -> Path:
@@ -301,9 +292,9 @@ class PriceHistoryStore:
         fetched_at = fetched_at or _utc_now()
         rows = []
         for _, row in normalized.iterrows():
-            high = _finite_float(row["high"])
-            low = _finite_float(row["low"])
-            close = _finite_float(row["close"])
+            high = finite_float_or_none(row["high"])
+            low = finite_float_or_none(row["low"])
+            close = finite_float_or_none(row["close"])
             if high is None or low is None or close is None:
                 continue
             rows.append(
@@ -311,11 +302,11 @@ class PriceHistoryStore:
                     provider_key,
                     ticker_key,
                     pd.Timestamp(row["date"]).date().isoformat(),
-                    _finite_float(row.get("open")),
+                    finite_float_or_none(row.get("open")),
                     high,
                     low,
                     close,
-                    _finite_float(row.get("volume")),
+                    finite_float_or_none(row.get("volume")),
                     fetched_at.isoformat(),
                 )
             )

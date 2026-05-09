@@ -103,6 +103,12 @@ def finite_float(value) -> float:
     return parsed if np.isfinite(parsed) else float("nan")
 
 
+def finite_float_or_none(value) -> float | None:
+    """Convert a scalar to a finite float, returning None for invalid values."""
+    parsed = finite_float(value)
+    return parsed if np.isfinite(parsed) else None
+
+
 def is_finite_positive_number(value) -> bool:
     """Return true only for scalar values that coerce to finite positive floats."""
     parsed = finite_float(value)

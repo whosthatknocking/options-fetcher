@@ -4,11 +4,12 @@ from __future__ import annotations
 
 from datetime import date
 from enum import Enum
-import math
 from typing import Any
 
 import numpy as np
 import pandas as pd
+
+from opx_chain.utils import finite_float_or_none
 
 PRICE_CONTEXT_FIELDS: tuple[str, ...] = (
     "support_1",
@@ -68,16 +69,8 @@ def blank_price_context(
     }
 
 
-def _finite_float(value: Any) -> float | None:
-    try:
-        resolved = float(value)
-    except (TypeError, ValueError):
-        return None
-    return resolved if math.isfinite(resolved) else None
-
-
 def _positive_float(value: Any) -> float | None:
-    resolved = _finite_float(value)
+    resolved = finite_float_or_none(value)
     if resolved is None or resolved <= 0:
         return None
     return resolved

@@ -1,6 +1,8 @@
 """Tests for shared scalar and timestamp utilities."""
 
+import ast
 import math
+from pathlib import Path
 
 import numpy as np
 import pandas as pd
@@ -8,7 +10,12 @@ import pytest
 
 from opx_chain.coerce import coerce_bool_or_default
 from opx_chain.storage.serializers import get_serializer
-from opx_chain.utils import normalize_timestamp, read_dataset_file
+from opx_chain.utils import (
+    finite_float,
+    finite_float_or_none,
+    normalize_timestamp,
+    read_dataset_file,
+)
 
 
 @pytest.mark.parametrize(
@@ -150,3 +157,44 @@ def test_read_dataset_file_projects_columns_for_csv_and_parquet(tmp_path):
     assert parquet_result.columns.tolist() == ["is_stale_quote"]
     assert str(csv_result["is_stale_quote"].dtype) == "boolean"
     assert str(parquet_result["is_stale_quote"].dtype) == "boolean"
+
+
+@pytest.mark.parametrize(
+    ("value", "expected"),
+    [
+        (1, 1.0),
+        ("2.5", 2.5),
+        (np.float64(3.5), 3.5),
+        (None, None),
+        ("bad", None),
+        (math.inf, None),
+        (math.nan, None),
+    ],
+)
+def test_finite_float_or_none_shares_finite_float_policy(value, expected):
+    """None-returning callers should share the package finite-float policy."""
+    result = finite_float_or_none(value)
+
+    if expected is None:
+        assert result is None
+        assert math.isnan(finite_float(value))
+    else:
+        assert result == pytest.approx(expected)
+        assert finite_float(value) == pytest.approx(expected)
+
+
+def test_finite_float_or_none_is_canonical_missing_value_variant():
+    """Production modules should not grow private finite-float clones."""
+    project_root = Path(__file__).resolve().parents[1]
+    package_root = project_root / "opx_chain"
+    modules = [
+        path for path in package_root.rglob("*.py") if path.name != "utils.py"
+    ]
+    offenders = [
+        f"{path.relative_to(project_root)}:{node.lineno} defines _finite_float"
+        for path in modules
+        for node in ast.walk(ast.parse(path.read_text(encoding="utf-8")))
+        if isinstance(node, ast.FunctionDef) and node.name == "_finite_float"
+    ]
+
+    assert not offenders
