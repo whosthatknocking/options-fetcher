@@ -1,11 +1,13 @@
 """Tests for shared strict JSON and scalar-normalization helpers."""
 # pylint: disable=too-few-public-methods
 
+import ast
 from pathlib import Path
 
 from opx_chain.json_utils import to_python_scalar
 
-PACKAGE_ROOT = Path("opx_chain")
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+PACKAGE_ROOT = PROJECT_ROOT / "opx_chain"
 
 
 class _BadScalar:
@@ -54,12 +56,27 @@ def test_to_python_scalar_defensively_calls_item() -> None:
 
 def test_scalar_item_conversion_stays_in_json_utils() -> None:
     """Package code should delegate scalar item conversion to json_utils."""
+    assert PACKAGE_ROOT.exists()
     offenders: list[str] = []
+    scanned_files = 0
     for path in PACKAGE_ROOT.rglob("*.py"):
         if path == PACKAGE_ROOT / "json_utils.py":
             continue
-        source = path.read_text(encoding="utf-8")
-        if ".item()" in source or 'hasattr(value, "item")' in source:
-            offenders.append(str(path))
+        scanned_files += 1
+        tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+        for node in ast.walk(tree):
+            if not isinstance(node, ast.Call):
+                continue
+            if isinstance(node.func, ast.Attribute) and node.func.attr == "item":
+                offenders.append(f"{path.relative_to(PROJECT_ROOT)}:{node.lineno}")
+            if (
+                isinstance(node.func, ast.Name)
+                and node.func.id == "hasattr"
+                and len(node.args) >= 2
+                and isinstance(node.args[1], ast.Constant)
+                and node.args[1].value == "item"
+            ):
+                offenders.append(f"{path.relative_to(PROJECT_ROOT)}:{node.lineno}")
 
+    assert scanned_files > 0
     assert not offenders
