@@ -1,6 +1,7 @@
 """Tests for shared scalar and timestamp utilities."""
 
 import ast
+from decimal import Decimal
 import math
 from pathlib import Path
 
@@ -13,6 +14,7 @@ from opx_chain.storage.serializers import get_serializer
 from opx_chain.utils import (
     finite_float,
     finite_float_or_none,
+    is_finite_positive_number,
     normalize_timestamp,
     read_dataset_file,
 )
@@ -166,7 +168,10 @@ def test_read_dataset_file_projects_columns_for_csv_and_parquet(tmp_path):
         ("2.5", 2.5),
         (np.float64(3.5), 3.5),
         (None, None),
+        (True, None),
+        (np.bool_(True), None),
         ("bad", None),
+        (Decimal("1e1000000000"), None),
         (math.inf, None),
         (math.nan, None),
     ],
@@ -181,6 +186,21 @@ def test_finite_float_or_none_shares_finite_float_policy(value, expected):
     else:
         assert result == pytest.approx(expected)
         assert finite_float(value) == pytest.approx(expected)
+
+
+@pytest.mark.parametrize(
+    "value",
+    [True, np.bool_(True), 0, 0.0, -1, "0", "bad", math.inf, math.nan],
+)
+def test_is_finite_positive_number_rejects_non_positive_and_invalid(value):
+    """Positive finite checks should not treat booleans as numeric price values."""
+    assert is_finite_positive_number(value) is False
+
+
+@pytest.mark.parametrize("value", [1, 1.0, "2.5", np.float64(3.5)])
+def test_is_finite_positive_number_accepts_positive_values(value):
+    """Positive finite checks should accept scalar positive numeric values."""
+    assert is_finite_positive_number(value) is True
 
 
 def test_finite_float_or_none_is_canonical_missing_value_variant():

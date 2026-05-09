@@ -96,9 +96,11 @@ def coerce_float(value):
 
 def finite_float(value) -> float:
     """Convert a scalar to a finite float, returning NaN for invalid values."""
+    if isinstance(value, (bool, np.bool_)):
+        return float("nan")
     try:
         parsed = float(value)
-    except (TypeError, ValueError):
+    except (OverflowError, TypeError, ValueError):
         return float("nan")
     return parsed if np.isfinite(parsed) else float("nan")
 
