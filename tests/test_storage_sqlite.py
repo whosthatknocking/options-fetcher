@@ -197,6 +197,25 @@ def test_schema_migration_recovers_partial_add_column_state(tmp_path: Path):
     assert "script_version" in dataset_columns
 
 
+def test_table_columns_rejects_unsafe_table_identifier(tmp_path: Path):
+    """Migration idempotence checks must not interpolate arbitrary table names."""
+    backend = _make_backend(tmp_path)
+    conn = sqlite3.connect(str(tmp_path / "opx-chain.db"))
+    conn.row_factory = sqlite3.Row
+    try:
+        assert "run_id" in backend._table_columns(conn, "runs")  # pylint: disable=protected-access
+        with pytest.raises(ValueError, match="Unsafe SQLite table identifier"):
+            backend._table_columns(  # pylint: disable=protected-access
+                conn,
+                'runs"; DROP TABLE runs; --',
+            )
+        runs = conn.execute("SELECT name FROM sqlite_master WHERE name = 'runs'").fetchone()
+    finally:
+        conn.close()
+
+    assert runs is not None
+
+
 def test_schema_migration_fails_when_required_step_is_missing(tmp_path: Path, monkeypatch):
     """A schema-version bump without a migration must fail instead of silently reusing v1."""
     _make_backend(tmp_path)

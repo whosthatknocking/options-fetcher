@@ -151,6 +151,7 @@ _ADD_COLUMN_RE = re.compile(
     r"ADD\s+COLUMN\s+(?P<column>[A-Za-z_][A-Za-z0-9_]*)\b",
     re.IGNORECASE,
 )
+_SQL_IDENTIFIER_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 
 
 def _now() -> datetime:
@@ -267,9 +268,12 @@ class SqliteIndexedBackend:
             ) from exc
 
     def _table_columns(self, conn: sqlite3.Connection, table_name: str) -> set[str]:
+        if not _SQL_IDENTIFIER_RE.fullmatch(table_name):
+            raise ValueError(f"Unsafe SQLite table identifier: {table_name!r}")
+        quoted_table_name = f'"{table_name}"'
         return {
             row["name"]
-            for row in conn.execute(f"PRAGMA table_info({table_name})").fetchall()
+            for row in conn.execute(f"PRAGMA table_info({quoted_table_name})").fetchall()
         }
 
     def _migration_statements(self, migration: str) -> list[str]:
