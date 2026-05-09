@@ -7,7 +7,12 @@ import pytest
 
 from opx_chain.paths import get_default_positions_path
 from opx_chain import positions
-from opx_chain.positions import EMPTY_POSITION_SET, OptionPositionKey, load_positions
+from opx_chain.positions import (
+    EMPTY_POSITION_SET,
+    OptionPositionKey,
+    load_positions,
+    resolve_positions_path,
+)
 
 
 def write_positions_csv(tmp_path: Path, content: str) -> Path:
@@ -21,6 +26,16 @@ def test_load_positions_returns_empty_when_file_missing(tmp_path):
     """Returns the empty sentinel when the positions file does not exist."""
     result = load_positions(tmp_path / "nonexistent.csv")
     assert result == EMPTY_POSITION_SET
+
+
+def test_resolve_positions_path_expands_explicit_and_default_paths(monkeypatch, tmp_path):
+    """Positions path resolution should be centralized for all callers."""
+    home = tmp_path / "home"
+    monkeypatch.setenv("HOME", str(home))
+    fallback = tmp_path / "positions.csv"
+
+    assert resolve_positions_path(None, default=fallback) == fallback
+    assert resolve_positions_path(Path("~/positions.csv")) == home / "positions.csv"
 
 
 def test_default_positions_path_points_to_xdg_data_directory():

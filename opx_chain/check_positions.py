@@ -10,7 +10,12 @@ import pandas as pd
 from opx_chain.coerce import coerce_bool_or_default
 from opx_chain.config import get_runtime_config
 from opx_chain.paths import get_runs_dir
-from opx_chain.positions import DEFAULT_POSITIONS_PATH, STRIKE_MATCH_TOLERANCE, load_positions
+from opx_chain.positions import (
+    DEFAULT_POSITIONS_PATH,
+    STRIKE_MATCH_TOLERANCE,
+    load_positions,
+    resolve_positions_path,
+)
 from opx_chain.storage.factory import get_data_dir, get_storage_backend
 from opx_chain.storage.models import DatasetRecord
 from opx_chain.timestamps import utc_now_timestamp
@@ -56,7 +61,10 @@ def check_positions(positions_path: Path | None = None, output_path: Path | None
 
     Returns a tuple of (found, missing) lists where each element is an OptionPositionKey.
     """
-    resolved_positions = (positions_path or DEFAULT_POSITIONS_PATH).expanduser()
+    resolved_positions = resolve_positions_path(
+        positions_path,
+        default=DEFAULT_POSITIONS_PATH,
+    )
     position_set = load_positions(resolved_positions)
 
     if position_set.empty:
@@ -422,7 +430,7 @@ def main(argv=None):
     )
     args = parser.parse_args(argv)
 
-    positions_path = (args.positions or DEFAULT_POSITIONS_PATH).expanduser()
+    positions_path = resolve_positions_path(args.positions, default=DEFAULT_POSITIONS_PATH)
     output_path = args.output
 
     if not positions_path.exists():

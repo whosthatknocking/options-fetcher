@@ -55,6 +55,15 @@ class PositionSet:
 EMPTY_POSITION_SET = PositionSet(frozenset(), frozenset())
 
 
+def resolve_positions_path(
+    path: Path | None = None,
+    *,
+    default: Path | None = None,
+) -> Path:
+    """Return the expanded positions CSV path using the configured default."""
+    return (path or default or DEFAULT_POSITIONS_PATH).expanduser()
+
+
 def _option_key_fingerprint_value(key: OptionPositionKey) -> list[object]:
     """Return the canonical JSON representation for one parsed option position."""
     return [key.ticker, key.expiration_date, key.option_type, key.strike]
@@ -122,7 +131,7 @@ def load_positions(path: Path | None = None) -> PositionSet:
     Returns an empty PositionSet when the file does not exist. If the file exists
     but cannot be parsed, prints a warning to stderr and returns an empty PositionSet.
     """
-    resolved = (path or DEFAULT_POSITIONS_PATH).expanduser()
+    resolved = resolve_positions_path(path)
     if not resolved.exists():
         return EMPTY_POSITION_SET
 

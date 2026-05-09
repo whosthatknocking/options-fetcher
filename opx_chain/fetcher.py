@@ -28,6 +28,7 @@ from opx_chain.positions import (
     PositionSet,
     load_positions,
     positions_fingerprint,
+    resolve_positions_path,
 )
 from opx_chain.providers import get_data_provider
 from opx_chain.runlog import create_run_logger, get_logger, log_run_started
@@ -447,7 +448,10 @@ def _do_fetch_with_lock_held(  # pylint: disable=too-many-branches,too-many-loca
             print("Config fallbacks:")
             for warning in config.config_warnings:
                 print(f"  {warning}")
-        resolved_positions_path = (positions_path or DEFAULT_POSITIONS_PATH).expanduser()
+        resolved_positions_path = resolve_positions_path(
+            positions_path,
+            default=DEFAULT_POSITIONS_PATH,
+        )
         position_set = load_positions(resolved_positions_path)
         extra_tickers = tuple(
             t for t in sorted(position_set.tickers) if t not in set(config.tickers)
