@@ -439,7 +439,7 @@ def test_main_prints_freshness_summary_when_requested(tmp_path, capsys, monkeypa
         },
     ])
     monkeypatch.setattr(
-        "opx_chain.check_positions._utc_now",
+        "opx_chain.check_positions.utc_now_timestamp",
         lambda: pd.Timestamp("2026-04-21T17:00:00Z"),
     )
 

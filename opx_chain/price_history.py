@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from contextlib import contextmanager
 from dataclasses import dataclass
-from datetime import date, datetime, timezone
+from datetime import date, datetime
 from pathlib import Path
 import sqlite3
 import threading
@@ -14,7 +14,7 @@ import pandas as pd
 
 from opx_chain.paths import get_data_dir
 from opx_chain.price_context import normalize_price_history_frame
-from opx_chain.timestamps import parse_iso_datetime
+from opx_chain.timestamps import parse_iso_datetime, utc_now
 from opx_chain.utils import finite_float_or_none
 
 
@@ -58,10 +58,6 @@ CREATE TABLE IF NOT EXISTS price_history_syncs (
 CREATE INDEX IF NOT EXISTS idx_daily_price_bars_ticker_date
     ON daily_price_bars(provider, ticker, trading_date DESC);
 """
-
-
-def _utc_now() -> datetime:
-    return datetime.now(tz=timezone.utc)
 
 
 def _date_to_str(value: date | None) -> str | None:
@@ -345,7 +341,7 @@ class PriceHistoryStore:
             return 0
         provider_key = provider.strip()
         ticker_key = self._normalize_key(ticker)
-        fetched_at = fetched_at or _utc_now()
+        fetched_at = fetched_at or utc_now()
         rows = []
         for _, row in normalized.iterrows():
             high = finite_float_or_none(row["high"])
@@ -437,7 +433,7 @@ class PriceHistoryStore:
         """Record the latest reconciliation attempt."""
         provider_key = provider.strip()
         ticker_key = self._normalize_key(ticker)
-        checked_at = checked_at or _utc_now()
+        checked_at = checked_at or utc_now()
         with self._open_connection() as conn:
             conn.execute(
                 """
@@ -524,7 +520,7 @@ def reconcile_price_history(  # pylint: disable=too-many-locals
     provider_name = provider.name
     today = config.today
     lookback_days = config.price_context_lookback_days
-    now = _utc_now()
+    now = utc_now()
     history = store.load_recent_bars(
         provider=provider_name,
         ticker=ticker,

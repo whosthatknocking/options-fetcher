@@ -15,7 +15,7 @@ import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 
-from opx_chain.timestamps import parse_iso_datetime
+from opx_chain.timestamps import datetime_to_iso, iso_to_datetime, utc_now
 from opx_chain.storage.models import (
     ArtifactRecord,
     ArtifactWrite,
@@ -152,18 +152,6 @@ _ADD_COLUMN_RE = re.compile(
     re.IGNORECASE,
 )
 _SQL_IDENTIFIER_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
-
-
-def _now() -> datetime:
-    return datetime.now(tz=timezone.utc)
-
-
-def _dt_to_str(dt: datetime | None) -> str | None:
-    return dt.isoformat() if dt is not None else None
-
-
-def _str_to_dt(value: str | None) -> datetime | None:
-    return parse_iso_datetime(value) if value is not None else None
 
 
 class SqliteIndexedBackend:
@@ -428,7 +416,7 @@ class SqliteIndexedBackend:
                    VALUES (?, ?, NULL, 'running', ?, ?, ?, ?, ?, NULL, NULL)""",
                 (
                     run_id,
-                    _dt_to_str(_now()),
+                    datetime_to_iso(utc_now()),
                     context.provider,
                     context.script_version,
                     json.dumps(list(context.tickers)),
@@ -487,7 +475,7 @@ class SqliteIndexedBackend:
         dataset_id, artifact_path, content_hash = write_dataset_artifact(
             dataset.data, output_dir, dataset.format, serializer
         )
-        now = _now()
+        now = utc_now()
         record = DatasetRecord(
             dataset_id=dataset_id,
             run_id=run_id,
@@ -510,7 +498,7 @@ class SqliteIndexedBackend:
                     (
                         dataset_id,
                         run_id,
-                        _dt_to_str(now),
+                        datetime_to_iso(now),
                         dataset.provider,
                         dataset.script_version,
                         dataset.schema_version,
@@ -591,10 +579,10 @@ class SqliteIndexedBackend:
             params.append(provider)
         if since is not None:
             conditions.append("d.created_at >= ?")
-            params.append(_dt_to_str(since))
+            params.append(datetime_to_iso(since))
         if until is not None:
             conditions.append("d.created_at <= ?")
-            params.append(_dt_to_str(until))
+            params.append(datetime_to_iso(until))
         if ticker is not None:
             sql += " JOIN runs r ON r.run_id = d.run_id"
             conditions.append(
@@ -627,7 +615,7 @@ class SqliteIndexedBackend:
             conn.execute(
                 "UPDATE runs SET status = ?, finished_at = ?, error_summary = ? "
                 "WHERE run_id = ? AND status = 'running'",
-                (summary.status, _dt_to_str(_now()), summary.error_summary, run_id),
+                (summary.status, datetime_to_iso(utc_now()), summary.error_summary, run_id),
             )
             conn.commit()
 
@@ -637,7 +625,7 @@ class SqliteIndexedBackend:
             conn.execute(
                 "UPDATE runs SET status = 'failed', finished_at = ?, error_summary = ? "
                 "WHERE run_id = ? AND status = 'running'",
-                (_dt_to_str(_now()), error, run_id),
+                (datetime_to_iso(utc_now()), error, run_id),
             )
             conn.commit()
 
@@ -648,7 +636,7 @@ class SqliteIndexedBackend:
                 "UPDATE runs "
                 "SET status = 'interrupted', finished_at = ?, error_summary = ? "
                 "WHERE status = 'running' AND started_at < ?",
-                (_dt_to_str(_now()), error_summary, _dt_to_str(cutoff)),
+                (datetime_to_iso(utc_now()), error_summary, datetime_to_iso(cutoff)),
             )
             conn.commit()
         return cursor.rowcount
@@ -663,8 +651,8 @@ class SqliteIndexedBackend:
             raise KeyError(f"run not found: {run_id}")
         return RunRecord(
             run_id=row["run_id"],
-            started_at=_str_to_dt(row["started_at"]),
-            finished_at=_str_to_dt(row["finished_at"]),
+            started_at=iso_to_datetime(row["started_at"]),
+            finished_at=iso_to_datetime(row["finished_at"]),
             status=row["status"],
             provider=row["provider"],
             script_version=row["script_version"] or UNKNOWN_SCRIPT_VERSION,
@@ -680,7 +668,7 @@ class SqliteIndexedBackend:
         from opx_chain.config import US_MARKET_TIMEZONE  # pylint: disable=import-outside-toplevel
         now_et = datetime.now(tz=US_MARKET_TIMEZONE)
         midnight_et = now_et.replace(hour=0, minute=0, second=0, microsecond=0)
-        since_utc = _dt_to_str(midnight_et.astimezone(timezone.utc))
+        since_utc = datetime_to_iso(midnight_et.astimezone(timezone.utc))
         with self._open_connection() as conn:
             row = conn.execute(
                 "SELECT COUNT(*) FROM runs "
@@ -720,7 +708,7 @@ class SqliteIndexedBackend:
         return DatasetRecord(
             dataset_id=row["dataset_id"],
             run_id=row["run_id"],
-            created_at=_str_to_dt(row["created_at"]),
+            created_at=iso_to_datetime(row["created_at"]),
             provider=row["provider"],
             script_version=row["script_version"] or UNKNOWN_SCRIPT_VERSION,
             schema_version=row["schema_version"],

@@ -13,6 +13,7 @@ from opx_chain.paths import get_runs_dir
 from opx_chain.positions import DEFAULT_POSITIONS_PATH, STRIKE_MATCH_TOLERANCE, load_positions
 from opx_chain.storage.factory import get_data_dir, get_storage_backend
 from opx_chain.storage.models import DatasetRecord
+from opx_chain.timestamps import utc_now_timestamp
 from opx_chain.utils import read_dataset_file
 
 RUNS_DIR = get_data_dir() / "runs"
@@ -42,11 +43,6 @@ def find_latest_output(runs_dir: Path | None = None) -> Path | None:
         *runs_dir.glob("options_engine_output_*.csv"),
     ]
     return max(csvs, key=lambda p: p.stat().st_mtime) if csvs else None
-
-
-def _utc_now() -> pd.Timestamp:
-    """Return the current UTC timestamp."""
-    return pd.Timestamp.now(tz="UTC")
 
 
 def _format_file_mtime_utc(path: Path) -> str:
@@ -295,7 +291,7 @@ def format_freshness_summary_lines(
 ) -> list[str]:
     """Build a read-time freshness summary for the selected output CSV."""
     resolved_frame = frame if frame is not None else read_dataset_file(output_path)
-    runtime_now = now or _utc_now()
+    runtime_now = now or utc_now_timestamp()
     config = get_runtime_config()
     file_age_seconds = max(0.0, runtime_now.timestamp() - output_path.stat().st_mtime)
     option_summary = _summarize_quote_freshness(

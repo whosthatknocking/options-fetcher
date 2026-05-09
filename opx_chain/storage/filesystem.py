@@ -10,7 +10,7 @@ from heapq import nsmallest
 from pathlib import Path
 
 from opx_chain.json_utils import dumps_strict_json, loads_strict_json
-from opx_chain.timestamps import parse_iso_datetime
+from opx_chain.timestamps import datetime_to_iso, iso_to_datetime, utc_now
 from opx_chain.storage.models import (
     ArtifactRecord,
     ArtifactWrite,
@@ -36,18 +36,6 @@ from opx_chain.storage._disk import (
 from opx_chain.storage.serializers import get_serializer
 
 _DATASET_ARTIFACT_SUFFIXES = {".csv", ".parquet"}
-
-
-def _now() -> datetime:
-    return datetime.now(tz=timezone.utc)
-
-
-def _dt_to_str(dt: datetime | None) -> str | None:
-    return dt.isoformat() if dt is not None else None
-
-
-def _str_to_dt(value: str | None) -> datetime | None:
-    return parse_iso_datetime(value) if value is not None else None
 
 
 def _dt_sort_key(value: datetime | None) -> datetime:
@@ -221,7 +209,7 @@ class FilesystemBackend:
         return {
             "dataset_id": record.dataset_id,
             "run_id": record.run_id,
-            "created_at": _dt_to_str(record.created_at),
+            "created_at": datetime_to_iso(record.created_at),
             "provider": record.provider,
             "schema_version": record.schema_version,
             "row_count": record.row_count,
@@ -236,7 +224,7 @@ class FilesystemBackend:
         return DatasetRecord(
             dataset_id=data["dataset_id"],
             run_id=data["run_id"],
-            created_at=_str_to_dt(data["created_at"]),
+            created_at=iso_to_datetime(data["created_at"]),
             provider=data["provider"],
             schema_version=data["schema_version"],
             row_count=data["row_count"],
@@ -367,7 +355,7 @@ class FilesystemBackend:
     def _meta_created_at_sort_key(self, meta_path: Path) -> datetime:
         try:
             data = loads_strict_json(meta_path.read_text(encoding="utf-8"))
-            return _dt_sort_key(_str_to_dt(data.get("created_at")))
+            return _dt_sort_key(iso_to_datetime(data.get("created_at")))
         except (OSError, TypeError, ValueError):
             return datetime.min.replace(tzinfo=timezone.utc)
 
@@ -409,7 +397,7 @@ class FilesystemBackend:
         run_id = str(uuid.uuid4())
         data = {
             "run_id": run_id,
-            "started_at": _dt_to_str(_now()),
+            "started_at": datetime_to_iso(utc_now()),
             "finished_at": None,
             "status": "running",
             "provider": context.provider,
@@ -467,7 +455,7 @@ class FilesystemBackend:
             record = DatasetRecord(
                 dataset_id=dataset_id,
                 run_id=run_id,
-                created_at=_now(),
+                created_at=utc_now(),
                 provider=dataset.provider,
                 schema_version=dataset.schema_version,
                 row_count=len(dataset.data),
@@ -548,7 +536,7 @@ class FilesystemBackend:
             if data.get("status") != "running":
                 return
             data["status"] = summary.status
-            data["finished_at"] = _dt_to_str(_now())
+            data["finished_at"] = datetime_to_iso(utc_now())
             data["error_summary"] = summary.error_summary
             self._write_run(run_id, data)
 
@@ -559,7 +547,7 @@ class FilesystemBackend:
             if data.get("status") != "running":
                 return
             data["status"] = "failed"
-            data["finished_at"] = _dt_to_str(_now())
+            data["finished_at"] = datetime_to_iso(utc_now())
             data["error_summary"] = error
             self._write_run(run_id, data)
 
@@ -572,13 +560,13 @@ class FilesystemBackend:
             try:
                 with self._run_sidecar_lock:
                     data = loads_strict_json(run_path.read_text(encoding="utf-8"))
-                    started_at = _str_to_dt(data.get("started_at"))
+                    started_at = iso_to_datetime(data.get("started_at"))
                     if data.get("status") != "running" or started_at is None:
                         continue
                     if _dt_sort_key(started_at) >= _dt_sort_key(cutoff):
                         continue
                     data["status"] = "interrupted"
-                    data["finished_at"] = _dt_to_str(_now())
+                    data["finished_at"] = datetime_to_iso(utc_now())
                     data["error_summary"] = error_summary
                     self._write_run(data["run_id"], data)
                     interrupted += 1
@@ -594,8 +582,8 @@ class FilesystemBackend:
             raise KeyError(f"run not found: {run_id}") from exc
         return RunRecord(
             run_id=data["run_id"],
-            started_at=_str_to_dt(data["started_at"]),
-            finished_at=_str_to_dt(data.get("finished_at")),
+            started_at=iso_to_datetime(data["started_at"]),
+            finished_at=iso_to_datetime(data.get("finished_at")),
             status=data["status"],
             provider=data["provider"],
             script_version=data.get("script_version", UNKNOWN_SCRIPT_VERSION),
@@ -627,7 +615,7 @@ class FilesystemBackend:
                 started_at_str = data.get("started_at", "")
                 if not started_at_str:
                     continue
-                started_at = parse_iso_datetime(started_at_str)
+                started_at = iso_to_datetime(started_at_str)
                 if data.get("status") == "complete" and started_at >= since_utc:
                     count += 1
             except (OSError, ValueError):
