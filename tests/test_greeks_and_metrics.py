@@ -14,6 +14,7 @@ from opx_chain.metrics import (
     add_option_score,
     add_quote_quality_metrics,
     add_screening_and_freshness_flags,
+    classify_days_to_expiration_bucket,
 )
 from opx_chain.validate import validate_option_rows
 
@@ -594,6 +595,22 @@ def test_add_screening_and_freshness_flags_vectorizes_days_bucket(monkeypatch):
     result = add_screening_and_freshness_flags(frame.copy(), fetched_at=fetched_at)
 
     assert result["days_bucket"].tolist() == [
+        "Week_1",
+        "Week_2",
+        "Week_2",
+        "Week_3",
+        "Week_3",
+        "Week_4",
+    ]
+
+
+def test_classify_days_to_expiration_bucket_uses_shared_boundaries():
+    """Scalar DTE buckets should match the vectorized screening boundaries."""
+    values = [None, float("inf"), 10, 11, 18, 19, 26, 27]
+
+    assert [classify_days_to_expiration_bucket(value) for value in values] == [
+        "UNKNOWN",
+        "UNKNOWN",
         "Week_1",
         "Week_2",
         "Week_2",

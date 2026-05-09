@@ -9,33 +9,31 @@ from opx_chain.option_types import OPTION_TYPE_CALL, OPTION_TYPES
 from opx_chain.utils import finite_float, is_finite_positive_number
 
 
+DAYS_BUCKET_THRESHOLDS = (10.0, 18.0, 26.0)
+DAYS_BUCKET_LABELS = ("Week_1", "Week_2", "Week_3", "Week_4")
+UNKNOWN_DAYS_BUCKET = "UNKNOWN"
+
+
 def classify_days_to_expiration_bucket(days_to_expiration):
     """Bucket expirations into coarse week ranges for quick filtering."""
     days = finite_float(days_to_expiration)
     if not np.isfinite(days):
-        return "UNKNOWN"
-    if days <= 10:
-        return "Week_1"
-    if days <= 18:
-        return "Week_2"
-    if days <= 26:
-        return "Week_3"
-    return "Week_4"
+        return UNKNOWN_DAYS_BUCKET
+    for threshold, label in zip(DAYS_BUCKET_THRESHOLDS, DAYS_BUCKET_LABELS):
+        if days <= threshold:
+            return label
+    return DAYS_BUCKET_LABELS[-1]
 
 
 def _compute_days_bucket(days_to_expiration):
     """Vectorized version of classify_days_to_expiration_bucket."""
     days = _finite_numeric_series(days_to_expiration)
     raw = np.select(
-        [
-            days <= 10,
-            days <= 18,
-            days <= 26,
-        ],
-        ["Week_1", "Week_2", "Week_3"],
-        default="Week_4",
+        [days <= threshold for threshold in DAYS_BUCKET_THRESHOLDS],
+        DAYS_BUCKET_LABELS[:-1],
+        default=DAYS_BUCKET_LABELS[-1],
     )
-    return np.where(days.notna(), raw, "UNKNOWN")
+    return np.where(days.notna(), raw, UNKNOWN_DAYS_BUCKET)
 
 
 def _clip_zero_to_one(values):
