@@ -38,6 +38,15 @@ class HistoryProvider:  # pylint: disable=too-few-public-methods
         return _history(end=self.end, periods=lookback_days)
 
 
+def test_price_history_store_enables_sqlite_foreign_keys(tmp_path):
+    """Price-history connections should use the same FK guard as sibling stores."""
+    store = PriceHistoryStore(tmp_path / "price-history.db")
+
+    enabled = store._connection_for_use().execute("PRAGMA foreign_keys").fetchone()[0]  # pylint: disable=protected-access
+
+    assert enabled == 1
+
+
 def test_reconcile_price_history_backfills_new_ticker(tmp_path):
     """New tickers should fetch the configured lookback and persist local bars."""
     store = PriceHistoryStore(tmp_path / "price-history.db")
