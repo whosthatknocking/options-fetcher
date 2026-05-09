@@ -41,6 +41,13 @@ def test_extract_field_descriptions_returns_only_canonical_columns():
     assert {"Blank", "Derived", "Direct", "Transformed"}.isdisjoint(descriptions)
 
 
+def test_viewer_is_truthy_uses_canonical_boolean_coercion():
+    """Viewer CSV boolean parsing should share the package-level vocabulary."""
+    assert viewer.is_truthy("on") is True
+    assert viewer.is_truthy(1.0) is True
+    assert viewer.is_truthy("off") is False
+
+
 def test_viewer_packaged_docs_match_canonical_docs():
     """Wheel-installed viewer docs should stay synced with source docs."""
     for filename in ("FIELD_REFERENCE.md", "USER_GUIDE.md"):

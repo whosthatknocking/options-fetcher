@@ -22,6 +22,7 @@ from urllib.parse import parse_qs, urlparse
 
 import pandas as pd
 from pandas.api.types import is_bool_dtype, is_numeric_dtype
+from opx_chain.coerce import coerce_bool_or_default
 from opx_chain.config import get_runtime_config
 from opx_chain.export import CANONICAL_EXPORT_COLUMNS
 from opx_chain.paths import get_runs_dir
@@ -296,7 +297,7 @@ def normalize_row_value(column: str, value: Any) -> Any:
 
 def is_truthy(value: Any) -> bool:
     """Interpret common string and numeric truthy values from CSV content."""
-    return str(value).strip().lower() in {"true", "1", "yes"}
+    return coerce_bool_or_default(value, default=False) is True
 
 
 def coerce_number(series: Any) -> pd.Series:
