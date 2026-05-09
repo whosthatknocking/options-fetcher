@@ -4,7 +4,6 @@
 
 from __future__ import annotations
 
-from functools import lru_cache
 import time
 from typing import Any
 
@@ -95,7 +94,7 @@ def _compute_is_in_the_money(result: Any, option_type: str | None) -> bool | Non
         return bool(underlying_price < strike_price)
     return None
 
-class MassiveProvider(DataProvider):
+class MassiveProvider(DataProvider):  # pylint: disable=too-many-instance-attributes
     """Market-data provider backed by the official Massive/Polygon REST client."""
 
     name = "massive"
@@ -108,6 +107,7 @@ class MassiveProvider(DataProvider):
         self._active_debug_ticker: str | None = None
         self._client_cache_key: tuple[str, int] | None = None
         self._client_cache: RESTClient | None = None
+        self._snapshot_results_cache: dict[str, tuple[Any, ...]] = {}
 
     @property
     def external_logger_names(self) -> tuple[str, ...]:
@@ -116,9 +116,7 @@ class MassiveProvider(DataProvider):
 
     def prepare_ticker_fetch(self, ticker: str) -> None:  # pylint: disable=unused-argument
         """Clear process-local ticker caches before a new fetch pipeline call."""
-        cache_clear = getattr(self._snapshot_results, "cache_clear", None)
-        if callable(cache_clear):
-            cache_clear()
+        self._snapshot_results_cache.clear()
 
     def _api_key(self) -> str:
         credentials = get_provider_credentials(self.name)
@@ -260,10 +258,12 @@ class MassiveProvider(DataProvider):
         finally:
             self._active_debug_ticker = None
 
-    @lru_cache(maxsize=32)
     def _snapshot_results(self, ticker: str) -> tuple[Any, ...]:
         """Cache snapshot results once per ticker for the current process."""
-        return self._fetch_snapshot_results(ticker)
+        ticker_key = ticker.upper()
+        if ticker_key not in self._snapshot_results_cache:
+            self._snapshot_results_cache[ticker_key] = self._fetch_snapshot_results(ticker_key)
+        return self._snapshot_results_cache[ticker_key]
 
     def load_underlying_snapshot(self, ticker: str) -> dict:
         """Infer the underlying snapshot from the option snapshot payload."""

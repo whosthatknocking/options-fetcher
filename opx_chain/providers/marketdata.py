@@ -6,7 +6,6 @@ from __future__ import annotations
 
 from datetime import date, datetime, timezone
 from email.utils import parsedate_to_datetime
-from functools import lru_cache
 import math
 import time
 from typing import Any
@@ -118,6 +117,8 @@ class MarketDataProvider(DataProvider):
         self._request_throttle = RequestThrottle()
         self._client_cache_key: tuple[str] | None = None
         self._client_cache: OpxMarketDataClient | None = None
+        self._chain_frame_cache: dict[tuple[str, Mode | None], pd.DataFrame] = {}
+        self._stock_quote_snapshot_cache: dict[tuple[str, Mode | None], dict | None] = {}
 
     @property
     def external_logger_names(self) -> tuple[str, ...]:
@@ -126,10 +127,8 @@ class MarketDataProvider(DataProvider):
 
     def prepare_ticker_fetch(self, ticker: str) -> None:  # pylint: disable=unused-argument
         """Clear process-local ticker caches before a new fetch pipeline call."""
-        for cached_method in (self._chain_frame, self._fetch_stock_quote_snapshot):
-            cache_clear = getattr(cached_method, "cache_clear", None)
-            if callable(cache_clear):
-                cache_clear()
+        self._chain_frame_cache.clear()
+        self._stock_quote_snapshot_cache.clear()
 
     def _api_token(self) -> str:
         credentials = get_provider_credentials(self.name)
@@ -365,14 +364,19 @@ class MarketDataProvider(DataProvider):
             raise ProviderQuotaError(f"Market Data {context} failed: {detail}")
         raise RuntimeError(f"Market Data {context} failed: {message or f'HTTP {status_code}'}")
 
-    @lru_cache(maxsize=32)
     def _chain_frame(self, ticker: str, mode: Mode | None) -> pd.DataFrame:
         """Load the full option chain once and split/filter it in memory."""
+        ticker_key = ticker.upper()
+        cache_key = (ticker_key, mode)
+        cached = self._chain_frame_cache.get(cache_key)
+        if cached is not None:
+            return cached
+
         self._debug_call_sequence = 0
-        self._active_debug_ticker = ticker.upper()
+        self._active_debug_ticker = ticker_key
         try:
             result = self._client().options.chain(
-                ticker.upper(),
+                ticker_key,
                 expiration="all",
                 output_format=OutputFormat.INTERNAL,
                 mode=mode,
@@ -390,6 +394,7 @@ class MarketDataProvider(DataProvider):
                 frame["expiration_date"] = _normalize_marketdata_expiration_series(
                     frame["expiration"]
                 )
+            self._chain_frame_cache[cache_key] = frame
             return frame
         finally:
             self._active_debug_ticker = None
@@ -431,31 +436,40 @@ class MarketDataProvider(DataProvider):
             "historical_volatility": np.nan,
         }
 
-    @lru_cache(maxsize=32)
     def _fetch_stock_quote_snapshot(self, ticker: str, mode: Mode | None) -> dict | None:
         """Load a stock quote snapshot so spot price and change stay internally consistent."""
-        self._active_debug_ticker = ticker.upper()
+        ticker_key = ticker.upper()
+        cache_key = (ticker_key, mode)
+        if cache_key in self._stock_quote_snapshot_cache:
+            return self._stock_quote_snapshot_cache[cache_key]
+
+        self._active_debug_ticker = ticker_key
         try:
             response = self._client()._make_request(  # pylint: disable=protected-access
                 method="GET",
-                url=self._raw_endpoint_url(f"stocks/quotes/{ticker.upper()}/", mode),
+                url=self._raw_endpoint_url(f"stocks/quotes/{ticker_key}/", mode),
             )
             self._raise_raw_response_if_error(response, context="stock quote request")
             quote_data = self._decode_response_json(response)
             if not isinstance(quote_data, dict):
+                self._stock_quote_snapshot_cache[cache_key] = None
                 return None
             best_quote = self._select_best_quote_row(quote_data)
             if best_quote is None:
+                self._stock_quote_snapshot_cache[cache_key] = None
                 return None
-            return {
+            snapshot = {
                 "underlying_price": best_quote["underlying_price"],
                 "underlying_price_time": best_quote["underlying_price_time"],
                 "underlying_day_change_pct": best_quote["underlying_day_change_pct"],
                 "historical_volatility": np.nan,
             }
+            self._stock_quote_snapshot_cache[cache_key] = snapshot
+            return snapshot
         except (ProviderAuthenticationError, ProviderQuotaError):
             raise
         except Exception:  # pylint: disable=broad-exception-caught
+            self._stock_quote_snapshot_cache[cache_key] = None
             return None
         finally:
             self._active_debug_ticker = None

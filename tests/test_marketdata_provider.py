@@ -259,13 +259,19 @@ def test_marketdata_prepare_ticker_fetch_clears_ticker_caches(monkeypatch):
     provider._chain_frame("TSLA", None)  # pylint: disable=protected-access
 
     assert client.last_chain_kwargs is not None  # pylint: disable=no-member
-    assert provider._fetch_stock_quote_snapshot.cache_info().hits == 1  # pylint: disable=protected-access,no-value-for-parameter
-    assert provider._chain_frame.cache_info().hits == 1  # pylint: disable=protected-access,no-value-for-parameter
+    quote_urls = [url for url in client.request_urls if "stocks/quotes/" in url]  # pylint: disable=no-member
+    chain_urls = [url for url in client.request_urls if "options/chain/" in url]  # pylint: disable=no-member
+    assert len(quote_urls) == 1
+    assert len(chain_urls) == 1
 
     provider.prepare_ticker_fetch("TSLA")
 
-    assert provider._fetch_stock_quote_snapshot.cache_info().currsize == 0  # pylint: disable=protected-access,no-value-for-parameter
-    assert provider._chain_frame.cache_info().currsize == 0  # pylint: disable=protected-access,no-value-for-parameter
+    provider._fetch_stock_quote_snapshot("TSLA", None)  # pylint: disable=protected-access
+    provider._chain_frame("TSLA", None)  # pylint: disable=protected-access
+    quote_urls = [url for url in client.request_urls if "stocks/quotes/" in url]  # pylint: disable=no-member
+    chain_urls = [url for url in client.request_urls if "options/chain/" in url]  # pylint: disable=no-member
+    assert len(quote_urls) == 2
+    assert len(chain_urls) == 2
 
 
 def test_marketdata_provider_snapshot_falls_back_to_latest_chain_row(monkeypatch):
