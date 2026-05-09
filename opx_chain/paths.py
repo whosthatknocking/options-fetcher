@@ -12,8 +12,11 @@ APP_NAME = "opx-chain"
 
 def _xdg_base_dir(env_var: str, fallback: Path) -> Path:
     """Return an XDG base directory from the environment or a platform fallback."""
-    value = os.environ.get(env_var)
-    return Path(value).expanduser() if value else fallback
+    value = os.environ.get(env_var, "").strip()
+    if not value:
+        return fallback
+    candidate = Path(value).expanduser()
+    return candidate if candidate.is_absolute() else fallback
 
 
 def get_config_dir() -> Path:

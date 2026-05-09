@@ -2,7 +2,7 @@
 
 from pathlib import Path
 
-from opx_chain.paths import get_runs_dir
+from opx_chain.paths import get_data_dir, get_runs_dir
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -13,6 +13,24 @@ def test_get_runs_dir_defaults_to_xdg_data_home(monkeypatch, tmp_path: Path):
     monkeypatch.setenv("XDG_DATA_HOME", str(tmp_path))
 
     assert get_runs_dir() == tmp_path / "opx-chain" / "runs"
+
+
+def test_xdg_base_dir_ignores_blank_and_relative_values(monkeypatch):
+    """XDG env values must be nonblank absolute paths."""
+    monkeypatch.setenv("XDG_DATA_HOME", "   ")
+    assert get_data_dir() == Path.home() / ".local" / "share" / "opx-chain"
+
+    monkeypatch.setenv("XDG_DATA_HOME", "relative-data")
+    assert get_data_dir() == Path.home() / ".local" / "share" / "opx-chain"
+
+
+def test_xdg_base_dir_expands_absolute_home_values(monkeypatch, tmp_path: Path):
+    """Absolute home-relative values should remain supported after validation."""
+    home = tmp_path / "home"
+    monkeypatch.setenv("HOME", str(home))
+    monkeypatch.setenv("XDG_DATA_HOME", "~/xdg-data")
+
+    assert get_data_dir() == home / "xdg-data" / "opx-chain"
 
 
 def test_get_runs_dir_uses_storage_dir_override(tmp_path: Path):
