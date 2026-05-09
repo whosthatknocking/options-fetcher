@@ -253,7 +253,7 @@ class FilesystemBackend:
                 records.append(
                     self._meta_to_record(loads_strict_json(meta_path.read_text(encoding="utf-8")))
                 )
-            except (OSError, KeyError, ValueError):
+            except (OSError, TypeError, KeyError, ValueError):
                 continue
         records.sort(key=lambda record: _dt_sort_key(record.created_at), reverse=True)
         return records

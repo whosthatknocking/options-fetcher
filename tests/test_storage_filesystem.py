@@ -555,6 +555,21 @@ def test_dataset_index_is_written_compactly(tmp_path: Path):
     assert ": " not in index_text
 
 
+def test_list_datasets_scan_skips_malformed_meta_shape(tmp_path: Path):
+    """Fallback meta-file scans should skip JSON with the wrong shape."""
+    backend = _make_backend(tmp_path)
+    run_id = backend.create_run(_make_context())
+    record = _write(backend, run_id)
+    (tmp_path / "runs" / "datasets.index.json").unlink()
+    malformed_dir = tmp_path / "runs" / "bad-run-id" / "output"
+    malformed_dir.mkdir(parents=True, exist_ok=True)
+    (malformed_dir / "bad.meta.json").write_text("[]", encoding="utf-8")
+
+    records = backend.list_datasets()
+
+    assert [item.dataset_id for item in records] == [record.dataset_id]
+
+
 def test_list_datasets_filter_provider(tmp_path: Path):
     """list_datasets must filter by provider when the argument is given."""
     backend = _make_backend(tmp_path)
