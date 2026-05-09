@@ -5,7 +5,7 @@
 ## Overview
 
 - Fetches call and put chains for configured tickers
-- Filters out zero-bid and wide-spread contracts before export
+- Filters out missing/zero-bid and wide-spread contracts before export
 - Limits strikes to a configurable band around spot
 - Computes Greeks, expected move, ROM-style metrics, option scoring, and volatility context
 - Writes a timestamped CSV plus an append-only run log
@@ -252,7 +252,7 @@ write only the price-context JSON artifact without exporting option chains.
 
 #### Shared Diagnostics Defaults
 
-- `filters_enable = true`: applies the zero-bid, strike-band, and wide-spread row filters after download. Set it to `false` when you want the raw downloaded rows to remain in the exported dataset while still computing metrics and quality flags.
+- `filters_enable = true`: applies the missing/zero-bid, strike-band, and wide-spread row filters after download. Set it to `false` when you want the raw downloaded rows to remain in the exported dataset while still computing metrics and quality flags.
 - `enable_validation = true`: runs shared row-level validation before post-download filtering and file-level validation before export, including rejection of non-finite numeric values such as `Infinity`. Set it to `false` when you want to skip validation findings and validation summary output entirely.
 - `debug_dump_provider_payload = false`: when `true`, dump raw provider payloads to JSON before normalization so missing fields can be inspected directly.
 - `debug_dump_dir = "debug"`: directory used for raw provider payload dumps. Relative values are resolved under `$XDG_DATA_HOME/opx-chain/`, so the default becomes `~/.local/share/opx-chain/debug/`. Dump filenames are prefixed with the provider name.

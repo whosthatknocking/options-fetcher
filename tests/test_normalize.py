@@ -22,19 +22,23 @@ class NonMatchingTickerStrike:
         return "NonMatchingTickerStrike()"
 
 
-def test_filter_zero_bid_quotes_excludes_only_explicit_zero_bid_rows():
-    """Rows with NaN bids should remain while explicit zero bids are removed."""
+def test_filter_zero_bid_quotes_keeps_only_finite_positive_bid_rows():
+    """Only rows with finite positive bids should remain."""
     frame = pd.DataFrame(
         [
             {"contract_symbol": "ZERO", "bid": 0.0},
+            {"contract_symbol": "STRING_ZERO", "bid": "0"},
             {"contract_symbol": "VALID", "bid": 0.5},
+            {"contract_symbol": "STRING_VALID", "bid": "0.25"},
             {"contract_symbol": "MISSING", "bid": float("nan")},
+            {"contract_symbol": "NONE", "bid": None},
+            {"contract_symbol": "INF", "bid": float("inf")},
         ]
     )
 
     result = filter_zero_bid_quotes(frame)
 
-    assert result["contract_symbol"].tolist() == ["VALID", "MISSING"]
+    assert result["contract_symbol"].tolist() == ["VALID", "STRING_VALID"]
 
 
 def test_filter_strikes_near_spot_keeps_only_rows_within_configured_band(monkeypatch):

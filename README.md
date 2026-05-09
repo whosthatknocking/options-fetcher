@@ -62,7 +62,7 @@ The local viewer is organized around four primary tabs: `Dataset`, `Overview`, `
 ## What You Get
 
 - Fetches call and put chains for configured tickers
-- Filters out zero-bid and wide-spread contracts before export
+- Filters out missing/zero-bid and wide-spread contracts before export
 - Limits strikes to a configurable band around spot
 - Computes Greeks, delta-safety, expected move, ROM-style metrics, configurable option scoring, and volatility context
 - Optionally writes a standalone daily-OHLCV price-context artifact with support/resistance context, moving averages, VWAP, a volume-node proxy, and gap-fill levels

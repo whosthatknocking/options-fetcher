@@ -83,8 +83,11 @@ def filter_strikes_near_spot(df, underlying_price):
 
 
 def filter_zero_bid_quotes(df):
-    """Exclude contracts with an explicit zero bid from the fetched dataset."""
-    return df[df["bid"] != 0].copy()
+    """Exclude contracts without a finite positive bid from the fetched dataset."""
+    if df.empty:
+        return df.copy()
+    bid = pd.to_numeric(df["bid"], errors="coerce")
+    return df[bid.map(is_finite_positive_number)].copy()
 
 
 def filter_wide_spread_quotes(df):
