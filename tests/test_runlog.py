@@ -72,6 +72,18 @@ def test_get_logger_uses_canonical_opx_chain_namespace():
     assert get_logger(".providers.marketdata.sdk.").name == "opx_chain.providers.marketdata.sdk"
 
 
+def test_production_code_uses_runlog_get_logger_for_opx_loggers():
+    """Only runlog.py should call logging.getLogger in production code."""
+    offenders: list[str] = []
+    for path in (Path(__file__).resolve().parents[1] / "opx_chain").rglob("*.py"):
+        if path.name == "runlog.py":
+            continue
+        if "logging.getLogger" in path.read_text(encoding="utf-8"):
+            offenders.append(str(path.relative_to(path.parents[1])))
+
+    assert not offenders
+
+
 def test_create_run_logger_routes_yfinance_errors_to_run_log(monkeypatch, tmp_path):
     """yfinance errors should be written into the shared run log file."""
     _stub_runlog_dependencies(monkeypatch, tmp_path)

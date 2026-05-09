@@ -31,7 +31,7 @@ from opx_chain.positions import (
     positions_fingerprint,
 )
 from opx_chain.providers import get_data_provider
-from opx_chain.runlog import create_run_logger, log_run_started
+from opx_chain.runlog import create_run_logger, get_logger, log_run_started
 from opx_chain.storage.atomic import atomic_file_write
 from opx_chain.storage.factory import get_data_dir, get_storage_backend
 from opx_chain.storage.models import (
@@ -311,7 +311,7 @@ def release_fetcher_lock(lock_handle, lock_path: Path | None = None):
 
 def _dry_run_logger() -> logging.Logger:
     """Return a stdlib logger that discards dry-run log records."""
-    logger = logging.getLogger("opx_chain.fetcher.dry_run")
+    logger = get_logger("fetcher.dry_run")
     if not any(isinstance(handler, logging.NullHandler) for handler in logger.handlers):
         logger.addHandler(logging.NullHandler())
     logger.propagate = False
