@@ -5,6 +5,7 @@ from numbers import Real
 
 import pandas as pd
 
+from opx_chain.coerce import coerce_bool_or_default
 from opx_chain.config import get_runtime_config
 from opx_chain.paths import get_runs_dir
 from opx_chain.positions import DEFAULT_POSITIONS_PATH, STRIKE_MATCH_TOLERANCE, load_positions
@@ -82,7 +83,7 @@ def check_positions(positions_path: Path | None = None, output_path: Path | None
 
 def _is_true_like(value) -> bool:
     """Interpret common boolean-like CSV values."""
-    return str(value).strip().lower() in {"true", "1", "yes"}
+    return coerce_bool_or_default(value, default=False) is True
 
 
 def _format_filter_value(value) -> str:

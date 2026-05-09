@@ -2,12 +2,14 @@
 
 import csv
 import os
+from pathlib import Path
 import time
 
 import pandas as pd
 
 from opx_chain.check_positions import (
     _format_iso_timestamp,  # pylint: disable=protected-access
+    _is_true_like,  # pylint: disable=protected-access
     check_positions,
     find_latest_output,
     format_freshness_summary_lines,
@@ -118,6 +120,27 @@ def test_check_positions_empty_positions_returns_empty(tmp_path):
     found, missing = check_positions(pos_path, out_path)
     assert not found
     assert not missing
+
+
+def test_check_positions_true_like_uses_canonical_boolean_coercion():
+    """opx-check CSV boolean parsing should share the package vocabulary."""
+    assert _is_true_like("on") is True
+    assert _is_true_like("y") is True
+    assert _is_true_like(1.0) is True
+    assert _is_true_like("off") is False
+    assert _is_true_like("n") is False
+    assert _is_true_like(0.0) is False
+    assert _is_true_like("garbage") is False
+
+
+def test_check_positions_true_like_delegates_to_canonical_coercer():
+    """Avoid reintroducing the old 3-string truthy set in opx-check."""
+    module_source = (
+        Path(__file__).resolve().parents[1] / "opx_chain" / "check_positions.py"
+    ).read_text(encoding="utf-8")
+
+    assert "coerce_bool_or_default(value, default=False) is True" in module_source
+    assert '{"true", "1", "yes"}' not in module_source
 
 
 def test_main_exits_0_all_found(tmp_path):
