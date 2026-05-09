@@ -19,7 +19,7 @@ DEFAULT_POSITIONS_PATH = get_default_positions_path()
 STRIKE_MATCH_TOLERANCE = 0.01  # max abs difference when matching strikes across data sources
 
 _OPTION_RE = re.compile(r"^-?([A-Z.]+)(\d{2})(\d{2})(\d{2})([CP])(\d+\.?\d*)$")
-_VALID_TICKER_RE = re.compile(r"^[A-Z.]{1,10}$")
+_VALID_TICKER_RE = re.compile(r"^[A-Z](?:[A-Z.]{0,9})$")
 _SKIP_SYMBOLS = {"SPAXX**"}
 _SKIP_PREFIXES = ("Pending",)
 
@@ -85,7 +85,7 @@ def positions_fingerprint(
 
 def _parse_option_symbol(raw: str) -> OptionPositionKey | None:
     """Parse a Fidelity-style option symbol into a structured key, or return None."""
-    clean = raw.strip().replace(" ", "")
+    clean = raw.strip().replace(" ", "").upper()
     m = _OPTION_RE.match(clean)
     if not m:
         return None
@@ -106,6 +106,14 @@ def _parse_option_symbol(raw: str) -> OptionPositionKey | None:
         option_type=OPTION_TYPE_CALL if cp == "C" else OPTION_TYPE_PUT,
         strike=strike,
     )
+
+
+def _parse_stock_ticker(raw: str) -> str | None:
+    """Normalize and validate a stock ticker from a positions row."""
+    ticker = raw.strip().upper()
+    if _VALID_TICKER_RE.match(ticker):
+        return ticker
+    return None
 
 
 def load_positions(path: Path | None = None) -> PositionSet:
@@ -141,8 +149,10 @@ def load_positions(path: Path | None = None) -> PositionSet:
                     key = _parse_option_symbol(symbol)
                     if key:
                         option_keys.add(key)
-                elif _VALID_TICKER_RE.match(symbol):
-                    stock_tickers.add(symbol)
+                else:
+                    ticker = _parse_stock_ticker(symbol)
+                    if ticker:
+                        stock_tickers.add(ticker)
     except (OSError, csv.Error, UnicodeDecodeError) as exc:
         print(
             f"Warning: failed to parse positions file {resolved}: {exc}; "

@@ -40,6 +40,20 @@ def test_load_positions_parses_stock_tickers(tmp_path):
     assert result.option_keys == frozenset()
 
 
+def test_load_positions_normalizes_stock_tickers(tmp_path):
+    """Stock ticker rows are stripped, uppercased, and require a leading letter."""
+    path = write_positions_csv(tmp_path, """\
+        Account Number,Account Name,Symbol,Description,Quantity,Last Price,Last Price Change,Current Value,Today's Gain/Loss Dollar,Today's Gain/Loss Percent,Total Gain/Loss Dollar,Total Gain/Loss Percent,Percent Of Account,Cost Basis Total,Average Cost Basis,Type
+        Z1,INDIVIDUAL, tsla ,TESLA INC,100,$391.00,-$1.00,$39100.00,,,,,10.00%,$39000.00,$390.00,Margin,
+        Z1,INDIVIDUAL,brk.b,BERKSHIRE HATHAWAY,5,$400.00,$1.00,$2000.00,,,,,1.00%,$1900.00,$380.00,Margin,
+        Z1,INDIVIDUAL,...,INVALID,1,$1.00,$0.00,$1.00,,,,,0.00%,,,Margin,
+    """)
+
+    result = load_positions(path)
+
+    assert result.stock_tickers == frozenset({"TSLA", "BRK.B"})
+
+
 def test_load_positions_parses_option_keys(tmp_path):
     """Option symbol rows are parsed into OptionPositionKey instances."""
     path = write_positions_csv(tmp_path, """\
@@ -54,6 +68,20 @@ def test_load_positions_parses_option_keys(tmp_path):
     ) in result.option_keys
     assert OptionPositionKey(
         ticker="UBER", expiration_date="2026-06-18", option_type="call", strike=82.5
+    ) in result.option_keys
+
+
+def test_load_positions_normalizes_option_symbols(tmp_path):
+    """Option symbols are uppercased before Fidelity shorthand parsing."""
+    path = write_positions_csv(tmp_path, """\
+        Account Number,Account Name,Symbol,Description,Quantity,Last Price,Last Price Change,Current Value,Today's Gain/Loss Dollar,Today's Gain/Loss Percent,Total Gain/Loss Dollar,Total Gain/Loss Percent,Percent Of Account,Cost Basis Total,Average Cost Basis,Type
+        Z1,INDIVIDUAL, -tsla260821p360,TSLA AUG 21 2026 $360 PUT,-2,$25.00,$2.22,-$5000.00,,,,,,,,,Margin,
+    """)
+
+    result = load_positions(path)
+
+    assert OptionPositionKey(
+        ticker="TSLA", expiration_date="2026-08-21", option_type="put", strike=360.0
     ) in result.option_keys
 
 
