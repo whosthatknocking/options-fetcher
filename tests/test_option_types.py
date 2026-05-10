@@ -5,6 +5,9 @@ from __future__ import annotations
 import ast
 from pathlib import Path
 
+import numpy as np
+import pandas as pd
+
 from opx_chain.option_types import (
     OPTION_TYPE_CALL,
     OPTION_TYPE_CALL_LABEL,
@@ -30,6 +33,9 @@ def test_option_type_helpers_normalize_values() -> None:
     assert normalize_option_type(" CALL ") == OPTION_TYPE_CALL
     assert option_type_label(" put ") == OPTION_TYPE_PUT_LABEL
     assert normalize_option_type(None) == ""
+    assert normalize_option_type(np.nan) == ""
+    assert normalize_option_type(pd.NaT) == ""
+    assert normalize_option_type(pd.NA) == ""
 
 
 def test_option_type_literals_are_centralized_in_production_code() -> None:

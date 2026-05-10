@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from typing import Any
 
+import pandas as pd
+
 
 OPTION_TYPE_CALL = "call"
 OPTION_TYPE_PUT = "put"
@@ -15,7 +17,14 @@ OPTION_TYPE_PUT_LABEL = OPTION_TYPE_PUT.upper()
 
 def normalize_option_type(value: Any) -> str:
     """Return canonical lowercase option type text, or an empty string."""
-    return str(value or "").strip().lower()
+    if value is None:
+        return ""
+    try:
+        if pd.isna(value):
+            return ""
+    except (TypeError, ValueError):
+        pass
+    return str(value).strip().lower()
 
 
 def option_type_label(value: Any) -> str:
