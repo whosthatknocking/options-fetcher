@@ -144,6 +144,12 @@ def _to_json_ready(value):  # pylint: disable=too-many-return-statements
         return value
     if isinstance(value, (float, np.floating)):
         return float(value) if math.isfinite(float(value)) else None
+    try:
+        missing = pd.isna(value)
+        if isinstance(missing, (bool, np.bool_)) and bool(missing):
+            return None
+    except (TypeError, ValueError):
+        pass
     if isinstance(value, Path):
         return str(value)
     if isinstance(value, (datetime, date)):

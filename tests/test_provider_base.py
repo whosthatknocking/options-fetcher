@@ -11,6 +11,7 @@ from opx_chain.providers.base import (
     DataProvider,
     OptionChainFrames,
     RequestThrottle,
+    _to_json_ready,
     compute_backoff_delay,
     empty_underlying_snapshot,
     is_provider_quota_error,
@@ -135,6 +136,15 @@ def test_debug_dump_payload_sanitizes_non_finite_values(monkeypatch, tmp_path: P
     assert "Infinity" not in text
     payload = json.loads(text)
     assert payload["payload"] == {"price": None, "nested": [None]}
+
+
+def test_provider_json_ready_converts_nat_to_null() -> None:
+    """Provider debug JSON should not leak pandas NaT as a string timestamp."""
+    assert _to_json_ready(pd.NaT) is None
+    assert _to_json_ready({"option_quote_time": pd.NaT, "bid": 1.5}) == {
+        "option_quote_time": None,
+        "bid": 1.5,
+    }
 
 
 def test_provider_quota_classifier_matches_provider_rate_limits() -> None:
