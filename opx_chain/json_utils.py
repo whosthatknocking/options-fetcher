@@ -44,13 +44,13 @@ def sanitize_json_payload(value: Any) -> Any:  # pylint: disable=too-many-return
         return {key: sanitize_json_payload(item) for key, item in value.items()}
     if isinstance(value, (list, tuple)):
         return [sanitize_json_payload(item) for item in value]
-    if isinstance(value, (datetime, date)):
-        return value.isoformat()
     try:
         if pd.isna(value):
             return None
     except (TypeError, ValueError):
         pass
+    if isinstance(value, (datetime, date)):
+        return value.isoformat()
     if isinstance(value, float) and not math.isfinite(value):
         return None
     if isinstance(value, str | bytes | bytearray) or value is None:

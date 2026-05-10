@@ -81,6 +81,10 @@ def test_sanitize_json_payload_handles_scalar_like_non_finite_values() -> None:
     """Numpy/pandas scalar-like values should pass through the same sanitizer."""
     assert sanitize_json_payload(math.inf) is None
     assert sanitize_json_payload(pd.NA) is None
+    assert sanitize_json_payload(pd.NaT) is None
+    assert json.loads(dumps_sanitized_json({"option_quote_time": pd.NaT})) == {
+        "option_quote_time": None
+    }
 
 
 def test_scalar_item_conversion_stays_in_json_utils() -> None:
