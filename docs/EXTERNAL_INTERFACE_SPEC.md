@@ -475,44 +475,32 @@ means and blocks its own pipeline when the threshold is exceeded.
 
 ---
 
-## 7. Changes Required
+## 7. Implemented Interface Notes
 
-The following changes to `opx-chain` implement this interface. They are ordered by
-dependency.
+The following notes record the implemented behavior behind this interface. They
+are present-tense contract notes, not pending TODOs.
 
-### 7.1 Add `SCHEMA_VERSION` public constant
+### 7.1 `SCHEMA_VERSION` public constant
 
-- add `SCHEMA_VERSION` to `opx_chain/__init__.py`; this is the
-  canonical location — `from opx_chain import SCHEMA_VERSION` must work
-- also update `opx_chain/export.py` to reference this constant rather than
-  defining its own, so there is one source of truth
-- write it into `DatasetRecord.schema_version` on every `write_dataset` call
-- this is already described in STORAGE_SPEC §3.4 and §17 step 1; this spec
-  makes it a named public constant importable from `opx_chain` directly
+`SCHEMA_VERSION` lives in `opx_chain/__init__.py` and is the canonical public
+constant for option-chain artifact schema compatibility. Export and storage code
+read this constant rather than defining a second schema version value.
+`DatasetRecord.schema_version` and `DatasetHandle.schema_version` carry the
+writer's schema value for downstream compatibility checks.
 
-### 7.2 Add provenance and integrity fields to `DatasetHandle`
+### 7.2 `DatasetHandle` provenance and integrity fields
 
-Current `DatasetHandle` (STORAGE_SPEC §6):
-```python
-dataset_id, location, schema_version, row_count, format
-```
-
-Required addition:
-```python
-run_id: str           # already on DatasetRecord; copy here
-provider: str         # already on DatasetRecord; copy here
-content_hash: str     # already on DatasetRecord; copy here
-created_at: datetime  # already on DatasetRecord; copy here
-```
-
-`get_dataset` must populate these fields from the underlying `DatasetRecord`.
-No storage schema change is required — these values are already persisted.
+`DatasetHandle` includes `run_id`, `provider`, `content_hash`, `created_at`,
+and `script_version` in addition to artifact location, format, row count, and
+schema version. `get_dataset()` populates those fields from the persisted
+`DatasetRecord` so consumers do not need to scan paginated dataset listings for
+basic provenance and integrity checks.
 
 ### 7.3 Add `--positions` argument to `opx-fetch`
 
 Implemented. Behaviour is specified in `docs/PROJECT_SPEC.md` §7.3.
 
-### 7.4 Expose `get_storage_backend()` as a public factory function
+### 7.4 `get_storage_backend()` public factory function
 
 Implemented. `opx_chain.storage.factory.get_storage_backend()` returns a
 `StorageBackend` instance configured from the `opx-chain` config, or `None` when
@@ -530,14 +518,6 @@ storage-managed artifact is written. Downstream orchestrators that read the
 timestamped filename pattern must either keep `also_write_csv = true` or switch to
 reading through `get_storage_backend().list_datasets()`.
 
-### 7.7 Add `get_run()` to `StorageBackend` protocol
-
-Add `get_run(run_id: str) -> RunRecord` to the `StorageBackend` protocol in
-`opx_chain/storage/base.py`. The method already exists on `FilesystemBackend` and
-`SqliteIndexedBackend`; this change promotes it to the formal protocol so
-downstream consumers can call it through the typed interface. `MemoryBackend`
-must also implement it so the protocol conformance test passes.
-
 ### 7.6 `opx-view --data-dir` and `--csv`
 
 `opx-view` accepts a `--data-dir DIR` argument that overrides all dataset
@@ -546,6 +526,13 @@ modification time. The `--csv` flag skips the storage backend and reads
 timestamped CSV exports directly from the output directory. The default
 behavior queries the storage backend first, falling back to the timestamped
 CSV glob when no storage records exist.
+
+### 7.7 `get_run()` on `StorageBackend`
+
+`StorageBackend.get_run(run_id: str) -> RunRecord` is part of the formal storage
+protocol and is implemented by the filesystem, SQLite, and memory backends.
+Downstream consumers may call it through the typed interface to retrieve
+run-level provenance such as effective tickers and positions fingerprint.
 
 ---
 

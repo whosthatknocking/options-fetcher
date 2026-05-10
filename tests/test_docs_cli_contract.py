@@ -120,6 +120,21 @@ def test_domain_helpers_are_stable_public_surface():
         assert status in price_context_section
 
 
+def test_external_interface_notes_are_present_tense():
+    """Implemented interface notes should not read like pending TODOs."""
+    spec = (ROOT / "docs" / "EXTERNAL_INTERFACE_SPEC.md").read_text(encoding="utf-8")
+    section = spec.split("## 7. Implemented Interface Notes", maxsplit=1)[1]
+    section = section.split("## 8.", maxsplit=1)[0]
+
+    assert "## 7. Changes Required" not in spec
+    assert "Required addition" not in section
+    assert "must also implement" not in section
+    assert "Add `get_run(" not in section
+    assert "### 7.6" in section
+    assert "### 7.7" in section
+    assert section.index("### 7.6") < section.index("### 7.7")
+
+
 def test_run_fetch_public_params_are_documented():
     """The in-process fetch contract should document every public parameter."""
     spec = (ROOT / "docs" / "EXTERNAL_INTERFACE_SPEC.md").read_text(encoding="utf-8")
