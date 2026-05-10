@@ -196,6 +196,26 @@ def test_provider_cache_default_path_is_documented_precisely():
     assert expected_path in agents
 
 
+def test_development_structure_lists_load_bearing_docs_and_modules():
+    """Development onboarding should point to current source-of-truth surfaces."""
+    development = (ROOT / "docs" / "DEVELOPMENT.md").read_text(encoding="utf-8")
+    required_entries = (
+        "docs/EXTERNAL_INTERFACE_SPEC.md",
+        "docs/STORAGE_SPEC.md",
+        "docs/METADATA_SPEC.md",
+        "opx_chain/positions.py",
+        "opx_chain/price_context.py",
+        "opx_chain/storage/",
+        "scripts/run_local_quality_checks.sh",
+    )
+
+    for entry in required_entries:
+        assert f"`{entry}`" in development
+
+    assert "file-level" in development
+    assert "inventories drift quickly" in development
+
+
 def test_user_guide_shared_settings_use_lowercase_toml_keys():
     """Shared settings examples should be copyable into TOML config files."""
     guide = (ROOT / "docs" / "USER_GUIDE.md").read_text(encoding="utf-8")

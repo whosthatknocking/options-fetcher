@@ -4,35 +4,46 @@ This guide is for people changing the codebase, adding providers, or working on 
 
 ## Project Structure
 
+The repository is organized around a small set of package and documentation
+areas. Keep this map at directory/responsibility granularity; file-level
+inventories drift quickly and are covered by tests only for load-bearing docs
+and modules.
+
 ```text
 .
-├── docs/
-│   ├── DEVELOPMENT.md
-│   ├── DESIGN_SPEC.md
-│   ├── FIELD_REFERENCE.md
-│   ├── PROJECT_SPEC.md
-│   ├── USER_GUIDE.md
-│   └── images/
-│       └── viewer-option-chain.png
-├── scripts/
-│   ├── run_local_coverage.sh
-│   └── capture_viewer_screenshot.py
-├── opx_chain/
-│   ├── config.py
-│   ├── export.py
-│   ├── fetch.py
-│   ├── fetcher.py
-│   ├── greeks.py
-│   ├── metrics.py
-│   ├── normalize.py
-│   ├── providers/
-│   ├── runlog.py
-│   ├── viewer.py
-│   ├── viewer_static/
-│   └── utils.py
-├── main.py
-└── pyproject.toml
+├── docs/                  # public specs, user guide, metadata/storage contracts
+├── opx_chain/             # runtime package and CLI entry-point modules
+│   ├── providers/         # provider adapters plus shared provider contract
+│   ├── storage/           # storage protocol, backends, serializers, atomic IO
+│   └── docs/              # packaged read-only docs served with the wheel
+├── scripts/               # local quality, version, and screenshot helpers
+├── tests/                 # pytest contract, behavior, and doc drift coverage
+└── pyproject.toml         # package metadata, entry points, and tool config
 ```
+
+Load-bearing source-of-truth documents:
+
+- `docs/PROJECT_SPEC.md`: fetch pipeline, provider contract, and runtime design
+- `docs/EXTERNAL_INTERFACE_SPEC.md`: stable downstream public interface
+- `docs/STORAGE_SPEC.md`: storage protocol, backends, retention, and artifacts
+- `docs/METADATA_SPEC.md`: record/table metadata contract
+- `docs/FIELD_REFERENCE.md`: exported option-chain field definitions
+- `docs/USER_GUIDE.md`: operator setup and usage
+
+Load-bearing runtime modules:
+
+- `opx_chain/fetcher.py`: storage-enabled fetch orchestration
+- `opx_chain/fetch.py`: provider fetch/normalization flow
+- `opx_chain/positions.py`: Fidelity positions parsing and fingerprinting
+- `opx_chain/price_context.py`: daily-OHLCV price-context artifact
+- `opx_chain/storage/`: storage backends, atomic writes, and artifact models
+- `opx_chain/viewer.py`: local browser UI and HTTP API
+
+Load-bearing local tooling:
+
+- `scripts/run_local_quality_checks.sh`: commit-hook quality gate wrapper
+- `scripts/run_local_coverage.sh`: local coverage report helper
+- `scripts/check_version.py`: package/tag version consistency check
 
 Runtime-generated files live under the XDG base directories rather than the repository root:
 
