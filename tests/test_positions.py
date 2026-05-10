@@ -111,6 +111,18 @@ def test_load_positions_rejects_occ_padded_option_symbols(tmp_path):
     assert result.option_keys == frozenset()
 
 
+def test_load_positions_rejects_invalid_option_expiration_dates(tmp_path):
+    """Shorthand option symbols must contain a real calendar expiration date."""
+    path = write_positions_csv(tmp_path, """\
+        Account Number,Account Name,Symbol,Description,Quantity,Last Price,Last Price Change,Current Value,Today's Gain/Loss Dollar,Today's Gain/Loss Percent,Total Gain/Loss Dollar,Total Gain/Loss Percent,Percent Of Account,Cost Basis Total,Average Cost Basis,Type
+        Z1,INDIVIDUAL, -AAPL991332C100,AAPL INVALID OPTION,-1,$1.00,$0.00,-$100.00,,,,,,,,,Margin,
+    """)
+
+    result = load_positions(path)
+
+    assert result.option_keys == frozenset()
+
+
 def test_load_positions_rejects_non_finite_option_strikes(tmp_path):
     """Overflowed shorthand strikes must not enter position matching."""
     huge_strike = "9" * 400

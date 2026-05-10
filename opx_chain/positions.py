@@ -8,6 +8,7 @@ import math
 import re
 import sys
 from dataclasses import dataclass
+from datetime import date
 from pathlib import Path
 
 from opx_chain.json_utils import dumps_strict_json
@@ -109,9 +110,13 @@ def _parse_option_symbol(raw: str) -> OptionPositionKey | None:
         return None
     if not math.isfinite(strike):
         return None
+    try:
+        expiration_date = date(2000 + int(yy), int(mm), int(dd)).isoformat()
+    except ValueError:
+        return None
     return OptionPositionKey(
         ticker=ticker,
-        expiration_date=f"20{yy}-{mm}-{dd}",
+        expiration_date=expiration_date,
         option_type=OPTION_TYPE_CALL if cp == "C" else OPTION_TYPE_PUT,
         strike=strike,
     )
