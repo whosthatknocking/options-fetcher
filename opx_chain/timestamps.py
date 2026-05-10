@@ -22,31 +22,47 @@ def utc_now_timestamp() -> pd.Timestamp:
     return pd.Timestamp.now(tz="UTC")
 
 
-def datetime_to_iso(value: datetime | None) -> str | None:
+def _is_missing_timestamp(value: Any) -> bool:
+    """Return True for null-like timestamp sentinels."""
+    if value is None:
+        return True
+    try:
+        missing = pd.isna(value)
+    except (TypeError, ValueError):
+        return False
+    return isinstance(missing, bool) and missing
+
+
+def datetime_to_iso(value: Any) -> str | None:
     """Serialize a datetime value to ISO text, preserving None."""
-    return value.isoformat() if value is not None else None
+    return None if _is_missing_timestamp(value) else value.isoformat()
 
 
-def _as_utc_timestamp(value: Any) -> pd.Timestamp:
+def _as_utc_timestamp(value: Any) -> pd.Timestamp | None:
+    if _is_missing_timestamp(value):
+        return None
     timestamp = pd.Timestamp(value)
     if timestamp.tzinfo is None:
         return timestamp.tz_localize("UTC")
     return timestamp.tz_convert("UTC")
 
 
-def format_utc_compact(value: Any) -> str:
+def format_utc_compact(value: Any) -> str | None:
     """Format a timestamp as compact UTC text for filenames/run identifiers."""
-    return _as_utc_timestamp(value).strftime(UTC_COMPACT_TIMESTAMP_FORMAT)
+    timestamp = _as_utc_timestamp(value)
+    return None if timestamp is None else timestamp.strftime(UTC_COMPACT_TIMESTAMP_FORMAT)
 
 
-def format_utc_z_seconds(value: Any) -> str:
+def format_utc_z_seconds(value: Any) -> str | None:
     """Format a timestamp as second-precision UTC ISO text with a Z suffix."""
-    return _as_utc_timestamp(value).strftime(UTC_Z_SECONDS_FORMAT)
+    timestamp = _as_utc_timestamp(value)
+    return None if timestamp is None else timestamp.strftime(UTC_Z_SECONDS_FORMAT)
 
 
-def format_utc_z_microseconds(value: Any) -> str:
+def format_utc_z_microseconds(value: Any) -> str | None:
     """Format a timestamp as microsecond-precision UTC ISO text with a Z suffix."""
-    return _as_utc_timestamp(value).strftime(UTC_Z_MICROSECONDS_FORMAT)
+    timestamp = _as_utc_timestamp(value)
+    return None if timestamp is None else timestamp.strftime(UTC_Z_MICROSECONDS_FORMAT)
 
 
 def iso_to_datetime(value: str | None) -> datetime | None:

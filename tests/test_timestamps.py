@@ -48,6 +48,14 @@ def test_datetime_to_iso_and_iso_to_datetime_preserve_none_and_timezone():
     assert iso_to_datetime(None) is None
 
 
+def test_timestamp_helpers_preserve_pandas_nat_as_missing():
+    """Pandas NaT should stay a missing timestamp, not stringify or raise."""
+    assert datetime_to_iso(pd.NaT) is None
+    assert format_utc_compact(pd.NaT) is None
+    assert format_utc_z_seconds(pd.NaT) is None
+    assert format_utc_z_microseconds(pd.NaT) is None
+
+
 def test_utc_now_helpers_return_utc_values():
     """Datetime and pandas callers should share UTC clock helpers."""
     assert utc_now().utcoffset() == timezone.utc.utcoffset(None)
