@@ -95,6 +95,31 @@ def test_positions_parser_is_stable_public_surface():
     assert "positions_fingerprint(Path" in positions_section
 
 
+def test_domain_helpers_are_stable_public_surface():
+    """Domain-owned helpers consumed downstream should be public contracts."""
+    spec = (ROOT / "docs" / "EXTERNAL_INTERFACE_SPEC.md").read_text(encoding="utf-8")
+    public_surface = spec.split("### 3.1 Public surface", maxsplit=1)[1]
+    public_surface = public_surface.split("### 3.2", maxsplit=1)[0]
+    price_context_section = spec.split("### 5.4 `PRICE_CONTEXT_SCHEMA_VERSION`", maxsplit=1)[1]
+    for name in (
+        "PRICE_CONTEXT_RECORD_FIELDS",
+        "PRICE_CONTEXT_SCHEMA_VERSION",
+        "PriceContextStatus",
+        "blank_price_context",
+        "OPTION_TYPE_CALL",
+        "OPTION_TYPE_PUT",
+        "OPTION_TYPES",
+        "normalize_option_type",
+        "option_type_label",
+        "get_runs_dir",
+        "DEFAULT_PRICE_CONTEXT_MAX_AGE_DAYS",
+        "US_MARKET_TIMEZONE",
+    ):
+        assert name in public_surface
+    for status in ("FRESH", "STALE", "MISSING", "ERROR"):
+        assert status in price_context_section
+
+
 def test_run_fetch_public_params_are_documented():
     """The in-process fetch contract should document every public parameter."""
     spec = (ROOT / "docs" / "EXTERNAL_INTERFACE_SPEC.md").read_text(encoding="utf-8")

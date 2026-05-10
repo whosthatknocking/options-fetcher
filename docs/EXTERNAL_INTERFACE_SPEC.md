@@ -130,6 +130,21 @@ from opx_chain.positions import (
     load_positions,
     positions_fingerprint,
 )
+from opx_chain.price_context import (
+    PRICE_CONTEXT_RECORD_FIELDS,
+    PRICE_CONTEXT_SCHEMA_VERSION,
+    PriceContextStatus,
+    blank_price_context,
+)
+from opx_chain.option_types import (
+    OPTION_TYPE_CALL,
+    OPTION_TYPE_PUT,
+    OPTION_TYPES,
+    normalize_option_type,
+    option_type_label,
+)
+from opx_chain.paths import get_runs_dir
+from opx_chain.config import DEFAULT_PRICE_CONTEXT_MAX_AGE_DAYS, US_MARKET_TIMEZONE
 from opx_chain import SCHEMA_VERSION
 ```
 
@@ -140,6 +155,22 @@ other helpers in that module remain internal.
 `OptionPositionKey` are the stable positions parsing surface for downstream
 consumers that need the same stock ticker expansion, held-option contract keys,
 and parsed-position fingerprint as `opx-fetch`.
+
+`PRICE_CONTEXT_SCHEMA_VERSION`, `PRICE_CONTEXT_RECORD_FIELDS`,
+`PriceContextStatus`, and `blank_price_context` are the stable price-context
+artifact vocabulary for downstream consumers that join optional daily-OHLCV
+levels to option-chain rows.
+
+`OPTION_TYPE_CALL`, `OPTION_TYPE_PUT`, `OPTION_TYPES`,
+`normalize_option_type`, and `option_type_label` are the stable option-type
+normalization vocabulary for downstream consumers that need to compare option
+rows, positions, and generated candidate identifiers using the same canonical
+`call` / `put` values as `opx-chain`.
+
+`get_runs_dir`, `DEFAULT_PRICE_CONTEXT_MAX_AGE_DAYS`, and
+`US_MARKET_TIMEZONE` are stable runtime-environment helpers for locating
+`opx-chain` run artifacts and applying the same US-market calendar boundary as
+the fetcher.
 
 All other names within `opx_chain.fetcher`, `opx_chain.normalize`, `opx_chain.provider`,
 and other internal modules are not part of the stable interface and may change across
@@ -389,6 +420,7 @@ option-chain CSV schema.
 ```python
 # opx_chain.price_context
 PRICE_CONTEXT_SCHEMA_VERSION = 1
+PriceContextStatus.FRESH.value == "FRESH"
 ```
 
 The latest standalone artifact is written as `price_context_latest.json` under
@@ -418,6 +450,9 @@ and only missing/backfill/tail history is fetched.
 
 Consumers join `records[].ticker` to option-chain `underlying_symbol` when they
 need row-level price context.
+
+`records[].price_context_staleness_status` uses the stable
+`PriceContextStatus` vocabulary: `FRESH`, `STALE`, `MISSING`, and `ERROR`.
 
 ---
 
