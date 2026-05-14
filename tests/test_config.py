@@ -2,11 +2,15 @@
 
 import subprocess
 import sys
-import tomllib
 from datetime import date, datetime, timezone
 from pathlib import Path
 
 import pytest
+
+try:
+    import tomllib
+except ModuleNotFoundError:  # pragma: no cover - Python 3.10 compatibility
+    import tomli as tomllib
 
 from opx_chain.config import (
     ConfigError,
