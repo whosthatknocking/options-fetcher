@@ -1,5 +1,5 @@
 [settings]
-tickers = ["TSLA", "NVDA", "UBER", "MSFT", "GOOGL", "ORCL", "PLTR"]
+tickers = ["TSLA", "NVDA", "GOOGL"]
 data_provider = "yfinance"
 # Keep false to fail fast when a paid provider is selected without credentials.
 # Set true only when you intentionally want yfinance fallback for missing paid-provider credentials.
